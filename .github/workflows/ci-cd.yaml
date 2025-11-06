@@ -1,0 +1,184 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
+  GKE_ZONE: ${{ secrets.GKE_ZONE }}
+  FRONTEND_IMAGE: multiprompt-frontend
+  BACKEND_IMAGE: multiprompt-backend
+
+jobs:
+  frontend-test:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint --if-present
+
+      - name: Run unit tests
+        run: npm run test:ci
+
+      - name: Build application
+        run: npm run build:prod
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./frontend/coverage/lcov.info
+          flags: frontend
+
+  backend-test:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run linter
+        run: |
+          pip install flake8 black mypy
+          flake8 app --max-line-length=100
+          black --check app
+          mypy app --ignore-missing-imports
+
+      - name: Run unit tests
+        run: pytest tests/unit -v --cov=app --cov-report=xml
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend/coverage.xml
+          flags: backend
+
+  build-and-push:
+    name: Build and Push Docker Images
+    needs: [frontend-test, backend-test]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker
+
+      - name: Build frontend image
+        run: |
+          docker build -t gcr.io/$GCP_PROJECT_ID/$FRONTEND_IMAGE:${{ github.sha }} \
+                       -t gcr.io/$GCP_PROJECT_ID/$FRONTEND_IMAGE:latest \
+                       ./frontend
+
+      - name: Build backend image
+        run: |
+          docker build -t gcr.io/$GCP_PROJECT_ID/$BACKEND_IMAGE:${{ github.sha }} \
+                       -t gcr.io/$GCP_PROJECT_ID/$BACKEND_IMAGE:latest \
+                       ./backend
+
+      - name: Push frontend image
+        run: |
+          docker push gcr.io/$GCP_PROJECT_ID/$FRONTEND_IMAGE:${{ github.sha }}
+          docker push gcr.io/$GCP_PROJECT_ID/$FRONTEND_IMAGE:latest
+
+      - name: Push backend image
+        run: |
+          docker push gcr.io/$GCP_PROJECT_ID/$BACKEND_IMAGE:${{ github.sha }}
+          docker push gcr.io/$GCP_PROJECT_ID/$BACKEND_IMAGE:latest
+
+  deploy-to-gke:
+    name: Deploy to GKE
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install gke-gcloud-auth-plugin
+        run: |
+          gcloud components install gke-gcloud-auth-plugin
+
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials $GKE_CLUSTER \
+            --zone $GKE_ZONE \
+            --project $GCP_PROJECT_ID
+
+      - name: Update image tags in manifests
+        run: |
+          cd k8s/base
+          sed -i "s|gcr.io/PROJECT_ID/$FRONTEND_IMAGE:latest|gcr.io/$GCP_PROJECT_ID/$FRONTEND_IMAGE:${{ github.sha }}|g" frontend-deployment.yaml
+          sed -i "s|gcr.io/PROJECT_ID/$BACKEND_IMAGE:latest|gcr.io/$GCP_PROJECT_ID/$BACKEND_IMAGE:${{ github.sha }}|g" backend-deployment.yaml
+
+      - name: Deploy to GKE
+        run: |
+          kubectl apply -k k8s/overlays/prod
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/prod-frontend -n multiprompt-sandbox
+          kubectl rollout status deployment/prod-backend -n multiprompt-sandbox
+
+      - name: Get service URLs
+        run: |
+          kubectl get ingress -n multiprompt-sandbox
