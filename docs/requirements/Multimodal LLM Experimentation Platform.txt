@@ -1,0 +1,74 @@
+﻿Investment Teaser – Multimodal LLM Experimentation Platform (MLLM Benchmarking)
+1. Problem
+Insufficient LLM Accuracy for Business-Critical Tasks out of the box: Standard models (e.g., Gemini, Claude) and single simple prompts often fail to deliver the 95-98% accuracy required in enterprise applications when analyzing images. Critical use cases include: store execution verification, object counting and naming, rule-based object setup verification, spatial verification of planograms, out-of-stock validation
+Lack of Accuracy Metrics Out of the Box: Current LLM APIs provide predictions but no built-in tools for measuring accuracy against ground truth or tracking performance across experiments.
+Absence of a Persistent Prompt Chain Sandbox (Repository): Enterprises lack tools for systematically testing, comparing, and permanently storing the results of experiments involving prompt chains, different model versions (flash vs. pro), and agents against their proprietary datasets (having plenty of first data photos and multiple questions about details on pictures it is a lost opportunity). Prompt testing effort - especially multi-turn - continuously requires an AI Engineer or a Data Scientist to iterate with prompt changes & re-scoring.
+Need for "Ground Truth" Creation: To optimize AI for specific business problems (e.g., "Is product X on the shelf?"), a system is essential for rapidly labeling data and establishing the "human truth" (ground truth).
+Need for alike few-shot-prompting identification out of the box increasing accuracy of responses (using multimodal embeddings).
+
+
+Przyjsc z prototypem, ktory dziala na naszych danych - !
+Ownership of data? - generyczny algorithm?
+Submodule Vertex AI - spotkanie 10 minutes demo
+* later on: rozmowa z Romanem
+
+
+2. Solution
+Multimodal LLM Experimentation Product: A deployable application to Kubernetes (K8S) engine + front end that serves as a persistent repository and sandbox for validating LLM performance on proprietary image datasets, integrated with a labeling process.
+Labeling Tool (Ground Truth): A built-in tool for fast human labeling (e.g., up to 500 photos) to create the reference dataset.
+Prompt Engineering Sandbox: An interface for designing and saving complex prompt chains and future agentic workflows.
+Multi-Model Benchmarking: Running the same set of prompts/chains against various MLLM types/versions (e.g., 'flash', 'pro') on a random sample of the labeled data. Inference is run using API calls to Gemini PRO and alternative models hosted in GCP.
+Result Persistence: Automatic comparison of model predictions against the Ground Truth, and persistent storage of accuracy metrics and experiment metadata.
+3. Market
+Global MLLM Enterprise Market: A rapidly growing sector for AI implementation in business, especially in vision applications (retail, manufacturing, quality control).
+Target Segments:
+* Business teams enabled by ease of use after deployment
+* Software engineers building composable AI applications
+* AI/ML teams in large enterprises (Retail, CPG, E-commerce) requiring high precision in visual analysis
+Potential (Retail): Thousands of retail chains in Europe and the US with millions of visual audits annually.
+Market Value: The market for MLOps and AI/ML Validation tools for vision applications is estimated at >$15 billion by 2027.
+4. Business Model
+Revenue Model: Software licensing with integration services.
+We generate revenue by delivering enterprise-grade software with seamless integration as an added-value service with GCP services including databases, storage, and LLM APIs.
+Deployment Model: Customers deploy the application on their own infrastructure (Cloud Run, GKE) with supporting GCP services, following our opinionated architecture.
+5. Traction and Plans
+MVP ready in 2 months: Simplified UI with full functionality for project creation, labeling (up to 500 photos), and running basic benchmarks (Prompts vs. 2+ Models).
+Technology Stack: FastAPI and Angular for horizontal scalability and cloud-native deployment.
+Pilot Testing: 3-4 major Retail/CPG companies as initial partners for validating hypotheses and refining the user experience for both business teams and engineers.
+After 12 months: 5-7 deployed instances in production environments, with work initiated on agentic workflows.
+Scaling to Europe/USA: Starting in Year 2, targeting enterprise software engineering and data science teams.
+6. Competition
+General MLOps Platforms (e.g., Weights & Biases): Too generic; lack specialization in the multimodal context and a built-in, simple tool for labeling images specifically for LLM benchmarking.
+In-House Scripts/Notebooks: Each customer team rebuilds similar solutions independently, resulting in loss of scale, lack of standardization, and wasted engineering resources.
+Our Differentiator:
+* Specialization in MLLM Benchmarking
+* Built-in Human Labeling (Ground Truth) tool
+* Persistent repository for experiments
+* Interface for creating complex prompt chains
+* Deployable, self-hosted architecture on customer infrastructure
+* Easy integration with GCP services
+7. Team
+Core Team:
+* 4-6 Front End and Back End Engineers
+* Product Owner
+* Engineering Manager (fractional)
+Expertise: Computer Vision, Large Language Models, and building Enterprise SaaS applications for Data Scientists and engineering teams.
+Technical Support: Early partners co-creating requirements and validating product-market fit.
+8. Finance and Investment
+Growth Metrics: projected substantial growth in:
+* API call volume as customers scale their visual analysis operations
+* Number of images labeled as ground truth datasets expand
+* Pipeline reruns as teams iterate on prompt optimization and model selection
+Revenue scales with customer deployment count and usage intensity across their business operations.
+9. Why Now?
+MLLM Explosion: The emergence of models with advanced vision capabilities (like Gemini/GPT-4o) has created a tooling gap for validating their utility in the Enterprise.
+Multi-Model Specialization: Multiple models specialize in different features, with continuous improvements being delivered. The platform is multi-scenario and highly customizable using human language, making it accessible to broader business teams.
+Required Accuracy: Companies cannot rely on 80% accuracy; they need a tool to help them achieve 95-98% through systematic experimentation.
+Composable AI Trend: Software engineers are building composable AI applications and need robust experimentation frameworks that integrate with their existing infrastructure.
+This is the ideal moment to secure a position as the leader in MLLM validation and optimization for business applications.
+________________
+
+
+👉 Summary
+I recommend building a critical deployable application that transforms how enterprises achieve required accuracy in visual analysis using MLLMs. We provide a systematic and persistent experimentation platform that teams can deploy on their own infrastructure—like Cloud Run or GKE—with an opinionated architecture. This replaces the fragmented collection of scripts that each team rebuilds independently, delivering both standardization and scale.
+________________
