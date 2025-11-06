@@ -1,0 +1,247 @@
+.home-container {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.page-header {
+  margin-bottom: 32px;
+  padding: 32px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+
+  h1 {
+    font-size: 32px;
+    font-weight: 400;
+    color: #202124;
+    margin: 0 0 8px 0;
+  }
+
+  p {
+    font-size: 16px;
+    color: #5f6368;
+    margin: 0;
+  }
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+
+  .stat-card {
+    mat-card-content {
+      padding: 20px;
+
+      .stat-content {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+
+        mat-icon {
+          font-size: 40px;
+          width: 40px;
+          height: 40px;
+        }
+
+        .stat-info {
+          flex: 1;
+
+          .stat-value {
+            font-size: 28px;
+            font-weight: 500;
+            color: #202124;
+            line-height: 1;
+          }
+
+          .stat-label {
+            font-size: 14px;
+            color: #5f6368;
+            margin-top: 4px;
+          }
+        }
+      }
+    }
+  }
+}
+
+.section-header {
+  margin: 48px 0 24px 0;
+
+  h2 {
+    font-size: 24px;
+    font-weight: 400;
+    color: #202124;
+    margin: 0 0 8px 0;
+  }
+
+  p {
+    font-size: 14px;
+    color: #5f6368;
+    margin: 0;
+  }
+}
+
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+
+  .step-card {
+    mat-card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+
+      .step-number {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background-color: #1967d2;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 500;
+        font-size: 16px;
+        flex-shrink: 0;
+      }
+
+      mat-card-title {
+        font-size: 16px;
+        font-weight: 500;
+        margin: 0;
+      }
+    }
+
+    mat-card-content {
+      p {
+        color: #5f6368;
+        font-size: 14px;
+        margin: 0;
+        line-height: 1.5;
+      }
+    }
+
+    mat-card-actions {
+      padding: 8px 16px 16px 16px;
+
+      button {
+        mat-icon {
+          margin-right: 4px;
+        }
+      }
+    }
+  }
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+
+  .feature-card {
+    mat-card-header {
+      margin-bottom: 16px;
+
+      .feature-icon {
+        font-size: 32px;
+        width: 32px;
+        height: 32px;
+        margin-bottom: 8px;
+      }
+
+      mat-card-title {
+        font-size: 18px;
+        font-weight: 500;
+        margin: 8px 0 0 0;
+      }
+    }
+
+    mat-card-content {
+      p {
+        color: #5f6368;
+        font-size: 14px;
+        line-height: 1.6;
+        margin: 0;
+      }
+    }
+
+    mat-card-actions {
+      padding: 8px 16px 16px 16px;
+
+      button {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+
+        mat-icon {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+        }
+      }
+    }
+  }
+}
+
+.cta-card {
+  background: linear-gradient(135deg, #1967d2 0%, #4285f4 100%);
+  color: white;
+  margin-top: 48px;
+
+  mat-card-content {
+    padding: 48px 32px;
+    text-align: center;
+
+    h2 {
+      font-size: 28px;
+      font-weight: 400;
+      margin: 0 0 12px 0;
+      color: white;
+    }
+
+    p {
+      font-size: 16px;
+      margin: 0 0 32px 0;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    .cta-actions {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+
+      button {
+        min-width: 200px;
+
+        &.mat-mdc-raised-button {
+          background-color: white;
+          color: #1967d2;
+
+          &:hover {
+            background-color: #f8f9fa;
+          }
+        }
+
+        &.mat-stroked-button {
+          border-color: white;
+          color: white;
+
+          &:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+          }
+        }
+
+        mat-icon {
+          margin-right: 8px;
+        }
+      }
+    }
+  }
+}

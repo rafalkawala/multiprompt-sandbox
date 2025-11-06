@@ -1,0 +1,160 @@
+// Custom Angular Material theme matching Google Cloud Platform design
+@use '@angular/material' as mat;
+
+// Include the common styles for Angular Material
+@include mat.core();
+
+// Define custom GCP-inspired color palettes
+// GCP Primary: Blue (#1967D2 / #4285F4)
+$gcp-blue-palette: (
+  50: #e8f0fe,
+  100: #d2e3fc,
+  200: #aecbfa,
+  300: #8ab4f8,
+  400: #669df6,
+  500: #4285f4,  // Main GCP blue
+  600: #1a73e8,
+  700: #1967d2,  // Darker GCP blue
+  800: #185abc,
+  900: #174ea6,
+  A100: #82b1ff,
+  A200: #448aff,
+  A400: #2979ff,
+  A700: #2962ff,
+  contrast: (
+    50: rgba(black, 0.87),
+    100: rgba(black, 0.87),
+    200: rgba(black, 0.87),
+    300: rgba(black, 0.87),
+    400: rgba(black, 0.87),
+    500: white,
+    600: white,
+    700: white,
+    800: white,
+    900: white,
+    A100: rgba(black, 0.87),
+    A200: white,
+    A400: white,
+    A700: white,
+  )
+);
+
+// GCP Accent: Grey-Blue (#5F6368)
+$gcp-grey-palette: (
+  50: #f8f9fa,
+  100: #f1f3f4,
+  200: #e8eaed,
+  300: #dadce0,
+  400: #bdc1c6,
+  500: #9aa0a6,
+  600: #80868b,
+  700: #5f6368,  // GCP text grey
+  800: #3c4043,
+  900: #202124,  // GCP dark grey
+  A100: #f1f3f4,
+  A200: #e8eaed,
+  A400: #9aa0a6,
+  A700: #5f6368,
+  contrast: (
+    50: rgba(black, 0.87),
+    100: rgba(black, 0.87),
+    200: rgba(black, 0.87),
+    300: rgba(black, 0.87),
+    400: rgba(black, 0.87),
+    500: rgba(black, 0.87),
+    600: white,
+    700: white,
+    800: white,
+    900: white,
+    A100: rgba(black, 0.87),
+    A200: rgba(black, 0.87),
+    A400: rgba(black, 0.87),
+    A700: white,
+  )
+);
+
+// Define the palettes
+$my-primary: mat.define-palette($gcp-blue-palette, 700, 600, 800);
+$my-accent: mat.define-palette($gcp-grey-palette, 700, 600, 800);
+$my-warn: mat.define-palette(mat.$red-palette, 700);
+
+// Create the theme
+$my-theme: mat.define-light-theme((
+  color: (
+    primary: $my-primary,
+    accent: $my-accent,
+    warn: $my-warn,
+  ),
+  typography: mat.define-typography-config(
+    $font-family: '"Google Sans", "Roboto", "Helvetica Neue", Arial, sans-serif',
+    $headline-1: mat.define-typography-level(32px, 40px, 400),
+    $headline-2: mat.define-typography-level(28px, 36px, 400),
+    $headline-3: mat.define-typography-level(24px, 32px, 400),
+    $headline-4: mat.define-typography-level(20px, 28px, 500),
+    $headline-5: mat.define-typography-level(18px, 24px, 500),
+    $headline-6: mat.define-typography-level(16px, 24px, 500),
+    $body-1: mat.define-typography-level(14px, 20px, 400),
+    $body-2: mat.define-typography-level(14px, 20px, 500),
+    $button: mat.define-typography-level(14px, 36px, 500),
+    $caption: mat.define-typography-level(12px, 20px, 400),
+  ),
+  density: -1,  // Slightly more compact, like GCP
+));
+
+// Include theme styles for core and each component
+@include mat.all-component-themes($my-theme);
+
+// Custom GCP-style overrides
+.mat-toolbar {
+  font-weight: 400;
+  letter-spacing: 0.25px;
+}
+
+.mat-card {
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+}
+
+.mat-raised-button {
+  border-radius: 4px;
+  text-transform: none;
+  letter-spacing: 0.25px;
+  box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+}
+
+.mat-flat-button {
+  border-radius: 4px;
+  text-transform: none;
+  letter-spacing: 0.25px;
+}
+
+.mat-stroked-button {
+  border-radius: 4px;
+  text-transform: none;
+  letter-spacing: 0.25px;
+  border-color: #dadce0;
+
+  &:not(:disabled) {
+    color: #1967d2;
+  }
+}
+
+// GCP-style sidebar
+.mat-drawer {
+  background-color: #f8f9fa;
+  border-right: 1px solid #e8eaed;
+}
+
+.mat-list-item {
+  color: #5f6368;
+
+  &:hover {
+    background-color: #e8eaed;
+  }
+
+  &.active {
+    background-color: #e8f0fe;
+    color: #1967d2;
+    font-weight: 500;
+  }
+}

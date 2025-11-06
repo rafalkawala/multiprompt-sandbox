@@ -1,0 +1,136 @@
+<div class="home-container">
+  <!-- Page Header -->
+  <div class="page-header">
+    <h1>MLLM Benchmarking Platform</h1>
+    <p>Achieve 95-98% accuracy with systematic multimodal LLM experimentation</p>
+  </div>
+
+  <!-- Quick Stats -->
+  <div class="stats-grid">
+    <mat-card *ngFor="let stat of stats" class="stat-card">
+      <mat-card-content>
+        <div class="stat-content">
+          <mat-icon [style.color]="'#1967d2'">{{ stat.icon }}</mat-icon>
+          <div class="stat-info">
+            <div class="stat-value">{{ stat.value }}</div>
+            <div class="stat-label">{{ stat.label }}</div>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- Getting Started Section -->
+  <div class="section-header">
+    <h2>Getting Started</h2>
+    <p>Follow these steps to run your first benchmark</p>
+  </div>
+
+  <div class="steps-grid">
+    <mat-card class="step-card">
+      <mat-card-header>
+        <div class="step-number">1</div>
+        <mat-card-title>Create Project</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p>Create a new project and upload your image dataset (up to 500 images)</p>
+      </mat-card-content>
+      <mat-card-actions>
+        <button mat-button color="primary" routerLink="/projects">
+          <mat-icon>add</mat-icon>
+          Create Project
+        </button>
+      </mat-card-actions>
+    </mat-card>
+
+    <mat-card class="step-card">
+      <mat-card-header>
+        <div class="step-number">2</div>
+        <mat-card-title>Label Ground Truth</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p>Use our fast labeling interface to create ground truth annotations</p>
+      </mat-card-content>
+      <mat-card-actions>
+        <button mat-button color="primary" routerLink="/labeling">
+          <mat-icon>label</mat-icon>
+          Start Labeling
+        </button>
+      </mat-card-actions>
+    </mat-card>
+
+    <mat-card class="step-card">
+      <mat-card-header>
+        <div class="step-number">3</div>
+        <mat-card-title>Design Prompts</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p>Create and test prompt templates or chains in the sandbox</p>
+      </mat-card-content>
+      <mat-card-actions>
+        <button mat-button color="primary" routerLink="/prompts">
+          <mat-icon>edit_note</mat-icon>
+          Create Prompt
+        </button>
+      </mat-card-actions>
+    </mat-card>
+
+    <mat-card class="step-card">
+      <mat-card-header>
+        <div class="step-number">4</div>
+        <mat-card-title>Run Experiment</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p>Benchmark your prompts across multiple models and analyze results</p>
+      </mat-card-content>
+      <mat-card-actions>
+        <button mat-button color="primary" routerLink="/experiments">
+          <mat-icon>science</mat-icon>
+          Run Experiment
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  </div>
+
+  <!-- Features Section -->
+  <div class="section-header">
+    <h2>Platform Features</h2>
+    <p>Everything you need for MLLM benchmarking</p>
+  </div>
+
+  <div class="features-grid">
+    <mat-card *ngFor="let feature of features" class="feature-card">
+      <mat-card-header>
+        <mat-icon [style.color]="feature.color" class="feature-icon">{{ feature.icon }}</mat-icon>
+        <mat-card-title>{{ feature.title }}</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p>{{ feature.description }}</p>
+      </mat-card-content>
+      <mat-card-actions>
+        <button mat-button color="primary" [routerLink]="feature.route">
+          Learn More
+          <mat-icon>arrow_forward</mat-icon>
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  </div>
+
+  <!-- CTA Section -->
+  <mat-card class="cta-card">
+    <mat-card-content>
+      <h2>Ready to achieve 95-98% accuracy?</h2>
+      <p>Start your first experiment now or explore our documentation</p>
+      <div class="cta-actions">
+        <button mat-raised-button color="primary" routerLink="/projects">
+          <mat-icon>add</mat-icon>
+          Create Your First Project
+        </button>
+        <button mat-stroked-button color="primary" href="https://github.com/rafalkawala/multiprompt-sandbox" target="_blank">
+          <mat-icon>help</mat-icon>
+          View Documentation
+        </button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>
