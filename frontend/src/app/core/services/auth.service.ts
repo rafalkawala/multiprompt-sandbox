@@ -71,7 +71,7 @@ export class AuthService {
     this.loadingSignal.set(true);
     try {
       const user = await this.http.get<User>(
-        `${this.API_URL}/auth/me?token=${token}`
+        `${this.API_URL}/auth/me`
       ).toPromise();
 
       if (user) {

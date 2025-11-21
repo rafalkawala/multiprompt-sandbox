@@ -3,6 +3,7 @@ Google OAuth authentication endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from authlib.integrations.starlette_client import OAuth
 from jose import JWTError, jwt
@@ -18,6 +19,9 @@ from models.user import User, UserRole
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Security scheme for JWT
+security = HTTPBearer()
 
 # OAuth setup
 oauth = OAuth()
@@ -51,13 +55,18 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
-def get_current_user(token: str, db: Session) -> User:
-    """Get current user from JWT token"""
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+) -> User:
+    """Get current user from JWT token in Authorization header"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    token = credentials.credentials
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         email: str = payload.get("sub")
@@ -173,18 +182,17 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
 
 
 @router.get("/me")
-async def get_me(token: str, db: Session = Depends(get_db)):
+async def get_me(current_user: User = Depends(get_current_user)):
     """Get current user info"""
-    user = get_current_user(token, db)
     return {
-        "id": str(user.id),
-        "email": user.email,
-        "name": user.name,
-        "picture_url": user.picture_url,
-        "role": user.role,
-        "is_active": user.is_active,
-        "created_at": user.created_at.isoformat(),
-        "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None
+        "id": str(current_user.id),
+        "email": current_user.email,
+        "name": current_user.name,
+        "picture_url": current_user.picture_url,
+        "role": current_user.role,
+        "is_active": current_user.is_active,
+        "created_at": current_user.created_at.isoformat(),
+        "last_login_at": current_user.last_login_at.isoformat() if current_user.last_login_at else None
     }
 
 
