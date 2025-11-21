@@ -1,17 +1,31 @@
 # API Documentation
 
+> **Last Updated**: 2025-11-14
+
 Base URL: `http://localhost:8000` (development) or your production URL
 
+## Interactive Documentation
+
 API documentation is automatically generated and available at:
-- **Swagger UI**: `/docs`
-- **ReDoc**: `/redoc`
-- **OpenAPI JSON**: `/openapi.json`
+- **Swagger UI**: `/docs` - Interactive API testing
+- **ReDoc**: `/redoc` - Clean, readable documentation
+- **OpenAPI JSON**: `/openapi.json` - Machine-readable spec
+
+## Current Implementation Status
+
+**Working**: Image analysis endpoints
+**Disabled**: Agent execution endpoints (LangChain import issues)
+**Planned**: Projects, datasets, experiments, results endpoints
 
 ## Authentication
 
-(To be implemented)
+**Current Status**: No authentication required (development only)
 
-Currently, the API doesn't require authentication. Future versions will implement JWT-based authentication.
+**Planned** (MVP):
+- JWT-based authentication
+- OAuth2 with Google Sign-In
+- API key authentication for programmatic access
+- Role-based access control (Admin, User, Viewer)
 
 ## Endpoints
 
@@ -38,14 +52,18 @@ Kubernetes readiness probe.
 }
 ```
 
-### Agent Endpoints
+### Agent Endpoints ⚠️ CURRENTLY DISABLED
 
 Base path: `/api/v1/agents`
 
-#### POST `/api/v1/agents/execute`
+**Status**: These endpoints are currently **disabled** due to import issues with `langchain_community.tools`.
+
+**Tracking**: The agent service code exists in `backend/app/services/agent_service.py` but the router is commented out in `backend/app/api/v1/__init__.py` (line ~23).
+
+#### POST `/api/v1/agents/execute` (DISABLED)
 Execute a LangChain agent with a given prompt.
 
-**Request Body:**
+**Planned Request Body:**
 ```json
 {
   "prompt": "What is 25 * 4?",
@@ -57,7 +75,7 @@ Execute a LangChain agent with a given prompt.
 }
 ```
 
-**Response:**
+**Planned Response:**
 ```json
 {
   "result": "The result of 25 * 4 is 100.",
@@ -77,16 +95,18 @@ Execute a LangChain agent with a given prompt.
 - `400 Bad Request`: Invalid input
 - `500 Internal Server Error`: Agent execution failed
 
-#### GET `/api/v1/agents/health`
+#### GET `/api/v1/agents/health` (DISABLED)
 Check agent service health.
 
-**Response:**
+**Planned Response:**
 ```json
 {
   "status": "healthy",
   "service": "agents"
 }
 ```
+
+> **Note**: These endpoints will be re-enabled once the LangChain dependency issues are resolved or when the agent functionality is redesigned for the MLLM benchmarking use case.
 
 ### Image Analysis Endpoints
 

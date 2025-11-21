@@ -218,15 +218,373 @@ npm start
 - **API Docs**: http://localhost:8000/docs
 - **Health Check**: http://localhost:8000/health
 
-## 📚 Documentation
+---
 
-| Document | Description |
-|----------|-------------|
-| [Architecture](docs/architecture/README.md) | System architecture and component design |
-| [API Documentation](docs/api/README.md) | REST API endpoints and examples |
-| [Deployment Guide](docs/deployment/README.md) | GKE deployment instructions |
-| [Requirements](docs/requirements/README.md) | Product requirements and use cases |
-| [GitHub Setup](docs/github-setup.md) | Issue tracking and project management |
+## 🔧 Development Workflow
+
+### Running Backend Only
+
+```bash
+cd backend
+
+# Create virtual environment (first time only)
+python -m venv venv
+
+# Activate virtual environment
+# Windows:
+venv\Scripts\activate
+# Linux/Mac:
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Copy environment file (first time only)
+cp .env.example .env
+# Edit .env and add your GEMINI_API_KEY
+
+# Run the server
+uvicorn app.main:app --reload
+
+# Server runs at http://localhost:8000
+```
+
+### Running Frontend Only
+
+```bash
+cd frontend
+
+# Install dependencies (first time only)
+npm install
+
+# Start development server
+npm start
+
+# Frontend runs at http://localhost:4200
+```
+
+### Testing Backend Changes
+
+```bash
+cd backend
+pytest                    # Run all tests
+pytest tests/unit        # Run unit tests only
+pytest tests/integration # Run integration tests
+pytest --cov=app         # Run with coverage report
+
+# Linting
+flake8 app/
+black app/ --check
+mypy app/
+```
+
+### Testing Frontend Changes
+
+```bash
+cd frontend
+npm run test              # Run unit tests (Karma/Jasmine)
+npm run test:coverage     # Run with coverage
+npm run lint              # Run ESLint
+npm run e2e              # Run E2E tests (when implemented)
+```
+
+### Adding a New Backend Endpoint
+
+1. **Create endpoint file** in `backend/app/api/v1/endpoints/`
+   ```python
+   # backend/app/api/v1/endpoints/my_feature.py
+   from fastapi import APIRouter, HTTPException
+   from pydantic import BaseModel
+
+   router = APIRouter()
+
+   class MyRequest(BaseModel):
+       data: str
+
+   @router.post("/my-endpoint")
+   async def my_endpoint(request: MyRequest):
+       return {"result": "success"}
+   ```
+
+2. **Register router** in `backend/app/api/v1/__init__.py`
+   ```python
+   from backend.app.api.v1.endpoints import my_feature
+
+   api_router.include_router(
+       my_feature.router,
+       prefix="/my-feature",
+       tags=["my-feature"]
+   )
+   ```
+
+3. **Add tests** in `backend/tests/`
+   ```python
+   # backend/tests/test_my_feature.py
+   from fastapi.testclient import TestClient
+   from app.main import app
+
+   client = TestClient(app)
+
+   def test_my_endpoint():
+       response = client.post("/api/v1/my-feature/my-endpoint",
+                             json={"data": "test"})
+       assert response.status_code == 200
+   ```
+
+### Adding a New Angular Component
+
+```bash
+cd frontend
+
+# Generate a new component
+ng generate component features/my-feature
+
+# Generate a service
+ng generate service services/my-service
+
+# Generate a model
+ng generate interface models/my-model
+```
+
+### Working with Docker Compose
+
+```bash
+# Build and start all services
+docker-compose up --build
+
+# Start services in background
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+
+# Rebuild specific service
+docker-compose up --build backend
+```
+
+### Environment Variables
+
+**Backend** (`backend/.env`):
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+GCP_PROJECT_ID=your_gcp_project_id
+ENVIRONMENT=development
+CORS_ORIGINS=http://localhost:4200,http://localhost:3000
+```
+
+**Frontend** (`frontend/src/environments/environment.ts`):
+```typescript
+export const environment = {
+  production: false,
+  apiUrl: 'http://localhost:8000/api/v1'
+};
+```
+
+### Common Development Tasks
+
+**Reset backend virtual environment:**
+```bash
+cd backend
+deactivate  # If venv is active
+rm -rf venv  # or rmdir /s venv on Windows
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+**Clear frontend node_modules:**
+```bash
+cd frontend
+rm -rf node_modules package-lock.json
+npm install
+```
+
+**Rebuild Docker images:**
+```bash
+docker-compose down
+docker-compose build --no-cache
+docker-compose up
+```
+
+### Debugging
+
+**Backend debugging** (VS Code):
+- Use the "Python: FastAPI" launch configuration in `.vscode/launch.json`
+- Set breakpoints in Python files
+- Press F5 to start debugging
+
+**Frontend debugging** (VS Code):
+- Use the "Angular: ng serve" launch configuration
+- Open Chrome DevTools
+- Source maps enabled for TypeScript debugging
+
+### Git Workflow
+
+```bash
+# Create feature branch
+git checkout -b feature/my-feature
+
+# Make changes and commit
+git add .
+git commit -m "Add my feature"
+
+# Push to GitHub
+git push origin feature/my-feature
+
+# Create pull request on GitHub
+```
+
+## 📍 Current Implementation Status
+
+> **Last Updated**: 2025-11-14
+
+This section helps you understand **what's actually working** vs. what's planned. Essential for AI agents and new developers.
+
+### ✅ Currently Working
+
+- **Backend API (FastAPI)**
+  - Health check endpoints (`/health`, `/ready`)
+  - Image analysis endpoint (`POST /api/v1/images/analyze`) using Gemini Pro Vision
+  - CORS configuration for frontend integration
+  - Global exception handling
+  - OpenAPI documentation at `/docs`
+
+- **Frontend (Angular 17)**
+  - Home dashboard with feature overview
+  - Material Design UI with GCP-like theme
+  - Responsive sidenav navigation
+  - Basic routing structure
+
+- **Infrastructure**
+  - Docker and Docker Compose setup
+  - Kubernetes manifests with Kustomize overlays (dev/prod)
+  - GitHub Actions CI/CD pipeline
+  - VS Code workspace configuration
+
+- **Documentation**
+  - Comprehensive README and architecture docs
+  - API documentation
+  - Deployment guides
+  - GitHub project setup
+
+### ⚠️ Partially Working / Known Issues
+
+- **LangChain Agents Endpoint**: Currently **DISABLED** due to import issues in `langchain_community.tools`
+  - Endpoint exists at `POST /api/v1/agents/execute` but is commented out in router
+  - Service code exists in `backend/app/services/agent_service.py`
+  - Frontend placeholder exists but no integration
+
+### ❌ Not Yet Implemented (MVP Roadmap)
+
+The following features are documented and planned but **not yet built**:
+
+- **Projects & Dataset Management**
+  - Create/manage projects
+  - Upload images to datasets (up to 500 images)
+  - Cloud Storage integration
+
+- **Ground Truth Labeling Tool**
+  - Labeling interface with keyboard shortcuts
+  - Multiple question types (Yes/No, Multiple Choice, Text, Counting)
+  - Annotation export (JSON/CSV)
+
+- **Prompt Engineering Sandbox**
+  - Rich text editor with variable support
+  - Multi-turn prompt chain builder
+  - Version control for prompts
+
+- **Multi-Model Benchmarking**
+  - Experiment execution across models
+  - Batch processing with progress tracking
+  - Cost estimation
+
+- **Accuracy & Scoring Engine**
+  - Automated accuracy calculation
+  - Confusion matrices
+  - Precision/Recall/F1 scores
+
+- **Experiment Repository**
+  - Persistent storage (requires PostgreSQL)
+  - Side-by-side comparison
+  - Trend analysis and export
+
+- **Few-Shot Prompting**
+  - Multimodal embeddings
+  - Similar-example identification
+
+- **Database Persistence**
+  - PostgreSQL setup (currently no persistence)
+  - SQLAlchemy models
+  - Alembic migrations
+
+- **Authentication & Authorization**
+  - User registration/login
+  - JWT tokens
+  - Role-based access control
+
+For detailed implementation plan, see [MVP Roadmap](#-mvp-roadmap-2-months) and [GitHub Issues](https://github.com/rafalkawala/multiprompt-sandbox/issues).
+
+---
+
+## 📚 Codebase and Documentation Guide
+
+> **For AI Agents & New Developers**: Start here to navigate the project efficiently.
+
+### Quick Start for Understanding the Project
+
+1. **First, read this README** - Understand the vision and current state
+2. **Then read** [`PROJECT_STATE.md`](./PROJECT_STATE.md) - Current technical state and key file locations
+3. **For architecture details** - See [`docs/architecture/README.md`](./docs/architecture/README.md)
+4. **For API details** - See [`docs/api/README.md`](./docs/api/README.md)
+
+### Codebase Structure
+
+The repository is organized as a monorepo. Below is a guide to the key directories:
+
+| Path | Description |
+|---|---|
+| [`/frontend`](./frontend/) | Contains the **Angular** frontend application. All UI components, services, and styles are located here. |
+| [`/backend`](./backend/) | Contains the **Python FastAPI** backend application. This is where the core business logic, API endpoints, and database models reside. |
+| [`/k8s`](./k8s/) | Contains all **Kubernetes** manifests for deploying the application to GKE. It's structured using Kustomize for managing different environments (dev, prod). |
+| [`/scripts`](./scripts/) | A collection of automation scripts for local setup, deployment, and creating GitHub issues. |
+| [`/docs`](./docs/) | Home to all official project documentation. |
+
+### Key Files Quick Reference
+
+**Essential entry points and configuration files:**
+
+| File Path | Purpose | Status |
+|-----------|---------|--------|
+| [`backend/app/main.py`](./backend/app/main.py) | FastAPI application entry point | ✅ Working |
+| [`backend/app/api/v1/__init__.py`](./backend/app/api/v1/__init__.py) | API router configuration | ✅ Working (agents disabled) |
+| [`backend/app/services/gemini_service.py`](./backend/app/services/gemini_service.py) | Gemini Pro Vision integration | ✅ Working |
+| [`backend/app/services/agent_service.py`](./backend/app/services/agent_service.py) | LangChain agent service | ⚠️ Disabled |
+| [`backend/app/core/config.py`](./backend/app/core/config.py) | Backend configuration & settings | ✅ Working |
+| [`backend/requirements.txt`](./backend/requirements.txt) | Python dependencies | ✅ Current |
+| [`frontend/src/app/app.component.ts`](./frontend/src/app/app.component.ts) | Angular root component | ✅ Working |
+| [`frontend/src/app/app.routes.ts`](./frontend/src/app/app.routes.ts) | Frontend routing configuration | ✅ Working |
+| [`frontend/src/app/app.config.ts`](./frontend/src/app/app.config.ts) | Angular providers & config | ✅ Working |
+| [`frontend/package.json`](./frontend/package.json) | npm dependencies | ✅ Current |
+| [`k8s/base/kustomization.yaml`](./k8s/base/kustomization.yaml) | Kubernetes base configuration | ✅ Working |
+| [`.github/workflows/ci-cd.yaml`](./.github/workflows/ci-cd.yaml) | CI/CD pipeline | ✅ Working |
+| [`docker-compose.yaml`](./docker-compose.yaml) | Local development setup | ✅ Working |
+
+### Official Documentation
+
+For specific needs, refer to the detailed documentation files.
+
+| Document | When to Use It |
+|---|---|
+| **[Project State](./PROJECT_STATE.md)** | **START HERE** for current technical state, known issues, and file locations. Essential for AI agents. |
+| **[Architecture Overview](./docs/architecture/README.md)** | To understand the high-level system design, component interactions, and infrastructure layout. |
+| **[API Reference](./docs/api/README.md)** | When you need to know about specific API endpoints, request/response formats, and authentication. |
+| **[Deployment Guide](./docs/deployment/README.md)** | For step-by-step instructions on deploying the application to GKE or a local environment. |
+| **[Project Requirements](./docs/requirements/README.md)** | To understand the project's goals, user stories, epics, and functional requirements. Start here to see what we are building. |
+| **[GitHub Setup](./docs/github-setup.md)** | For guidelines on our GitHub workflow, including how to create issues and manage project boards. |
+| **[Issues Summary](./docs/requirements/issues-summary.md)** | A quick-start document that lists all initial epics and tasks to be created on GitHub. Use this to populate a new project board. |
 
 ## 🎯 MVP Roadmap (2 Months)
 
