@@ -6,10 +6,20 @@ Before deploying, ensure you have:
 
 - [ ] Google Cloud Platform account with billing enabled
 - [ ] `gcloud` CLI installed and configured
-- [ ] `kubectl` installed
+- [ ] `terraform` installed (v1.0+)
 - [ ] Docker installed
 - [ ] Gemini API key
 - [ ] GitHub repository set up
+
+## Infrastructure Overview
+
+The platform uses a serverless architecture on Google Cloud:
+
+- **Cloud Run** - Serverless container platform for frontend and backend
+- **Cloud SQL** - Managed PostgreSQL database
+- **Cloud Storage** - Image and file storage
+- **Secret Manager** - Secure credential storage
+- **Artifact Registry** - Docker image storage
 
 ## Initial GCP Setup
 
@@ -21,53 +31,97 @@ export PROJECT_ID="your-project-id"
 gcloud config set project $PROJECT_ID
 
 # Enable required APIs
-gcloud services enable container.googleapis.com
+gcloud services enable run.googleapis.com
+gcloud services enable sqladmin.googleapis.com
+gcloud services enable storage-component.googleapis.com
 gcloud services enable artifactregistry.googleapis.com
 gcloud services enable cloudbuild.googleapis.com
 gcloud services enable aiplatform.googleapis.com
+gcloud services enable secretmanager.googleapis.com
 ```
 
-### 2. Create GKE Cluster
-
-```bash
-# Create cluster
-gcloud container clusters create multiprompt-cluster \
-    --num-nodes=3 \
-    --machine-type=e2-medium \
-    --zone=us-central1-a \
-    --enable-autoscaling \
-    --min-nodes=1 \
-    --max-nodes=5 \
-    --enable-stackdriver-kubernetes
-
-# Get credentials
-gcloud container clusters get-credentials multiprompt-cluster \
-    --zone=us-central1-a
-```
-
-### 3. Create Artifact Registry
+### 2. Create Artifact Registry
 
 ```bash
 # Create repository for Docker images
 gcloud artifacts repositories create multiprompt-repo \
     --repository-format=docker \
     --location=us-central1 \
-    --description="Docker repository for MultiPrompt Sandbox"
+    --description="Docker repository for MLLM Benchmarking Platform"
 
 # Configure Docker authentication
 gcloud auth configure-docker us-central1-docker.pkg.dev
 ```
 
-### 4. Create Secrets
+### 3. Create Secrets
 
 ```bash
-# Create Kubernetes secret for Gemini API key
-kubectl create secret generic app-secrets \
-    --from-literal=gemini-api-key=YOUR_GEMINI_API_KEY \
-    -n multiprompt-sandbox
+# Create secret for Gemini API key
+echo -n "YOUR_GEMINI_API_KEY" | gcloud secrets create gemini-api-key --data-file=-
 
 # Verify secret
-kubectl get secrets -n multiprompt-sandbox
+gcloud secrets list
+```
+
+## Terraform Deployment
+
+### 1. Configure Terraform Variables
+
+```bash
+cd terraform
+
+# Create terraform.tfvars with your values
+cat > terraform.tfvars << EOF
+gcp_project_id      = "your-project-id"
+gcp_project_name    = "MLLM Benchmarking Platform"
+gcp_billing_account = "your-billing-account-id"
+gcp_region          = "us-central1"
+gcp_zone            = "us-central1-c"
+EOF
+```
+
+### 2. Initialize and Apply Terraform
+
+```bash
+# Initialize Terraform
+terraform init
+
+# Preview infrastructure changes
+terraform plan
+
+# Apply infrastructure (creates Cloud SQL, VPC, etc.)
+terraform apply
+
+# Save outputs for later use
+terraform output > ../terraform-outputs.txt
+```
+
+### 3. Build and Deploy Services
+
+```bash
+# Build Docker images
+docker build -t gcr.io/$PROJECT_ID/multiprompt-frontend:v1 ./frontend
+docker build -t gcr.io/$PROJECT_ID/multiprompt-backend:v1 ./backend
+
+# Push to GCR
+docker push gcr.io/$PROJECT_ID/multiprompt-frontend:v1
+docker push gcr.io/$PROJECT_ID/multiprompt-backend:v1
+
+# Deploy backend to Cloud Run
+gcloud run deploy mllm-backend-svc \
+    --image gcr.io/$PROJECT_ID/multiprompt-backend:v1 \
+    --platform managed \
+    --region us-central1 \
+    --allow-unauthenticated \
+    --set-env-vars "GCP_PROJECT_ID=$PROJECT_ID" \
+    --set-secrets "GEMINI_API_KEY=gemini-api-key:latest"
+
+# Deploy frontend to Cloud Run
+gcloud run deploy mllm-frontend-svc \
+    --image gcr.io/$PROJECT_ID/multiprompt-frontend:v1 \
+    --platform managed \
+    --region us-central1 \
+    --allow-unauthenticated
 ```
 
 ## Local Development
@@ -128,7 +182,7 @@ SA_EMAIL=$(gcloud iam service-accounts list \
 # Grant necessary roles
 gcloud projects add-iam-policy-binding $PROJECT_ID \
     --member="serviceAccount:${SA_EMAIL}" \
-    --role="roles/container.developer"
+    --role="roles/run.admin"
 
 gcloud projects add-iam-policy-binding $PROJECT_ID \
     --member="serviceAccount:${SA_EMAIL}" \
@@ -136,7 +190,11 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 
 gcloud projects add-iam-policy-binding $PROJECT_ID \
     --member="serviceAccount:${SA_EMAIL}" \
-    --role="roles/artifactregistry.writer"
+    --role="roles/iam.serviceAccountUser"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="serviceAccount:${SA_EMAIL}" \
+    --role="roles/secretmanager.secretAccessor"
 
 # Create and download key
 gcloud iam service-accounts keys create key.json \
@@ -152,68 +210,6 @@ Go to your GitHub repository → Settings → Secrets and add:
 | `GCP_PROJECT_ID` | Your GCP project ID |
 | `GCP_SA_KEY` | Contents of key.json file |
 | `GEMINI_API_KEY` | Your Gemini API key |
-| `GKE_CLUSTER_NAME` | multiprompt-cluster |
-| `GKE_ZONE` | us-central1-a |
-
-### 3. Update Kubernetes Manifests
-
-```bash
-# Update PROJECT_ID in deployment files
-cd k8s/base
-sed -i 's/PROJECT_ID/your-actual-project-id/g' *.yaml
-
-# Update ConfigMap with your GCP project ID
-kubectl apply -f configmap.yaml -n multiprompt-sandbox
-```
-
-## Manual Deployment
-
-### Build and Push Images
-
-```bash
-# Build images
-docker build -t gcr.io/$PROJECT_ID/multiprompt-frontend:v1 ./frontend
-docker build -t gcr.io/$PROJECT_ID/multiprompt-backend:v1 ./backend
-
-# Push to GCR
-docker push gcr.io/$PROJECT_ID/multiprompt-frontend:v1
-docker push gcr.io/$PROJECT_ID/multiprompt-backend:v1
-```
-
-### Deploy to GKE
-
-```bash
-# Create namespace
-kubectl create namespace multiprompt-sandbox
-
-# Create secrets
-kubectl create secret generic app-secrets \
-    --from-literal=gemini-api-key=$GEMINI_API_KEY \
-    -n multiprompt-sandbox
-
-# Deploy using Kustomize
-kubectl apply -k k8s/overlays/prod
-
-# Check deployment status
-kubectl get pods -n multiprompt-sandbox
-kubectl get services -n multiprompt-sandbox
-kubectl get ingress -n multiprompt-sandbox
-```
-
-### Verify Deployment
-
-```bash
-# Check pod status
-kubectl get pods -n multiprompt-sandbox
-
-# Check logs
-kubectl logs -f deployment/prod-backend -n multiprompt-sandbox
-kubectl logs -f deployment/prod-frontend -n multiprompt-sandbox
-
-# Port forward for testing
-kubectl port-forward service/prod-backend 8000:80 -n multiprompt-sandbox
-kubectl port-forward service/prod-frontend 4200:80 -n multiprompt-sandbox
-```
 
 ## Continuous Deployment
 
@@ -223,69 +219,88 @@ Once GitHub Actions is configured:
 2. GitHub Actions will automatically:
    - Run tests
    - Build Docker images
-   - Push to Artifact Registry
-   - Deploy to GKE
+   - Push to Container Registry
+   - Deploy to Cloud Run
+
+## Monitoring
+
+### View Logs
+
+```bash
+# View backend logs
+gcloud run services logs read mllm-backend-svc --region us-central1
+
+# Stream logs
+gcloud run services logs tail mllm-backend-svc --region us-central1
+```
+
+### Check Service Status
+
+```bash
+# List all Cloud Run services
+gcloud run services list --region us-central1
+
+# Describe specific service
+gcloud run services describe mllm-backend-svc --region us-central1
+
+# Get service URL
+gcloud run services describe mllm-backend-svc --region us-central1 --format 'value(status.url)'
+```
 
 ## Rollback
 
 ```bash
-# View deployment history
-kubectl rollout history deployment/prod-backend -n multiprompt-sandbox
+# List revisions
+gcloud run revisions list --service mllm-backend-svc --region us-central1
 
-# Rollback to previous version
-kubectl rollout undo deployment/prod-backend -n multiprompt-sandbox
-
-# Rollback to specific revision
-kubectl rollout undo deployment/prod-backend --to-revision=2 -n multiprompt-sandbox
-```
-
-## Monitoring
-
-```bash
-# View logs
-kubectl logs -f deployment/prod-backend -n multiprompt-sandbox
-
-# Describe pod
-kubectl describe pod <pod-name> -n multiprompt-sandbox
-
-# Execute commands in pod
-kubectl exec -it <pod-name> -n multiprompt-sandbox -- /bin/bash
-
-# View events
-kubectl get events -n multiprompt-sandbox --sort-by='.lastTimestamp'
+# Traffic to specific revision
+gcloud run services update-traffic mllm-backend-svc \
+    --to-revisions REVISION_NAME=100 \
+    --region us-central1
 ```
 
 ## Troubleshooting
 
-### Pods not starting
+### Service not starting
+
 ```bash
-kubectl describe pod <pod-name> -n multiprompt-sandbox
-kubectl logs <pod-name> -n multiprompt-sandbox
+# Check service logs
+gcloud run services logs read mllm-backend-svc --region us-central1 --limit 100
+
+# Check service details
+gcloud run services describe mllm-backend-svc --region us-central1
 ```
 
 ### Image pull errors
+
 ```bash
 # Verify image exists
-gcloud artifacts docker images list us-central1-docker.pkg.dev/$PROJECT_ID/multiprompt-repo
+gcloud container images list --repository gcr.io/$PROJECT_ID
 
 # Check service account permissions
-kubectl get serviceaccount -n multiprompt-sandbox
+gcloud projects get-iam-policy $PROJECT_ID
 ```
 
-### Ingress not working
+### Database connection issues
+
 ```bash
-kubectl describe ingress -n multiprompt-sandbox
-kubectl get events -n multiprompt-sandbox
+# Check Cloud SQL instance
+gcloud sql instances describe mllm-sandbox-db-instance
+
+# Test connection from Cloud Run
+# Ensure VPC connector is configured properly
 ```
 
 ## Cleanup
 
 ```bash
-# Delete Kubernetes resources
-kubectl delete namespace multiprompt-sandbox
+# Delete Cloud Run services
+gcloud run services delete mllm-frontend-svc --region us-central1
+gcloud run services delete mllm-backend-svc --region us-central1
 
-# Delete GKE cluster
-gcloud container clusters delete multiprompt-cluster --zone=us-central1-a
+# Destroy Terraform infrastructure
+cd terraform
+terraform destroy
 
 # Delete Artifact Registry
 gcloud artifacts repositories delete multiprompt-repo --location=us-central1
@@ -293,8 +308,27 @@ gcloud artifacts repositories delete multiprompt-repo --location=us-central1
 
 ## Cost Optimization
 
-1. Use preemptible nodes for non-production
-2. Enable cluster autoscaling
-3. Set resource limits on pods
-4. Use appropriate machine types
-5. Clean up unused resources
+1. **Cloud Run auto-scaling** - Scales to zero when not in use
+2. **Set minimum instances to 0** - No cost when idle
+3. **Use appropriate CPU/memory** - Start small, scale as needed
+4. **Cloud SQL** - Use db-g1-small for development
+5. **Clean up unused resources** - Delete old revisions and images
+
+## Environment-Specific Configuration
+
+### Development
+- Use Docker Compose locally
+- SQLite or local PostgreSQL
+- Mock external services
+
+### Staging/UAT
+- Deploy to Cloud Run with reduced resources
+- Use Cloud SQL (db-g1-small)
+- Separate GCP project recommended
+
+### Production
+- Full Cloud Run deployment
+- Cloud SQL with appropriate tier
+- Enable Cloud Armor for security
+- Configure custom domain
+- Set up monitoring and alerting

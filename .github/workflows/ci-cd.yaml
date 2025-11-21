@@ -12,10 +12,11 @@ on:
 
 env:
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
-  GKE_ZONE: ${{ secrets.GKE_ZONE }}
+  GCP_REGION: us-central1
   FRONTEND_IMAGE: multiprompt-frontend
   BACKEND_IMAGE: multiprompt-backend
+  FRONTEND_SERVICE: mllm-frontend-svc
+  BACKEND_SERVICE: mllm-backend-svc
 
 jobs:
   frontend-test:
@@ -136,8 +137,8 @@ jobs:
           docker push gcr.io/$GCP_PROJECT_ID/$BACKEND_IMAGE:${{ github.sha }}
           docker push gcr.io/$GCP_PROJECT_ID/$BACKEND_IMAGE:latest
 
-  deploy-to-gke:
-    name: Deploy to GKE
+  deploy-to-cloud-run:
+    name: Deploy to Cloud Run
     needs: build-and-push
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -154,31 +155,27 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Install gke-gcloud-auth-plugin
+      - name: Deploy backend to Cloud Run
         run: |
-          gcloud components install gke-gcloud-auth-plugin
+          gcloud run deploy $BACKEND_SERVICE \
+            --image gcr.io/$GCP_PROJECT_ID/$BACKEND_IMAGE:${{ github.sha }} \
+            --platform managed \
+            --region $GCP_REGION \
+            --allow-unauthenticated \
+            --set-env-vars "GCP_PROJECT_ID=$GCP_PROJECT_ID" \
+            --set-secrets "GEMINI_API_KEY=gemini-api-key:latest"
 
-      - name: Get GKE credentials
+      - name: Deploy frontend to Cloud Run
         run: |
-          gcloud container clusters get-credentials $GKE_CLUSTER \
-            --zone $GKE_ZONE \
-            --project $GCP_PROJECT_ID
-
-      - name: Update image tags in manifests
-        run: |
-          cd k8s/base
-          sed -i "s|gcr.io/PROJECT_ID/$FRONTEND_IMAGE:latest|gcr.io/$GCP_PROJECT_ID/$FRONTEND_IMAGE:${{ github.sha }}|g" frontend-deployment.yaml
-          sed -i "s|gcr.io/PROJECT_ID/$BACKEND_IMAGE:latest|gcr.io/$GCP_PROJECT_ID/$BACKEND_IMAGE:${{ github.sha }}|g" backend-deployment.yaml
-
-      - name: Deploy to GKE
-        run: |
-          kubectl apply -k k8s/overlays/prod
-
-      - name: Verify deployment
-        run: |
-          kubectl rollout status deployment/prod-frontend -n multiprompt-sandbox
-          kubectl rollout status deployment/prod-backend -n multiprompt-sandbox
+          gcloud run deploy $FRONTEND_SERVICE \
+            --image gcr.io/$GCP_PROJECT_ID/$FRONTEND_IMAGE:${{ github.sha }} \
+            --platform managed \
+            --region $GCP_REGION \
+            --allow-unauthenticated
 
       - name: Get service URLs
         run: |
-          kubectl get ingress -n multiprompt-sandbox
+          echo "Backend URL:"
+          gcloud run services describe $BACKEND_SERVICE --region $GCP_REGION --format 'value(status.url)'
+          echo "Frontend URL:"
+          gcloud run services describe $FRONTEND_SERVICE --region $GCP_REGION --format 'value(status.url)'
