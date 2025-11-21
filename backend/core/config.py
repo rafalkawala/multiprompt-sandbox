@@ -21,7 +21,8 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:4200",
         "http://localhost:3000",
-        "http://localhost:8080"
+        "http://localhost:8080",
+        "https://multiprompt-frontend-h7qqra6pma-uc.a.run.app"
     ]
 
     # Database - can use DATABASE_URL directly or construct from components
