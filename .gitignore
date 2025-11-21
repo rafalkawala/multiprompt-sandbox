@@ -121,3 +121,9 @@ gcp-key.json
 temp/
 TODO.md
 notes.txt
+
+# Terraform
+infrastructure/.terraform/
+infrastructure/*.tfstate*
+infrastructure/.terraform.lock.hcl
+infrastructure/terraform.tfvars

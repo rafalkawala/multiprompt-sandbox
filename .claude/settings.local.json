@@ -12,7 +12,9 @@
       "Bash(npm start)",
       "Bash(curl:*)",
       "Bash(git config:*)",
-      "Bash(gh auth status:*)"
+      "Bash(gh auth status:*)",
+      "Bash(gcloud services list:*)",
+      "Bash(gcloud builds describe:*)"
     ],
     "deny": [],
     "ask": []

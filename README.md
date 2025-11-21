@@ -190,7 +190,17 @@ conda activate multiprompt-sandbox
 cd ..
 ```
 
-### 4. Start Local Development
+### 4. Database Migrations
+
+Apply the latest database migrations to set up your database schema:
+```bash
+cd backend
+conda activate multiprompt-sandbox
+alembic upgrade head
+cd ..
+```
+
+### 5. Start Local Development
 
 **Option A: Docker Compose (Recommended)**
 ```bash
@@ -234,6 +244,9 @@ conda activate multiprompt-sandbox
 # Copy environment file (first time only)
 cp .env.example .env
 # Edit .env and add your GEMINI_API_KEY and DATABASE_URL
+
+# Apply database migrations
+alembic upgrade head
 
 # Run the server
 uvicorn app.main:app --reload
@@ -430,7 +443,8 @@ git push origin feature/my-feature
 
 ## 📍 Current Implementation Status
 
-> **Last Updated**: 2025-11-14
+> **Last Updated**: 2025-11-21
+> For more granular and the absolute latest status, refer to [`PROJECT_STATE.md`](./PROJECT_STATE.md).
 
 This section helps you understand **what's actually working** vs. what's planned. Essential for AI agents and new developers.
 

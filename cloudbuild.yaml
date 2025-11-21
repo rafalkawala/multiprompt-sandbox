@@ -1,7 +1,19 @@
 steps:
+  # Run backend tests
+  - name: 'python:3.11-slim'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        cd backend
+        pip install -r requirements.txt
+        python -m pytest tests/ -v --tb=short
+    id: 'test-backend'
+
   # Build backend image
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA', '-f', 'backend/Dockerfile', 'backend']
+    waitFor: ['test-backend']
 
   # Push backend image
   - name: 'gcr.io/cloud-builders/docker'
@@ -17,8 +29,10 @@ steps:
       - '--region=us-central1'
       - '--platform=managed'
       - '--allow-unauthenticated'
-      - '--set-env-vars=ENVIRONMENT=production'
-      - '--add-cloudsql-instances=$PROJECT_ID:us-central1:multiprompt-db'
+      - '--vpc-connector=mllm-vpc-connector'
+      - '--vpc-egress=private-ranges-only'
+      - '--set-env-vars=ENVIRONMENT=production,DB_HOST=10.205.0.3,DB_PORT=5432,DB_USER=mllm_sandbox_user,DB_NAME=mllm_sandbox_db,GCP_PROJECT_ID=$PROJECT_ID'
+      - '--set-secrets=DB_PASSWORD=mllm_sandbox_user-password:latest'
       - '--memory=512Mi'
       - '--cpu=1'
       - '--min-instances=0'

@@ -24,8 +24,13 @@ class Settings(BaseSettings):
         "http://localhost:8080"
     ]
 
-    # Database
-    DATABASE_URL: str = "postgresql://user:password@localhost:5432/appdb"
+    # Database - can use DATABASE_URL directly or construct from components
+    DATABASE_URL: str = ""
+    DB_HOST: str = "localhost"
+    DB_PORT: str = "5432"
+    DB_USER: str = "user"
+    DB_PASSWORD: str = "password"
+    DB_NAME: str = "appdb"
 
     # Google Cloud / Gemini Configuration
     GEMINI_API_KEY: str = ""

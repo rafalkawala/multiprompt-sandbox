@@ -21,7 +21,6 @@ resource "google_compute_global_address" "private_ip_alloc" {
 
 # Establish the private connection.
 resource "google_service_networking_connection" "private_vpc_connection" {
-  project                 = google_project.project.project_id
   network                 = google_compute_network.vpc.id
   service                 = "servicenetworking.googleapis.com"
   reserved_peering_ranges = [google_compute_global_address.private_ip_alloc.name]
@@ -33,7 +32,7 @@ resource "google_service_networking_connection" "private_vpc_connection" {
 
 resource "google_vpc_access_connector" "vpc_connector" {
   project  = google_project.project.project_id
-  name     = "${var.vpc_network_name}-connector"
+  name     = "mllm-vpc-connector"
   region   = var.gcp_region
   network  = google_compute_network.vpc.name
   ip_cidr_range = "10.8.0.0/28" # Standard range for the connector

@@ -36,7 +36,9 @@ resource "google_project_service" "project_services" {
     "iam.googleapis.com",            # IAM
     "secretmanager.googleapis.com",  # Secret Manager
     "cloudkms.googleapis.com",       # Cloud KMS
-    "vpcaccess.googleapis.com"       # Serverless VPC Access
+    "vpcaccess.googleapis.com",      # Serverless VPC Access
+    "compute.googleapis.com",        # Compute Engine (for VPC)
+    "servicenetworking.googleapis.com" # Service Networking (for private SQL)
   ])
   service                    = each.key
   disable_dependent_services = false
@@ -55,7 +57,7 @@ resource "google_secret_manager_secret" "db_password_secret" {
   secret_id = "${var.db_user_name}-password"
 
   replication {
-    automatic = true
+    auto {}
   }
 }
 

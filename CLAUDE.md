@@ -46,3 +46,21 @@ npm start
 
 - Project: `prompting-sandbox-mvp`
 - Account: `rafalkawtradegpt@gmail.com`
+
+## Infrastructure Deployment
+
+**IMPORTANT**: Always use Terraform for GCP infrastructure provisioning. Do NOT use gcloud CLI for creating resources like Cloud SQL, VPC, etc.
+
+```bash
+cd infrastructure
+terraform init
+terraform plan
+terraform apply
+```
+
+The Terraform configuration includes:
+- Cloud SQL with private IP (no public IP)
+- VPC networking
+- Secret Manager
+- Cloud Run services
+- All required APIs

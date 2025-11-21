@@ -20,18 +20,14 @@ RUN npm run build:prod
 # Stage 2: Serve with Nginx
 FROM nginx:alpine
 
-# Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+# Copy custom nginx configuration template
+COPY nginx.conf /etc/nginx/templates/nginx.conf.template
 
 # Copy built application from build stage
 COPY --from=build /app/dist/multiprompt-sandbox /usr/share/nginx/html
 
-# Expose port 80
-EXPOSE 80
+# Expose port (Cloud Run uses PORT env var)
+EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost/health || exit 1
-
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Start nginx with envsubst to substitute PORT
+CMD ["/bin/sh", "-c", "envsubst '${PORT}' < /etc/nginx/templates/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"]
