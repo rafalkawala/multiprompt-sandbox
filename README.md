@@ -138,7 +138,8 @@ A **deployable experimentation platform** that transforms how enterprises achiev
 ### Infrastructure
 - **PostgreSQL (Cloud SQL)** - Relational data storage
 - **Google Cloud Storage** - Scalable image storage
-- **Kubernetes (GKE)** - Container orchestration
+- **Google Cloud Run** - Serverless container platform
+- **Terraform** - Infrastructure as Code
 - **Docker** - Containerization
 - **GitHub Actions** - CI/CD pipeline
 
@@ -147,7 +148,7 @@ A **deployable experimentation platform** that transforms how enterprises achiev
 - **Node.js 18+** and npm
 - **Python 3.11+**
 - **Docker Desktop**
-- **kubectl** (Kubernetes CLI)
+- **Terraform** (for infrastructure deployment)
 - **gcloud CLI** (Google Cloud SDK)
 - **GitHub CLI** (optional, for issue management)
 - **Google Cloud Project** with billing enabled
@@ -460,7 +461,7 @@ This section helps you understand **what's actually working** vs. what's planned
 
 - **Infrastructure**
   - Docker and Docker Compose setup
-  - Kubernetes manifests with Kustomize overlays (dev/prod)
+  - Terraform foundation for Cloud Run deployment
   - GitHub Actions CI/CD pipeline
   - VS Code workspace configuration
 
@@ -548,7 +549,7 @@ The repository is organized as a monorepo. Below is a guide to the key directori
 |---|---|
 | [`/frontend`](./frontend/) | Contains the **Angular** frontend application. All UI components, services, and styles are located here. |
 | [`/backend`](./backend/) | Contains the **Python FastAPI** backend application. This is where the core business logic, API endpoints, and database models reside. |
-| [`/k8s`](./k8s/) | Contains all **Kubernetes** manifests for deploying the application to GKE. It's structured using Kustomize for managing different environments (dev, prod). |
+| [`/terraform`](./terraform/) | Contains **Terraform** configurations for deploying infrastructure to GCP (Cloud Run, Cloud SQL, Cloud Storage). |
 | [`/scripts`](./scripts/) | A collection of automation scripts for local setup, deployment, and creating GitHub issues. |
 | [`/docs`](./docs/) | Home to all official project documentation. |
 
@@ -568,7 +569,7 @@ The repository is organized as a monorepo. Below is a guide to the key directori
 | [`frontend/src/app/app.routes.ts`](./frontend/src/app/app.routes.ts) | Frontend routing configuration | ✅ Working |
 | [`frontend/src/app/app.config.ts`](./frontend/src/app/app.config.ts) | Angular providers & config | ✅ Working |
 | [`frontend/package.json`](./frontend/package.json) | npm dependencies | ✅ Current |
-| [`k8s/base/kustomization.yaml`](./k8s/base/kustomization.yaml) | Kubernetes base configuration | ✅ Working |
+| [`terraform/main.tf`](./terraform/main.tf) | Terraform infrastructure config | ✅ Foundation |
 | [`.github/workflows/ci-cd.yaml`](./.github/workflows/ci-cd.yaml) | CI/CD pipeline | ✅ Working |
 | [`docker-compose.yaml`](./docker-compose.yaml) | Local development setup | ✅ Working |
 
@@ -649,35 +650,41 @@ pytest --cov=app         # Coverage report
 ### Local Development
 Use Docker Compose (see Quick Start above)
 
-### Production Deployment to GKE
+### Production Deployment to Cloud Run
 
-**1. Set up GCP Infrastructure:**
+**1. Set up Terraform variables:**
 ```bash
-# Enable required APIs
-gcloud services enable container.googleapis.com
-gcloud services enable artifactregistry.googleapis.com
-gcloud services enable cloudbuild.googleapis.com
-gcloud services enable aiplatform.googleapis.com
+cd terraform
 
-# Create GKE cluster
-gcloud container clusters create multiprompt-cluster \
-    --num-nodes=3 \
-    --machine-type=e2-medium \
-    --zone=us-central1-a \
-    --enable-autoscaling \
-    --min-nodes=1 \
-    --max-nodes=5
+# Create terraform.tfvars with your values
+cat > terraform.tfvars << EOF
+gcp_project_id      = "your-project-id"
+gcp_project_name    = "MLLM Benchmarking Platform"
+gcp_billing_account = "your-billing-account-id"
+gcp_region          = "us-central1"
+EOF
 ```
 
-**2. Build and Push Docker Images:**
+**2. Initialize and apply Terraform:**
 ```bash
+# Initialize Terraform
+terraform init
+
+# Preview changes
+terraform plan
+
+# Apply infrastructure
+terraform apply
+```
+
+**3. Build and deploy services:**
+```bash
+# Build and push Docker images
 export GCP_PROJECT_ID=your-project-id
 ./scripts/gcp/build-and-push.sh
-```
 
-**3. Deploy to GKE:**
-```bash
-./scripts/gcp/deploy-to-gke.sh prod
+# Deploy to Cloud Run (uses Terraform outputs)
+./scripts/gcp/deploy-to-cloud-run.sh
 ```
 
 **4. Configure GitHub Actions:**
@@ -685,8 +692,6 @@ Add secrets to your GitHub repository:
 - `GCP_PROJECT_ID`
 - `GCP_SA_KEY`
 - `GEMINI_API_KEY`
-- `GKE_CLUSTER_NAME`
-- `GKE_ZONE`
 
 See [Deployment Guide](docs/deployment/README.md) for detailed instructions.
 

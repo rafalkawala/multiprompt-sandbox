@@ -26,30 +26,47 @@ Copy the issues below and create them manually on GitHub.
 
 ---
 
-## Epics (7 total)
+## MVP Golden Path - End-to-End User Journey
+
+This section outlines the specific, prioritized user stories that form the "golden path" for our Minimum Viable Product. The goal is to deliver a complete, end-to-end user journey that demonstrates the core value of the platform.
+
+1.  **`[Epic 8]` As an Admin, I can use Terraform to create the GCP project and necessary resources (Cloud Run, Cloud SQL, GCS).**
+2.  **`[Epic 4]` As a User, I can log in to the application using my Google Account.**
+3.  **`[Epic 6]` As a User, I can create a new Project and define its single, primary question.**
+4.  **`[Epic 6]` As a User, I can upload a batch of images to a Dataset within my Project, and they are stored in a dedicated GCS bucket.**
+5.  **`[Epic 6]` As a User, I can label images using the paginated gallery view with keyboard shortcuts.**
+6.  **`[Epic 6]` As a User, I can view a summary of my labeling progress (e.g., "Labeled: 80, Unlabeled: 20").**
+7.  **`[Epic 7]` As a User, I can configure the platform with my API keys for the "Gemini 1.5 Pro" and "Gemini 1.5 Flash" models.**
+8.  **`[Epic 7]` As a User, I can run a new Experiment, which uses the Project's primary question as the prompt across all labeled images in a Dataset.**
+9.  **`[Epic 7]` As a User, I can see the final accuracy score for the completed experiment run.**
+
+---
+
+## Epics (8 total)
 
 ### Epic 1: Infrastructure and DevOps Setup
 **Labels**: `epic`, `infrastructure`, `priority:high`
 
 **Description**:
-Set up complete infrastructure for development, testing, and deployment to GKE.
+Set up complete infrastructure for development, testing, and deployment using a serverless architecture with Cloud Run.
 
 **Tasks**:
 - Configure GCP project and enable APIs
-- Create GKE cluster with autoscaling
+- Provision Cloud Run services for frontend and backend
+- Set up Serverless VPC Connector for private database access
 - Set up Artifact Registry for Docker images
-- Configure GitHub Actions secrets
+- Configure GitHub Actions secrets for automated deployment
 - Set up Google Cloud secrets for API keys
 - Create separate dev/staging/prod environments
-- Configure monitoring and logging
+- Configure monitoring and logging using Cloud Monitoring
 
 **Success Criteria**:
-- CI/CD pipeline successfully deploys to GKE
+- CI/CD pipeline successfully deploys to Cloud Run
 - Automated testing runs on every PR
 - Secrets are properly managed
-- Monitoring is in place
+- Monitoring is in place via Cloud Monitoring
 
-**Timeline**: 2-3 weeks
+**Timeline**: 1-2 weeks
 
 ---
 
@@ -88,7 +105,9 @@ As a user, I want to upload images and receive AI-powered analysis including des
 ---
 
 ### Epic 3: LangChain Agent Integration
-**Labels**: `epic`, `backend`, `frontend`, `priority:high`
+**Labels**: `epic`, `backend`, `frontend`, `priority:low`
+
+> **Note**: This epic is deprioritized for MVP. Focus on Epics 4-8 for core benchmarking functionality. LangChain agents can be revisited post-MVP for advanced agentic workflows.
 
 **Description**:
 Build an intelligent agent system using LangChain and Gemini Pro for multi-step task execution.
@@ -161,10 +180,11 @@ As a user, I want to securely log in and have my data protected with proper auth
 **Labels**: `epic`, `backend`, `infrastructure`, `priority:medium`
 
 **Description**:
-Add PostgreSQL database for storing user data, analysis history, and agent conversations.
+Add a PostgreSQL database for storing user data, analysis history, and agent conversations, configured for access from Cloud Run.
 
 **Tasks**:
-- Set up PostgreSQL on GKE (Cloud SQL)
+- Set up Cloud SQL for PostgreSQL instance
+- Configure Serverless VPC Connector for private access from Cloud Run
 - Design database schema
 - Implement SQLAlchemy models
 - Create Alembic migrations
@@ -178,7 +198,7 @@ Add PostgreSQL database for storing user data, analysis history, and agent conve
 - Write database tests
 
 **Success Criteria**:
-- Database is properly configured
+- Database is properly configured for private access
 - Migrations work correctly
 - Data is persisted across deployments
 - Query performance is optimized
@@ -557,6 +577,38 @@ Experiment Runs:
 
 ---
 
+### Epic 8: Infrastructure as Code (Terraform)
+**Labels**: `epic`, `infrastructure`, `priority:high`
+
+**Description**:
+Define and manage all GCP infrastructure using Terraform. This ensures a reproducible, version-controlled environment for development, staging, and production. This epic covers the creation of the GCP project itself, networking, and all required services.
+
+**Tasks**:
+- Set up Terraform Cloud or GCS backend for state management.
+- Create a new GCP Project via Terraform.
+- Define VPC, subnets, and firewall rules.
+- Provision Cloud Run services for frontend and backend.
+- Provision a Serverless VPC Connector for private access to Cloud SQL.
+- Provision a Cloud SQL (PostgreSQL) instance.
+- Provision GCS buckets for image storage and other application needs.
+- Provision Artifact Registry for Docker images.
+- Manage IAM roles and service accounts.
+- Configure secrets in Google Secret Manager.
+- Create separate Terraform workspaces for `dev`, `staging`, and `prod` environments.
+
+**Success Criteria**:
+- `terraform apply` successfully provisions all necessary infrastructure from scratch.
+- The environment is configured according to security best practices.
+- Configuration can be easily replicated for different environments.
+- Secrets are managed securely and not stored in the repository.
+
+**Dependencies**:
+- None. This is a foundational epic.
+
+**Timeline**: 1-2 weeks
+
+---
+
 ## Frontend Issues (4 total)
 
 ### 1. Create image upload component with drag-and-drop
@@ -617,23 +669,9 @@ Develop domain-specific tools for the agent (web search, file operations, etc.).
 
 ---
 
-## Infrastructure Issues (3 total)
+## Infrastructure Issues (1 total)
 
-### 1. Set up monitoring with Prometheus and Grafana
-**Labels**: `infrastructure`, `priority:high`
-
-Implement application monitoring, metrics collection, and dashboards.
-
----
-
-### 2. Configure horizontal pod autoscaling
-**Labels**: `infrastructure`, `priority:medium`
-
-Set up HPA based on CPU/memory metrics for automatic scaling.
-
----
-
-### 3. Set up staging environment
+### 1. Set up staging environment
 **Labels**: `infrastructure`, `priority:medium`
 
 Create separate staging environment for testing before production.
@@ -688,20 +726,20 @@ Create CONTRIBUTING.md with guidelines for contributors.
 
 ## Summary Statistics
 
-- **Total Issues**: 24
-- **Epics**: 7
-- **Feature Issues**: 17
+- **Total Issues**: 23
+- **Epics**: 8
+- **Feature Issues**: 15
 - **By Priority**:
-  - High: 12
-  - Medium: 11
-  - Low: 1
+  - High: 11
+  - Medium: 10
+  - Low: 2
 - **By Component**:
   - Frontend: 4
   - Backend: 4
-  - Infrastructure: 3
+  - Infrastructure: 1
   - Testing: 3
   - Documentation: 3
-  - Multiple components (epics): 7
+  - Multiple components (epics): 8
 
 ## Recommended First Sprint
 
@@ -709,9 +747,8 @@ Focus on these high-priority issues first:
 
 1. Epic: Infrastructure and DevOps Setup
 2. Create image upload component
-3. Set up monitoring
-4. Write E2E tests
-5. Implement rate limiting
+3. Write E2E tests
+4. Implement rate limiting
 
 ## Project Board Structure
 

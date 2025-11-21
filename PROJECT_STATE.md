@@ -1,6 +1,6 @@
 # Project State
 
-> **Last Updated**: 2025-11-14
+> **Last Updated**: 2025-11-21
 > **For**: AI Agents and New Developers
 > **Purpose**: Single source of truth for current technical state
 
@@ -37,8 +37,8 @@
 #### Infrastructure
 - ✅ Docker setup for both frontend and backend
 - ✅ Docker Compose for local development
-- ✅ Kubernetes manifests with Kustomize (dev/prod overlays)
-- ✅ GitHub Actions CI/CD pipeline (build, test, deploy to GKE)
+- ✅ Terraform foundation for Cloud Run deployment
+- ✅ GitHub Actions CI/CD pipeline
 - ✅ VS Code workspace with launch configurations
 
 #### Documentation
@@ -157,7 +157,7 @@ The following features are **documented** in the README and requirements but **n
 | `frontend/package.json` | npm dependencies | ✅ Current |
 | `frontend/angular.json` | Angular CLI configuration | ✅ Current |
 | `docker-compose.yaml` | Local dev environment | ✅ Working |
-| `k8s/base/kustomization.yaml` | Kubernetes base config | ✅ Working |
+| `terraform/main.tf` | Terraform infrastructure config | ✅ Foundation |
 | `.github/workflows/ci-cd.yaml` | CI/CD pipeline | ✅ Working |
 
 ### Documentation Files
@@ -182,7 +182,7 @@ The following features are **documented** in the README and requirements but **n
 ```
 GET  /                                  - API info
 GET  /health                            - Health check
-GET  /ready                             - Kubernetes readiness probe
+GET  /ready                             - Cloud Run readiness probe
 GET  /docs                              - Swagger UI
 GET  /redoc                             - ReDoc API documentation
 
@@ -218,7 +218,8 @@ GET  /api/v1/agents/health              - Agent service health (DISABLED)
 
 ### Infrastructure
 - Docker & Docker Compose
-- Kubernetes (GKE)
+- Cloud Run (serverless)
+- Terraform (IaC)
 - GitHub Actions
 - Google Cloud Platform
 

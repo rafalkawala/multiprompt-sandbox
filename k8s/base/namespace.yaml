@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: multiprompt-sandbox
-  labels:
-    name: multiprompt-sandbox
-    environment: production

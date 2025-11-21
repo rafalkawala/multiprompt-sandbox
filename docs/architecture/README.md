@@ -13,11 +13,11 @@
 - **AI Services**: Google Gemini Pro/Flash, Anthropic Claude (planned)
 - **Database**: PostgreSQL on Cloud SQL (planned)
 - **Storage**: Google Cloud Storage for images (planned)
-- **Infrastructure**: Kubernetes (GKE) on Google Cloud Platform
+- **Infrastructure**: Google Cloud Run (serverless) with Terraform
 
 ### Current Implementation Status
 
-**Working**: Image analysis with Gemini Pro Vision, basic Angular dashboard, Docker/Kubernetes setup
+**Working**: Image analysis with Gemini Pro Vision, basic Angular dashboard, Docker setup
 **Disabled**: LangChain agents (import issues)
 **Planned**: Full MLLM benchmarking features (see MVP roadmap)
 
@@ -405,7 +405,7 @@ User → Frontend Upload
 3. **API Key Management**
    - Gemini API key stored in environment variables
    - Not committed to version control
-   - Kubernetes secrets for production
+   - Google Secret Manager for production
 
 ### Planned Security Features
 
@@ -418,7 +418,7 @@ User → Frontend Upload
      - Viewer: Read-only access
    - API key authentication for programmatic access (future)
 
-   **Environment-specific OAuth configuration via Kubernetes ConfigMaps:**
+   **Environment-specific OAuth configuration via Terraform variables:**
    ```yaml
    # DEV
    GOOGLE_OAUTH_REDIRECT_URI: http://localhost:4200/auth/callback
@@ -433,7 +433,7 @@ User → Frontend Upload
 2. **Data Protection**
    - Encrypted database connections (Cloud SQL)
    - Encrypted storage (Cloud Storage with encryption at rest)
-   - HTTPS enforced via GKE ingress
+   - HTTPS enforced via Cloud Run
    - Sensitive data redaction in logs
 
 3. **API Security**
@@ -459,23 +459,23 @@ User → Frontend Upload
 
 ### Current Setup
 - **Docker Compose**: Single-instance local development
-- **Kubernetes**: Multi-pod deployment ready
-- **Resource Limits**: Configured in k8s manifests
+- **Cloud Run**: Serverless auto-scaling deployment
+- **Terraform**: Infrastructure as Code for all environments
 
 ### Scalability Strategy
 
 1. **Horizontal Scaling**
-   - Frontend: Stateless, can scale to N pods
-   - Backend: Stateless API, can scale to N pods
-   - Load balancing via GKE ingress
+   - Frontend: Stateless, Cloud Run auto-scales to N instances
+   - Backend: Stateless API, Cloud Run auto-scales to N instances
+   - Built-in load balancing via Cloud Run
    - Session affinity not required
 
 2. **Auto-scaling**
-   - Horizontal Pod Autoscaler (HPA) based on:
-     - CPU utilization (target 70%)
-     - Memory utilization (target 80%)
-     - Custom metrics (request queue depth)
-   - Cluster autoscaling for node pool
+   - Cloud Run automatic scaling based on:
+     - Concurrent requests
+     - CPU utilization
+     - Min/max instances configurable per service
+   - Scale to zero when idle (cost optimization)
 
 3. **Database Scalability**
    - Cloud SQL with read replicas
@@ -558,10 +558,11 @@ User → Frontend Upload
 | **Storage** | Google Cloud Storage | ❌ Planned |
 | **Caching** | Redis | ❌ Planned |
 | **Container** | Docker | ✅ Working |
-| **Orchestration** | Kubernetes (GKE) | ✅ Working |
+| **Orchestration** | Cloud Run (serverless) | ❌ Planned |
+| **Infrastructure** | Terraform | ✅ Foundation |
 | **CI/CD** | GitHub Actions | ✅ Working |
-| **Monitoring** | Prometheus, Grafana | ❌ Planned |
-| **Logging** | Google Cloud Logging | ❌ Planned |
+| **Monitoring** | Cloud Monitoring | ❌ Planned |
+| **Logging** | Cloud Logging | ❌ Planned |
 | **Cloud Platform** | Google Cloud Platform | ✅ Configured |
 
 ## Deployment Architecture
@@ -574,25 +575,29 @@ Docker Compose
 └── Shared network
 ```
 
-### Production Environment (GKE)
+### Production Environment (Cloud Run)
 ```
-GKE Cluster
-├── Frontend Deployment (2 replicas)
-│   ├── Nginx server
-│   ├── Angular build
-│   └── Auto-scaling enabled
-├── Backend Deployment (2 replicas)
+Google Cloud Run (Serverless)
+├── Frontend Service
+│   ├── Nginx + Angular build
+│   ├── Auto-scaling (0 to N instances)
+│   ├── Custom domain with SSL
+│   └── CDN via Cloud CDN (optional)
+├── Backend Service
 │   ├── FastAPI application
-│   ├── Health checks configured
-│   └── Auto-scaling enabled
-├── Ingress Controller
-│   ├── Path-based routing
-│   ├── SSL termination
-│   └── Load balancing
-└── External Services
+│   ├── Auto-scaling (0 to N instances)
+│   ├── Serverless VPC Connector
+│   └── Health checks configured
+└── Managed Services
     ├── Cloud SQL (PostgreSQL)
     ├── Cloud Storage (Images)
-    └── Secret Manager (API keys)
+    ├── Secret Manager (API keys)
+    └── Artifact Registry (Docker images)
+
+Infrastructure managed by Terraform:
+├── terraform/main.tf
+├── terraform/variables.tf
+└── Workspaces: dev, staging, prod
 ```
 
 ## MVP Implementation Roadmap
