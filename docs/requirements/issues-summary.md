@@ -26,7 +26,7 @@ Copy the issues below and create them manually on GitHub.
 
 ---
 
-## Epics (6 total)
+## Epics (7 total)
 
 ### Epic 1: Infrastructure and DevOps Setup
 **Labels**: `epic`, `infrastructure`, `priority:high`
@@ -343,6 +343,220 @@ Labeling:
 
 ---
 
+### Epic 7: Experimentation & Benchmarking
+**Labels**: `epic`, `frontend`, `backend`, `priority:high`
+
+**Description**:
+Implement the core benchmarking engine for running MLLM experiments on labeled datasets. Users configure model API keys at project level, create experiments, and run them to get accuracy scores. The system uses the project's KEY question (from Epic 6) directly - no separate prompt management for MVP.
+
+**User Story**:
+As an AI Engineer, I want to configure different MLLM models with my API keys, run experiments on my ground truth datasets, and see accuracy scores for each run, so that I can compare performance of different models.
+
+**Architecture**:
+- **Model Registry**: Global list of supported models (admin-managed)
+- **Project Models**: Per-project API key configuration (user-managed, encrypted)
+- **Experiments**: Link project model to run benchmarks
+- **Experiment Runs**: Execution record with accuracy score
+- **Predictions**: Individual image results for analysis
+
+**Key Design Decisions**:
+- Uses project's KEY question directly (no separate prompts for MVP)
+- API keys encrypted with Cloud KMS (prod) or AES-256 (dev)
+- Background job execution with rate limiting
+- Retry failed API calls 3 times before marking as error
+- Progress tracking during execution
+- Cost estimation and tracking
+
+**Database Schema**:
+```sql
+-- ModelRegistry (App-level, managed by admins)
+model_registry
+  - id (UUID, PK)
+  - provider (VARCHAR) -- 'Google', 'Anthropic'
+  - model_name (VARCHAR) -- 'gemini-1.5-pro', 'claude-3-sonnet'
+  - display_name (VARCHAR) -- 'Gemini 1.5 Pro'
+  - api_endpoint (VARCHAR)
+  - default_config (JSONB) -- { "temperature": 0.7, "max_tokens": 1000 }
+  - rate_limit_rpm (INTEGER) -- requests per minute
+  - cost_per_1k_tokens (DECIMAL) -- for cost estimation
+  - is_active (BOOLEAN)
+  - created_at (TIMESTAMP)
+
+-- ProjectModels (Project-level, configured by users)
+project_models
+  - id (UUID, PK)
+  - project_id (FK → projects)
+  - model_registry_id (FK → model_registry)
+  - api_key_encrypted (BYTEA) -- encrypted with KMS/AES-256
+  - custom_config (JSONB) -- override defaults
+  - is_active (BOOLEAN)
+  - created_by (FK → users)
+  - created_at (TIMESTAMP)
+
+-- Experiments
+experiments
+  - id (UUID, PK)
+  - project_id (FK → projects)
+  - project_model_id (FK → project_models)
+  - name (VARCHAR)
+  - description (TEXT)
+  - created_by (FK → users)
+  - created_at (TIMESTAMP)
+
+-- ExperimentRuns
+experiment_runs
+  - id (UUID, PK)
+  - experiment_id (FK → experiments)
+  - dataset_id (FK → datasets)
+  - status (ENUM: pending, running, completed, failed)
+  - total_images (INTEGER)
+  - processed_images (INTEGER) -- progress tracking
+  - successful_predictions (INTEGER)
+  - failed_predictions (INTEGER)
+  - accuracy_score (FLOAT) -- 0.0 to 100.0
+  - estimated_cost (DECIMAL)
+  - actual_cost (DECIMAL)
+  - error_message (TEXT)
+  - started_at (TIMESTAMP)
+  - completed_at (TIMESTAMP)
+
+-- Predictions
+predictions
+  - id (UUID, PK)
+  - experiment_run_id (FK → experiment_runs)
+  - image_id (FK → images)
+  - predicted_value (JSONB)
+  - ground_truth_value (JSONB)
+  - is_correct (BOOLEAN)
+  - confidence (FLOAT)
+  - latency_ms (INTEGER)
+  - tokens_used (INTEGER)
+  - error_message (TEXT)
+  - created_at (TIMESTAMP)
+```
+
+**Accuracy Calculation**:
+- Formula: `(correct_predictions / successful_predictions) * 100`
+- Only successful predictions counted (failed API calls excluded)
+- Comparison rules by question type:
+  - Binary: Exact match (Yes/No, case-insensitive)
+  - Multiple Choice: Exact match (case-insensitive)
+  - Text: Case-insensitive exact match (for MVP)
+  - Count: Exact numeric match (for MVP)
+
+**Tasks**:
+- **Backend**:
+    - Create ModelRegistry model with seed data for Gemini and Claude
+    - Implement API key encryption service (Cloud KMS for prod, AES-256 for dev)
+    - Create CRUD APIs for ProjectModels with encrypted API key storage
+    - Create CRUD APIs for Experiments
+    - Create endpoint to trigger experiment run: `POST /api/v1/experiments/{id}/run`
+    - Implement background Execution Engine service:
+        - Queue-based job processing (or async task)
+        - Iterate through all images in target dataset
+        - Call MLLM API through abstraction layer (ModelService)
+        - Respect rate limits per model provider
+        - Retry failed calls 3 times with exponential backoff
+        - Save predictions to database
+        - Update progress (processed_images) every 10 images
+    - Implement Scoring Service:
+        - Compare predictions with ground truth annotations
+        - Apply comparison rules per question type
+        - Calculate accuracy score
+        - Update experiment run with final results
+    - Implement cost tracking (tokens used, estimated/actual cost)
+    - Create endpoint for real-time progress: `GET /api/v1/experiment-runs/{id}/progress`
+    - Write unit and integration tests
+
+- **Frontend**:
+    - Create "Models" tab in project settings:
+        - Display available models from registry
+        - Form to add API key for each model
+        - Show masked API key (last 4 chars)
+        - Test connection button
+    - Create "Experiments" page within project:
+        - List of experiments with name, model, created date
+        - "New Experiment" button → modal/form
+        - Select model (from configured project models)
+        - Enter name and description
+    - Create experiment detail view:
+        - Table of ExperimentRuns with columns:
+            - Run ID, Dataset, Status, Progress, Accuracy Score, Cost, Completed At
+        - "Run on Dataset" button → select dataset modal
+        - Real-time status updates (polling or WebSocket)
+        - Progress bar during execution
+    - Display accuracy as percentage (e.g., "87.5%")
+    - Write component tests
+
+**Error Handling**:
+- API call failures: Retry 3 times with exponential backoff (1s, 2s, 4s)
+- After 3 retries: Mark prediction as failed, continue with next image
+- Track failed predictions separately from successful ones
+- If >50% predictions fail: Mark entire run as failed
+- Store error messages for debugging
+
+**Rate Limiting Strategy**:
+- Read `rate_limit_rpm` from model registry
+- Implement token bucket or sliding window
+- Queue requests when limit reached
+- Different limits per model provider
+
+**API Endpoints**:
+```
+Model Registry (Admin):
+  GET    /api/v1/admin/models
+  POST   /api/v1/admin/models
+  PUT    /api/v1/admin/models/{id}
+  DELETE /api/v1/admin/models/{id}
+
+Project Models:
+  GET    /api/v1/projects/{project_id}/models
+  POST   /api/v1/projects/{project_id}/models
+  PUT    /api/v1/project-models/{id}
+  DELETE /api/v1/project-models/{id}
+  POST   /api/v1/project-models/{id}/test -- test API key
+
+Experiments:
+  GET    /api/v1/projects/{project_id}/experiments
+  POST   /api/v1/projects/{project_id}/experiments
+  GET    /api/v1/experiments/{id}
+  PUT    /api/v1/experiments/{id}
+  DELETE /api/v1/experiments/{id}
+  POST   /api/v1/experiments/{id}/run -- trigger run on dataset
+
+Experiment Runs:
+  GET    /api/v1/experiments/{id}/runs
+  GET    /api/v1/experiment-runs/{id}
+  GET    /api/v1/experiment-runs/{id}/progress
+  GET    /api/v1/experiment-runs/{id}/predictions
+  DELETE /api/v1/experiment-runs/{id}
+```
+
+**Success Criteria**:
+- [ ] Admin can manage model registry (add/edit/disable models)
+- [ ] User can add their API key for a supported model within a project
+- [ ] API keys are encrypted at rest (Cloud KMS or AES-256)
+- [ ] User can test API key connection before saving
+- [ ] User can create an experiment by selecting a configured model
+- [ ] User can trigger a run on a labeled dataset
+- [ ] Progress is shown during execution (e.g., "50/100 images processed")
+- [ ] Status updates in real-time (running → completed)
+- [ ] Final accuracy score displayed as percentage (e.g., "87.5%")
+- [ ] Failed API calls are retried 3 times before being marked as errors
+- [ ] Accuracy calculated only on successful predictions
+- [ ] Cost tracking shows estimated and actual cost per run
+- [ ] Text comparison is case-insensitive
+- [ ] Count comparison is exact numeric match
+- [ ] System handles different model APIs (Gemini, Claude) through abstraction
+
+**Dependencies**:
+- Epic 5: Database and Data Persistence (required)
+- Epic 6: Ground Truth Labeling (need labeled datasets)
+
+**Timeline**: 3-4 weeks
+
+---
+
 ## Frontend Issues (4 total)
 
 ### 1. Create image upload component with drag-and-drop
@@ -474,11 +688,11 @@ Create CONTRIBUTING.md with guidelines for contributors.
 
 ## Summary Statistics
 
-- **Total Issues**: 23
-- **Epics**: 6
+- **Total Issues**: 24
+- **Epics**: 7
 - **Feature Issues**: 17
 - **By Priority**:
-  - High: 10
+  - High: 12
   - Medium: 11
   - Low: 1
 - **By Component**:
@@ -487,7 +701,7 @@ Create CONTRIBUTING.md with guidelines for contributors.
   - Infrastructure: 3
   - Testing: 3
   - Documentation: 3
-  - Multiple components (epics): 5
+  - Multiple components (epics): 7
 
 ## Recommended First Sprint
 

@@ -225,48 +225,69 @@ annotations
   - created_at (TIMESTAMP)
   - updated_at (TIMESTAMP)
 
--- Prompt templates (for benchmarking)
-prompts
+-- Model Registry (App-level, admin-managed)
+model_registry
+  - id (UUID, PK)
+  - provider (VARCHAR) -- 'Google', 'Anthropic'
+  - model_name (VARCHAR) -- 'gemini-1.5-pro', 'claude-3-sonnet'
+  - display_name (VARCHAR) -- 'Gemini 1.5 Pro'
+  - api_endpoint (VARCHAR)
+  - default_config (JSONB)
+  - rate_limit_rpm (INTEGER)
+  - cost_per_1k_tokens (DECIMAL)
+  - is_active (BOOLEAN)
+  - created_at (TIMESTAMP)
+
+-- Project Models (user-configured API keys)
+project_models
   - id (UUID, PK)
   - project_id (FK → projects)
-  - name (VARCHAR)
-  - template (TEXT)
-  - variables (JSONB)
-  - version (INT)
+  - model_registry_id (FK → model_registry)
+  - api_key_encrypted (BYTEA) -- Cloud KMS or AES-256
+  - custom_config (JSONB)
+  - is_active (BOOLEAN)
   - created_by (FK → users)
   - created_at (TIMESTAMP)
 
--- Experiments (benchmark runs)
+-- Experiments (link model to project)
 experiments
   - id (UUID, PK)
   - project_id (FK → projects)
-  - prompt_id (FK → prompts)
-  - model (VARCHAR)  # gemini-pro, gemini-flash, claude
+  - project_model_id (FK → project_models)
+  - name (VARCHAR)
+  - description (TEXT)
+  - created_by (FK → users)
+  - created_at (TIMESTAMP)
+
+-- Experiment Runs (execution records)
+experiment_runs
+  - id (UUID, PK)
+  - experiment_id (FK → experiments)
+  - dataset_id (FK → datasets)
   - status (ENUM: pending, running, completed, failed)
+  - total_images (INTEGER)
+  - processed_images (INTEGER)
+  - successful_predictions (INTEGER)
+  - failed_predictions (INTEGER)
+  - accuracy_score (FLOAT)
+  - estimated_cost (DECIMAL)
+  - actual_cost (DECIMAL)
+  - error_message (TEXT)
   - started_at (TIMESTAMP)
   - completed_at (TIMESTAMP)
-  - created_by (FK → users)
 
--- Experiment results
-results
+-- Predictions (per-image results)
+predictions
   - id (UUID, PK)
-  - experiment_id (FK → experiments)
+  - experiment_run_id (FK → experiment_runs)
   - image_id (FK → images)
-  - prediction (JSONB)
-  - ground_truth (JSONB)
+  - predicted_value (JSONB)
+  - ground_truth_value (JSONB)
   - is_correct (BOOLEAN)
   - confidence (FLOAT)
-  - latency_ms (INT)
-
--- Accuracy metrics
-metrics
-  - id (UUID, PK)
-  - experiment_id (FK → experiments)
-  - overall_accuracy (FLOAT)
-  - precision (FLOAT)
-  - recall (FLOAT)
-  - f1_score (FLOAT)
-  - confusion_matrix (JSONB)
+  - latency_ms (INTEGER)
+  - tokens_used (INTEGER)
+  - error_message (TEXT)
   - created_at (TIMESTAMP)
 ```
 
