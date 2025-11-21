@@ -38,11 +38,11 @@ echo "Creating epic issues..."
 # Epic 1: Infrastructure
 gh issue create --title "Epic: Infrastructure and DevOps Setup" \
   --body "## Goal
-Set up complete infrastructure for development, testing, and deployment to GKE.
+Set up complete infrastructure for development, testing, and deployment to Cloud Run.
 
 ## Tasks
 - [ ] Configure GCP project and enable APIs
-- [ ] Create GKE cluster with autoscaling
+- [ ] Set up Terraform for infrastructure as code
 - [ ] Set up Artifact Registry for Docker images
 - [ ] Configure GitHub Actions secrets
 - [ ] Set up Google Cloud secrets for API keys
@@ -50,7 +50,7 @@ Set up complete infrastructure for development, testing, and deployment to GKE.
 - [ ] Configure monitoring and logging
 
 ## Success Criteria
-- CI/CD pipeline successfully deploys to GKE
+- CI/CD pipeline successfully deploys to Cloud Run
 - Automated testing runs on every PR
 - Secrets are properly managed
 - Monitoring is in place

@@ -55,11 +55,11 @@ gh issue create --title "Epic: Infrastructure and DevOps Setup" \
 # Epic: Infrastructure and DevOps Setup
 
 ## Goal
-Set up complete infrastructure for development, testing, and deployment to GKE.
+Set up complete infrastructure for development, testing, and deployment to Cloud Run.
 
 ## Tasks
 - [ ] Configure GCP project and enable APIs
-- [ ] Create GKE cluster with autoscaling
+- [ ] Set up Terraform for infrastructure as code
 - [ ] Set up Artifact Registry for Docker images
 - [ ] Configure GitHub Actions secrets
 - [ ] Set up Google Cloud secrets for API keys
@@ -67,7 +67,7 @@ Set up complete infrastructure for development, testing, and deployment to GKE.
 - [ ] Configure monitoring and logging
 
 ## Success Criteria
-- CI/CD pipeline successfully deploys to GKE
+- CI/CD pipeline successfully deploys to Cloud Run
 - Automated testing runs on every PR
 - Secrets are properly managed
 - Monitoring is in place
@@ -221,7 +221,7 @@ gh issue create --title "Epic: Database and Data Persistence" \
 Add PostgreSQL database for storing user data, analysis history, and agent conversations.
 
 ## Tasks
-- [ ] Set up PostgreSQL on GKE (Cloud SQL)
+- [ ] Set up PostgreSQL on Cloud SQL
 - [ ] Design database schema
 - [ ] Implement SQLAlchemy models
 - [ ] Create Alembic migrations

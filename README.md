@@ -582,7 +582,7 @@ For specific needs, refer to the detailed documentation files.
 | **[Project State](./PROJECT_STATE.md)** | **START HERE** for current technical state, known issues, and file locations. Essential for AI agents. |
 | **[Architecture Overview](./docs/architecture/README.md)** | To understand the high-level system design, component interactions, and infrastructure layout. |
 | **[API Reference](./docs/api/README.md)** | When you need to know about specific API endpoints, request/response formats, and authentication. |
-| **[Deployment Guide](./docs/deployment/README.md)** | For step-by-step instructions on deploying the application to GKE or a local environment. |
+| **[Deployment Guide](./docs/deployment/README.md)** | For step-by-step instructions on deploying the application to Cloud Run or a local environment. |
 | **[Project Requirements](./docs/requirements/README.md)** | To understand the project's goals, user stories, epics, and functional requirements. Start here to see what we are building. |
 | **[GitHub Setup](./docs/github-setup.md)** | For guidelines on our GitHub workflow, including how to create issues and manage project boards. |
 | **[Issues Summary](./docs/requirements/issues-summary.md)** | A quick-start document that lists all initial epics and tasks to be created on GitHub. Use this to populate a new project board. |

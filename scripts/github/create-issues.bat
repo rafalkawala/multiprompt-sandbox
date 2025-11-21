@@ -33,7 +33,7 @@ gh label create "priority:low" --color "00FF00" --description "Low priority" --f
 
 echo Creating epic issues...
 
-gh issue create --title "Epic: Infrastructure and DevOps Setup" --body "Goal: Set up complete infrastructure for development, testing, and deployment to GKE. Tasks: Configure GCP, create GKE cluster, set up CI/CD, configure monitoring." --label "epic,infrastructure,priority:high"
+gh issue create --title "Epic: Infrastructure and DevOps Setup" --body "Goal: Set up complete infrastructure for development, testing, and deployment to Cloud Run. Tasks: Configure GCP, set up Terraform, set up CI/CD, configure monitoring." --label "epic,infrastructure,priority:high"
 
 gh issue create --title "Epic: Image Analysis with Gemini Pro Vision" --body "Goal: Implement complete image analysis functionality using Gemini Pro Vision API. Tasks: Create upload UI, integrate Gemini, display results, add tests." --label "epic,frontend,backend,priority:high"
 
