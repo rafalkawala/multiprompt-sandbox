@@ -1,6 +1,6 @@
 # API Documentation
 
-> **Last Updated**: 2025-11-14
+> **Last Updated**: 2025-11-21
 
 Base URL: `http://localhost:8000` (development) or your production URL
 
@@ -13,19 +13,25 @@ API documentation is automatically generated and available at:
 
 ## Current Implementation Status
 
-**Working**: Image analysis endpoints
+**Working**:
+- Image analysis endpoints
+- Google OAuth authentication
+- User management (CRUD)
+
 **Disabled**: Agent execution endpoints (LangChain import issues)
 **Planned**: Projects, datasets, experiments, results endpoints
 
 ## Authentication
 
-**Current Status**: No authentication required (development only)
+**Current Status**: JWT-based authentication with Google OAuth
 
-**Planned** (MVP):
-- JWT-based authentication
+**Implemented**:
+- JWT-based authentication (30 min token expiry)
 - OAuth2 with Google Sign-In
-- API key authentication for programmatic access
 - Role-based access control (Admin, User, Viewer)
+
+**Planned**:
+- API key authentication for programmatic access
 
 ## Endpoints
 
@@ -51,6 +57,113 @@ Kubernetes readiness probe.
   "status": "ready"
 }
 ```
+
+### Authentication Endpoints
+
+Base path: `/api/v1/auth`
+
+#### GET `/api/v1/auth/google/login`
+Get Google OAuth URL to initiate login.
+
+**Response:**
+```json
+{
+  "auth_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...&redirect_uri=...&response_type=code&scope=openid%20email%20profile"
+}
+```
+
+#### GET `/api/v1/auth/google/callback`
+Handle Google OAuth callback (redirects to frontend with JWT token).
+
+**Query Parameters:**
+- `code`: Authorization code from Google
+
+**Response:** Redirects to `{FRONTEND_URL}/auth/callback?token={jwt_token}`
+
+#### GET `/api/v1/auth/me`
+Get current user info.
+
+**Query Parameters:**
+- `token`: JWT token
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "email": "user@example.com",
+  "name": "User Name",
+  "picture_url": "https://...",
+  "role": "admin|user|viewer",
+  "is_active": true,
+  "created_at": "2025-11-21T10:00:00",
+  "last_login_at": "2025-11-21T10:00:00"
+}
+```
+
+#### POST `/api/v1/auth/logout`
+Logout endpoint (client should discard token).
+
+**Response:**
+```json
+{
+  "message": "Logged out successfully"
+}
+```
+
+### User Management Endpoints (Admin Only)
+
+Base path: `/api/v1/users`
+
+All endpoints require `Authorization: Bearer {token}` header with admin role.
+
+#### GET `/api/v1/users/`
+List all users.
+
+**Response:**
+```json
+[
+  {
+    "id": "uuid",
+    "email": "user@example.com",
+    "name": "User Name",
+    "picture_url": "https://...",
+    "role": "user",
+    "is_active": true,
+    "created_at": "2025-11-21T10:00:00",
+    "last_login_at": "2025-11-21T10:00:00"
+  }
+]
+```
+
+#### POST `/api/v1/users/`
+Create a new user.
+
+**Request Body:**
+```json
+{
+  "email": "newuser@example.com",
+  "name": "New User",
+  "role": "user"
+}
+```
+
+#### GET `/api/v1/users/{user_id}`
+Get user by ID.
+
+#### PATCH `/api/v1/users/{user_id}`
+Update user.
+
+**Request Body:**
+```json
+{
+  "name": "Updated Name",
+  "role": "admin",
+  "is_active": false
+}
+```
+
+#### DELETE `/api/v1/users/{user_id}`
+Delete user (cannot delete self).
 
 ### Agent Endpoints ⚠️ CURRENTLY DISABLED
 
@@ -285,7 +398,14 @@ ws://localhost:8000/api/v1/agents/stream
 
 ## Changelog
 
-### v0.1.0 (Current)
+### v0.2.0 (Current - 2025-11-21)
+- Google OAuth authentication
+- JWT token-based sessions
+- User management CRUD endpoints
+- Role-based access control (Admin, User, Viewer)
+- Database migrations for user model
+
+### v0.1.0 (2025-11-14)
 - Initial API release
 - Agent execution endpoint
 - Image analysis endpoint
