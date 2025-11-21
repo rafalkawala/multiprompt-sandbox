@@ -1,0 +1,37 @@
+name: multiprompt-sandbox
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - fastapi
+  - uvicorn
+  - pydantic
+  - pydantic-settings
+  - sqlalchemy=2.0.25
+  - alembic=1.13.1
+  - psycopg2
+  - python-multipart
+  - python-dotenv
+  - httpx
+  - aiohttp
+  - python-jose
+  - passlib
+  - tenacity
+  - pytest
+  - pytest-asyncio
+  - pytest-cov
+  - pytest-mock
+  - black=23.12.1
+  - flake8=7.0.0
+  - mypy=1.8.0
+  - isort=5.13.2
+  - pip
+  - pip:
+    - langchain==0.1.0
+    - langchain-google-genai==0.0.6
+    - langchain-community==0.0.12
+    - langgraph==0.0.20
+    - google-generativeai==0.3.2
+    - google-cloud-aiplatform==1.38.1
+    - pytest-httpx

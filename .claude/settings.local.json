@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(findstr:*)",
+      "Bash(if not exist backend.env copy backend.env.example backend.env)",
+      "Bash([ ! -f backend/.env ])",
+      "Bash(cp:*)",
+      "Bash([ -d frontend/node_modules ])",
+      "Bash(npm install)",
+      "Bash(python -m uvicorn:*)",
+      "Bash(pip install:*)",
+      "Bash(npm start)",
+      "Bash(curl:*)",
+      "Bash(git config:*)",
+      "Bash(gh auth status:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -22,10 +22,10 @@ google-cloud-aiplatform==1.38.1
 httpx==0.26.0
 aiohttp==3.9.1
 
-# Database (optional - add if needed)
-# sqlalchemy==2.0.25
-# alembic==1.13.1
-# psycopg2-binary==2.9.9
+# Database
+sqlalchemy==2.0.25
+alembic==1.13.1
+psycopg2-binary==2.9.9
 
 # Utilities
 python-jose[cryptography]==3.3.0
@@ -37,7 +37,7 @@ pytest==7.4.4
 pytest-asyncio==0.23.3
 pytest-cov==4.1.0
 pytest-mock==3.12.0
-httpx-mock==0.17.0
+pytest-httpx==0.28.0
 black==23.12.1
 flake8==7.0.0
 mypy==1.8.0

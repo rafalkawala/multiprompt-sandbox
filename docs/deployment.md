@@ -68,7 +68,7 @@ gcloud secrets list
 ### 1. Configure Terraform Variables
 
 ```bash
-cd terraform
+cd infrastructure
 
 # Create terraform.tfvars with your values
 cat > terraform.tfvars << EOF
@@ -299,7 +299,7 @@ gcloud run services delete mllm-frontend-svc --region us-central1
 gcloud run services delete mllm-backend-svc --region us-central1
 
 # Destroy Terraform infrastructure
-cd terraform
+cd infrastructure
 terraform destroy
 
 # Delete Artifact Registry

@@ -12,8 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
 
-from app.core.config import settings
-from app.api.v1 import api_router
+from core.config import settings
+from api.v1 import api_router
 
 # Configure logging
 logging.basicConfig(
@@ -85,7 +85,7 @@ async def global_exception_handler(request, exc):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
-        "app.main:app",
+        "main:app",
         host="0.0.0.0",
         port=8000,
         reload=True

@@ -24,6 +24,9 @@ class Settings(BaseSettings):
         "http://localhost:8080"
     ]
 
+    # Database
+    DATABASE_URL: str = "postgresql://user:password@localhost:5432/appdb"
+
     # Google Cloud / Gemini Configuration
     GEMINI_API_KEY: str = ""
     GCP_PROJECT_ID: str = ""

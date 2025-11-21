@@ -184,13 +184,9 @@ cd ..
 **Backend:**
 ```bash
 cd backend
-python -m venv venv
-# Windows
-venv\Scripts\activate
-# Linux/Mac
-source venv/bin/activate
-
-pip install -r requirements.txt
+# Create and activate the conda environment
+conda env create -f environment.yml
+conda activate multiprompt-sandbox
 cd ..
 ```
 
@@ -205,7 +201,7 @@ docker-compose up
 ```bash
 # Terminal 1 - Backend
 cd backend
-venv\Scripts\activate  # Windows
+conda activate multiprompt-sandbox
 uvicorn app.main:app --reload
 
 # Terminal 2 - Frontend
@@ -228,21 +224,16 @@ npm start
 ```bash
 cd backend
 
-# Create virtual environment (first time only)
-python -m venv venv
+# Create and activate the conda environment (first time only)
+conda env create -f environment.yml
+conda activate multiprompt-sandbox
 
-# Activate virtual environment
-# Windows:
-venv\Scripts\activate
-# Linux/Mac:
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
+# To activate in future sessions
+conda activate multiprompt-sandbox
 
 # Copy environment file (first time only)
 cp .env.example .env
-# Edit .env and add your GEMINI_API_KEY
+# Edit .env and add your GEMINI_API_KEY and DATABASE_URL
 
 # Run the server
 uvicorn app.main:app --reload
@@ -291,9 +282,9 @@ npm run e2e              # Run E2E tests (when implemented)
 
 ### Adding a New Backend Endpoint
 
-1. **Create endpoint file** in `backend/app/api/v1/endpoints/`
+1. **Create endpoint file** in `backend/api/v1/`
    ```python
-   # backend/app/api/v1/endpoints/my_feature.py
+   # backend/api/v1/my_feature.py
    from fastapi import APIRouter, HTTPException
    from pydantic import BaseModel
 
@@ -307,7 +298,7 @@ npm run e2e              # Run E2E tests (when implemented)
        return {"result": "success"}
    ```
 
-2. **Register router** in `backend/app/api/v1/__init__.py`
+2. **Register router** in `backend/api/v1/__init__.py`
    ```python
    from backend.app.api.v1.endpoints import my_feature
 
@@ -386,14 +377,13 @@ export const environment = {
 
 ### Common Development Tasks
 
-**Reset backend virtual environment:**
+**Reset backend Conda environment:**
 ```bash
 cd backend
-deactivate  # If venv is active
-rm -rf venv  # or rmdir /s venv on Windows
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
+conda deactivate
+conda env remove -n multiprompt-sandbox
+conda env create -f environment.yml
+conda activate multiprompt-sandbox
 ```
 
 **Clear frontend node_modules:**
@@ -475,7 +465,7 @@ This section helps you understand **what's actually working** vs. what's planned
 
 - **LangChain Agents Endpoint**: Currently **DISABLED** due to import issues in `langchain_community.tools`
   - Endpoint exists at `POST /api/v1/agents/execute` but is commented out in router
-  - Service code exists in `backend/app/services/agent_service.py`
+  - Service code exists in `backend/services/agent_service.py`
   - Frontend placeholder exists but no integration
 
 ### ❌ Not Yet Implemented (MVP Roadmap)
@@ -538,8 +528,8 @@ For detailed implementation plan, see [MVP Roadmap](#-mvp-roadmap-2-months) and 
 
 1. **First, read this README** - Understand the vision and current state
 2. **Then read** [`PROJECT_STATE.md`](./PROJECT_STATE.md) - Current technical state and key file locations
-3. **For architecture details** - See [`docs/architecture/README.md`](./docs/architecture/README.md)
-4. **For API details** - See [`docs/api/README.md`](./docs/api/README.md)
+3. **For architecture details** - See [`docs/architecture.md`](./docs/architecture.md)
+4. **For API details** - See [`docs/api.md`](./docs/api.md)
 
 ### Codebase Structure
 
@@ -549,7 +539,7 @@ The repository is organized as a monorepo. Below is a guide to the key directori
 |---|---|
 | [`/frontend`](./frontend/) | Contains the **Angular** frontend application. All UI components, services, and styles are located here. |
 | [`/backend`](./backend/) | Contains the **Python FastAPI** backend application. This is where the core business logic, API endpoints, and database models reside. |
-| [`/terraform`](./terraform/) | Contains **Terraform** configurations for deploying infrastructure to GCP (Cloud Run, Cloud SQL, Cloud Storage). |
+| [`/infrastructure`](./infrastructure/) | Contains **Terraform** configurations for deploying infrastructure to GCP (Cloud Run, Cloud SQL, Cloud Storage). |
 | [`/scripts`](./scripts/) | A collection of automation scripts for local setup, deployment, and creating GitHub issues. |
 | [`/docs`](./docs/) | Home to all official project documentation. |
 
@@ -559,17 +549,17 @@ The repository is organized as a monorepo. Below is a guide to the key directori
 
 | File Path | Purpose | Status |
 |-----------|---------|--------|
-| [`backend/app/main.py`](./backend/app/main.py) | FastAPI application entry point | ✅ Working |
-| [`backend/app/api/v1/__init__.py`](./backend/app/api/v1/__init__.py) | API router configuration | ✅ Working (agents disabled) |
-| [`backend/app/services/gemini_service.py`](./backend/app/services/gemini_service.py) | Gemini Pro Vision integration | ✅ Working |
-| [`backend/app/services/agent_service.py`](./backend/app/services/agent_service.py) | LangChain agent service | ⚠️ Disabled |
-| [`backend/app/core/config.py`](./backend/app/core/config.py) | Backend configuration & settings | ✅ Working |
+| [`backend/main.py`](./backend/main.py) | FastAPI application entry point | ✅ Working |
+| [`backend/api/v1/__init__.py`](./backend/api/v1/__init__.py) | API router configuration | ✅ Working (agents disabled) |
+| [`backend/services/gemini_service.py`](./backend/services/gemini_service.py) | Gemini Pro Vision integration | ✅ Working |
+| [`backend/services/agent_service.py`](./backend/services/agent_service.py) | LangChain agent service | ⚠️ Disabled |
+| [`backend/core/config.py`](./backend/core/config.py) | Backend configuration & settings | ✅ Working |
 | [`backend/requirements.txt`](./backend/requirements.txt) | Python dependencies | ✅ Current |
 | [`frontend/src/app/app.component.ts`](./frontend/src/app/app.component.ts) | Angular root component | ✅ Working |
 | [`frontend/src/app/app.routes.ts`](./frontend/src/app/app.routes.ts) | Frontend routing configuration | ✅ Working |
 | [`frontend/src/app/app.config.ts`](./frontend/src/app/app.config.ts) | Angular providers & config | ✅ Working |
 | [`frontend/package.json`](./frontend/package.json) | npm dependencies | ✅ Current |
-| [`terraform/main.tf`](./terraform/main.tf) | Terraform infrastructure config | ✅ Foundation |
+| [`infrastructure/main.tf`](./infrastructure/main.tf) | Terraform infrastructure config | ✅ Foundation |
 | [`.github/workflows/ci-cd.yaml`](./.github/workflows/ci-cd.yaml) | CI/CD pipeline | ✅ Working |
 | [`docker-compose.yaml`](./docker-compose.yaml) | Local development setup | ✅ Working |
 
@@ -580,12 +570,12 @@ For specific needs, refer to the detailed documentation files.
 | Document | When to Use It |
 |---|---|
 | **[Project State](./PROJECT_STATE.md)** | **START HERE** for current technical state, known issues, and file locations. Essential for AI agents. |
-| **[Architecture Overview](./docs/architecture/README.md)** | To understand the high-level system design, component interactions, and infrastructure layout. |
-| **[API Reference](./docs/api/README.md)** | When you need to know about specific API endpoints, request/response formats, and authentication. |
-| **[Deployment Guide](./docs/deployment/README.md)** | For step-by-step instructions on deploying the application to Cloud Run or a local environment. |
+| **[Architecture Overview](./docs/architecture.md)** | To understand the high-level system design, component interactions, and infrastructure layout. |
+| **[API Reference](./docs/api.md)** | When you need to know about specific API endpoints, request/response formats, and authentication. |
+| **[Deployment Guide](./docs/deployment.md)** | For step-by-step instructions on deploying the application to Cloud Run or a local environment. |
 | **[Project Requirements](./docs/requirements/README.md)** | To understand the project's goals, user stories, epics, and functional requirements. Start here to see what we are building. |
 | **[GitHub Setup](./docs/github-setup.md)** | For guidelines on our GitHub workflow, including how to create issues and manage project boards. |
-| **[Issues Summary](./docs/requirements/issues-summary.md)** | A quick-start document that lists all initial epics and tasks to be created on GitHub. Use this to populate a new project board. |
+| **[Issues Summary](./docs/issues-summary.md)** | A quick-start document that lists all initial epics and tasks to be created on GitHub. Use this to populate a new project board. |
 
 ## 🎯 MVP Roadmap (2 Months)
 
@@ -693,7 +683,7 @@ Add secrets to your GitHub repository:
 - `GCP_SA_KEY`
 - `GEMINI_API_KEY`
 
-See [Deployment Guide](docs/deployment/README.md) for detailed instructions.
+See [Deployment Guide](docs/deployment.md) for detailed instructions.
 
 ## 🎯 Target Use Cases
 

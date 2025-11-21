@@ -3,8 +3,8 @@ API v1 router
 """
 from fastapi import APIRouter
 # Temporarily disable agents endpoint due to import issues
-# from app.api.v1.endpoints import agents, images
-from app.api.v1.endpoints import images
+# from api.v1 import agents, images
+from api.v1 import images
 
 api_router = APIRouter()
 

@@ -1,6 +1,25 @@
 version: '3.8'
 
 services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: appdb
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432" # Expose PostgreSQL port to host
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d appdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   frontend:
     build:
       context: ./frontend
@@ -9,6 +28,7 @@ services:
       - "4200:80"
     environment:
       - NODE_ENV=development
+      - API_URL=http://backend:8000/api/v1 # Frontend connects to backend service name
     depends_on:
       - backend
     networks:
@@ -24,10 +44,13 @@ services:
       - ENVIRONMENT=development
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+      - DATABASE_URL=postgresql://user:password@db:5432/appdb # Connect to db service
     env_file:
       - ./backend/.env
     volumes:
-      - ./backend/app:/app/app
+      - ./backend:/app
+    depends_on:
+      - db # Ensure db is up before backend
     networks:
       - app-network
     healthcheck:
@@ -36,6 +59,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+volumes:
+  db-data:
 
 networks:
   app-network:

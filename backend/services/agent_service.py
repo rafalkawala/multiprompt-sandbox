@@ -8,7 +8,7 @@ from langchain import hub
 from typing import Optional, Dict, Any
 import logging
 
-from app.core.config import settings
+from core.config import settings
 
 logger = logging.getLogger(__name__)
 

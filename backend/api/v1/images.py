@@ -6,8 +6,8 @@ from pydantic import BaseModel
 from typing import Optional
 import logging
 
-from app.services.gemini_service import GeminiService
-from app.core.config import settings
+from services.gemini_service import GeminiService
+from core.config import settings
 
 logger = logging.getLogger(__name__)
 

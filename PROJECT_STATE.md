@@ -19,12 +19,12 @@
 ### What's Actually Working (v0.1.0 - Foundation Phase)
 
 #### Backend (FastAPI + Python 3.11)
-- ✅ Basic FastAPI application structure (`backend/app/main.py`)
+- ✅ Basic FastAPI application structure (`backend/main.py`)
 - ✅ Health check endpoints (`/health`, `/ready`)
 - ✅ Image analysis endpoint (`POST /api/v1/images/analyze`) using Gemini Pro Vision
 - ✅ CORS configuration for local development
 - ✅ Global exception handling
-- ✅ Pydantic settings management (`backend/app/core/config.py`)
+- ✅ Pydantic settings management (`backend/core/config.py`)
 - ✅ OpenAPI documentation at `/docs` and `/redoc`
 
 #### Frontend (Angular 17 + TypeScript)
@@ -51,13 +51,13 @@
 ### Known Issues / Disabled Features
 
 #### LangChain Agents (Currently DISABLED)
-- ⚠️ **Status**: Endpoint commented out in `backend/app/api/v1/__init__.py` (line ~23)
+- ⚠️ **Status**: Endpoint commented out in `backend/api/v1/__init__.py` (line ~23)
 - ⚠️ **Reason**: Import error in `langchain_community.tools` package
 - ⚠️ **Impact**: Cannot execute agent workflows
 - ⚠️ **Code Location**:
-  - Service: `backend/app/services/agent_service.py` (exists but not used)
-  - Endpoint: `backend/app/api/v1/endpoints/agents.py` (exists but not routed)
-  - Router: `backend/app/api/v1/__init__.py` (line 23 commented out)
+  - Service: `backend/services/agent_service.py` (exists but not used)
+  - Endpoint: `backend/api/v1/agents.py` (exists but not routed)
+  - Router: `backend/api/v1/__init__.py` (line 23 commented out)
 
 #### No Database Persistence
 - ❌ PostgreSQL not yet configured
@@ -115,23 +115,23 @@ The following features are **documented** in the README and requirements but **n
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `backend/app/main.py` | FastAPI application entry point | ✅ Working |
-| `backend/app/api/v1/__init__.py` | API router configuration | ✅ Working (agents disabled) |
-| `backend/app/core/config.py` | Configuration and settings | ✅ Working |
+| `backend/main.py` | FastAPI application entry point | ✅ Working |
+| `backend/api/v1/__init__.py` | API router configuration | ✅ Working (agents disabled) |
+| `backend/core/config.py` | Configuration and settings | ✅ Working |
 
 ### Backend Services
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `backend/app/services/gemini_service.py` | Gemini Pro Vision integration | ✅ Working |
-| `backend/app/services/agent_service.py` | LangChain agent service | ⚠️ Disabled |
+| `backend/services/gemini_service.py` | Gemini Pro Vision integration | ✅ Working |
+| `backend/services/agent_service.py` | LangChain agent service | ⚠️ Disabled |
 
 ### Backend API Endpoints
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `backend/app/api/v1/endpoints/images.py` | Image analysis endpoints | ✅ Working |
-| `backend/app/api/v1/endpoints/agents.py` | Agent execution endpoints | ⚠️ Disabled |
+| `backend/api/v1/images.py` | Image analysis endpoints | ✅ Working |
+| `backend/api/v1/agents.py` | Agent execution endpoints | ⚠️ Disabled |
 
 ### Frontend Entry Points
 
@@ -157,7 +157,7 @@ The following features are **documented** in the README and requirements but **n
 | `frontend/package.json` | npm dependencies | ✅ Current |
 | `frontend/angular.json` | Angular CLI configuration | ✅ Current |
 | `docker-compose.yaml` | Local dev environment | ✅ Working |
-| `terraform/main.tf` | Terraform infrastructure config | ✅ Foundation |
+| `infrastructure/main.tf` | Terraform infrastructure config | ✅ Foundation |
 | `.github/workflows/ci-cd.yaml` | CI/CD pipeline | ✅ Working |
 
 ### Documentation Files
@@ -166,11 +166,11 @@ The following features are **documented** in the README and requirements but **n
 |------|---------|
 | `README.md` | Main project documentation (START HERE) |
 | `PROJECT_STATE.md` | This file - current state reference |
-| `docs/architecture/README.md` | System architecture overview |
-| `docs/api/README.md` | API endpoint documentation |
-| `docs/deployment/README.md` | Deployment instructions |
+| `docs/architecture.md` | System architecture overview |
+| `docs/api.md` | API endpoint documentation |
+| `docs/deployment.md` | Deployment instructions |
 | `docs/requirements/README.md` | Requirements and user stories |
-| `docs/requirements/issues-summary.md` | GitHub issues to create |
+| `docs/issues-summary.md` | GitHub issues to create |
 | `docs/github-setup.md` | GitHub project setup |
 
 ---
@@ -285,8 +285,8 @@ npm test
 - 8e8b722 - Add product requirements document
 
 **Modified Files** (as of last check):
-- `backend/app/api/v1/__init__.py` (agents disabled)
-- `backend/app/main.py` (updated)
+- `backend/api/v1/__init__.py` (agents disabled)
+- `backend/main.py` (updated)
 - `frontend/src/app/app.config.ts` (updated)
 
 ---
@@ -309,25 +309,28 @@ npm test
 
 ## Development Priorities (Next Steps)
 
-Based on MVP roadmap, the next implementation priorities are:
+Based on the MVP Golden Path, the next implementation priorities are:
 
-### Phase 1: Foundation (Weeks 1-2)
-1. Fix LangChain agents endpoint or remove if not needed
-2. Set up PostgreSQL database
-3. Implement project and dataset management
-4. Add image upload to Cloud Storage
+### Phase 1: MVP Core (Weeks 1-3)
+1.  **Set up Database**: Configure PostgreSQL and define the core schema for users, projects, and datasets (`Epic 5`).
+2.  **Implement Authentication**: Add Google OAuth2 login and user management (`Epic 4`).
+3.  **Build Project & Dataset Management**: Implement the core logic for creating projects and uploading images to datasets (`Epic 6`).
 
-### Phase 2: Core Features (Weeks 2-6)
-5. Build ground truth labeling interface
-6. Create prompt engineering sandbox
-7. Implement multi-model benchmarking engine
-8. Add accuracy scoring system
+### Phase 2: Core Features (Weeks 3-6)
+4.  **Build Ground Truth Labeling Interface**: The main labeling UI (`Epic 6`).
+5.  **Create Prompt Engineering Sandbox**: Basic version for the KEY question.
+6.  **Implement Multi-Model Benchmarking Engine**: The core experiment engine (`Epic 7`).
+7.  **Add Accuracy Scoring System**: The scoring and results logic (`Epic 7`).
 
-### Phase 3: Repository & Polish (Weeks 6-8)
-9. Build experiment repository
-10. Add comparison and analytics
-11. Implement few-shot prompting
-12. E2E testing and optimization
+### Post-MVP / Future
+- **Fix LangChain agents endpoint**: Re-evaluate and fix the import error for agentic workflows.
+- **Build Experiment Repository**: UI for browsing and comparing experiments.
+- **Implement Few-Shot Prompting**: Advanced AI capabilities.
+- **E2E testing and optimization**.
+
+### Infrastructure Improvements
+- **Switch to Miniforge**: Migrate the Conda environment setup to use Miniforge for a smaller, more focused Python distribution.
+
 
 ---
 
@@ -384,15 +387,15 @@ When working on this project:
 2. **Check README.md** for overall vision and features
 3. **Look at specific docs** in `/docs` for detailed info
 4. **Key entry points**:
-   - Backend: `backend/app/main.py`
+   - Backend: `backend/main.py`
    - Frontend: `frontend/src/app/app.component.ts`
 5. **Known blockers**: LangChain agents disabled, no database persistence
 6. **What works**: Image analysis via Gemini, basic Angular UI
 7. **What's planned**: Everything in "Not Yet Implemented" section above
 
 When implementing new features:
-- Backend endpoints go in `backend/app/api/v1/endpoints/`
-- Services go in `backend/app/services/`
+- Backend endpoints go in `backend/api/v1/`
+- Services go in `backend/services/`
 - Frontend components go in `frontend/src/app/features/`
 - Always add tests in corresponding test directories
 - Update this file when making significant changes

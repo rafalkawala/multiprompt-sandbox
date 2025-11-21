@@ -595,8 +595,8 @@ Google Cloud Run (Serverless)
     └── Artifact Registry (Docker images)
 
 Infrastructure managed by Terraform:
-├── terraform/main.tf
-├── terraform/variables.tf
+├── infrastructure/main.tf
+├── infrastructure/variables.tf
 └── Workspaces: dev, staging, prod
 ```
 
