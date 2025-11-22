@@ -29,6 +29,36 @@ steps:
         echo "DB_HOST: $(cat /workspace/db_host.txt)"
     id: 'get-db-host'
 
+  # Run database migrations
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Install cloud-sql-proxy
+        curl -o cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.8.0/cloud-sql-proxy.linux.amd64
+        chmod +x cloud-sql-proxy
+
+        # Get DB password from Secret Manager
+        DB_PASSWORD=$$(gcloud secrets versions access latest --secret=multiprompt-db-password --project=$PROJECT_ID)
+
+        # Start proxy in background
+        ./cloud-sql-proxy --port 5432 $PROJECT_ID:${_REGION}:${_DB_INSTANCE} &
+        PROXY_PID=$$!
+        sleep 5
+
+        # Install dependencies and run migrations
+        cd backend
+        pip install -q -r requirements.txt
+
+        export DATABASE_URL="postgresql://${_DB_USER}:$${DB_PASSWORD}@localhost:5432/${_DB_NAME}"
+        alembic upgrade head
+
+        # Cleanup
+        kill $$PROXY_PID || true
+    waitFor: ['get-db-host', 'test-backend']
+    id: 'run-migrations'
+
   # Get existing Cloud Run URLs (for services that already exist)
   - name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: 'bash'
@@ -95,7 +125,7 @@ steps:
           --cpu=1 \
           --min-instances=0 \
           --max-instances=10
-    waitFor: ['get-db-host', 'get-urls', 'push-backend']
+    waitFor: ['get-db-host', 'get-urls', 'push-backend', 'run-migrations']
     id: 'deploy-backend'
 
   # Build frontend image
