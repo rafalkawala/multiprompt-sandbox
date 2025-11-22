@@ -2,10 +2,11 @@
 Main FastAPI application entry point
 """
 import os
-# Disable LangSmith tracing before any imports
-os.environ["LANGCHAIN_TRACING_V2"] = "false"
-os.environ["LANGCHAIN_ENDPOINT"] = ""
-os.environ["LANGCHAIN_API_KEY"] = ""
+# Disable LangSmith tracing before any imports (only if not explicitly configured)
+if not os.environ.get("LANGCHAIN_TRACING_V2"):
+    os.environ["LANGCHAIN_TRACING_V2"] = "false"
+if not os.environ.get("LANGCHAIN_ENDPOINT"):
+    os.environ["LANGCHAIN_ENDPOINT"] = ""
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

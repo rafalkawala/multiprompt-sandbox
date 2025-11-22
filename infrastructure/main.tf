@@ -80,8 +80,8 @@ resource "google_sql_database_instance" "db_instance" {
     }
   }
 
-  # Deletion protection is disabled for easier cleanup in dev environments.
-  deletion_protection = false
+  # Enable deletion protection for production data safety
+  deletion_protection = true
 
   depends_on = [google_service_networking_connection.private_vpc_connection]
 }

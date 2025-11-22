@@ -83,6 +83,22 @@ class Settings(BaseSettings):
         env_file = ".env"
         case_sensitive = True
 
+    def validate_production_settings(self):
+        """Validate that critical settings are properly configured for production"""
+        if self.ENVIRONMENT == "production":
+            errors = []
+            if self.SECRET_KEY == "your-secret-key-change-in-production":
+                errors.append("SECRET_KEY must be set to a secure value in production")
+            if self.DB_PASSWORD == "password":
+                errors.append("DB_PASSWORD must be set to a secure value in production")
+            if not self.GOOGLE_CLIENT_ID:
+                errors.append("GOOGLE_CLIENT_ID must be set in production")
+            if not self.GOOGLE_CLIENT_SECRET:
+                errors.append("GOOGLE_CLIENT_SECRET must be set in production")
+            if errors:
+                raise ValueError(f"Production configuration errors: {'; '.join(errors)}")
+
 
 # Create settings instance
 settings = Settings()
+settings.validate_production_settings()
