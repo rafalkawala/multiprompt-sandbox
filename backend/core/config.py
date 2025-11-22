@@ -22,7 +22,8 @@ class Settings(BaseSettings):
         "http://localhost:4200",
         "http://localhost:3000",
         "http://localhost:8080",
-        "https://multiprompt-frontend-h7qqra6pma-uc.a.run.app"
+        "https://multiprompt-frontend-h7qqra6pma-uc.a.run.app",
+        "https://multiprompt-frontend-595703335416.us-central1.run.app"
     ]
 
     # Database - can use DATABASE_URL directly or construct from components
