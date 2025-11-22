@@ -14,8 +14,11 @@ RUN npm ci
 # Copy source code
 COPY . .
 
+# Build argument for configuration (default to production for cloud)
+ARG BUILD_CONFIG=production
+
 # Build the application
-RUN npm run build:prod
+RUN npm run build -- --configuration=${BUILD_CONFIG}
 
 # Stage 2: Serve with Nginx
 FROM nginx:alpine

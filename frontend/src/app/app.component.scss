@@ -129,6 +129,25 @@
     border-radius: 50%;
     object-fit: cover;
   }
+
+  .user-menu-btn {
+    display: flex;
+    align-items: center;
+    min-width: auto;
+    padding: 0 8px;
+
+    .user-name {
+      margin: 0 8px;
+      font-size: 14px;
+    }
+
+    .dropdown-arrow {
+      margin-left: 4px;
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+    }
+  }
 }
 
 .user-menu-header {
@@ -144,6 +163,19 @@
   small {
     color: rgba(0, 0, 0, 0.6);
     font-size: 12px;
+  }
+
+  .user-role-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    background-color: #e8f0fe;
+    color: #1967d2;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    margin-top: 4px;
+    width: fit-content;
   }
 }
 
