@@ -13,7 +13,9 @@ from fastapi.responses import JSONResponse
 import logging
 
 from core.config import settings
+from core.database import SessionLocal
 from api.v1 import api_router
+from models.user import User, UserRole
 
 # Configure logging
 logging.basicConfig(
@@ -40,6 +42,34 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def sync_admin_users():
+    """Sync admin users from ADMIN_EMAILS on startup"""
+    admin_emails = settings.ADMIN_EMAIL_LIST
+    if not admin_emails:
+        logger.info("No ADMIN_EMAILS configured, skipping admin sync")
+        return
+
+    logger.info(f"Syncing admin users: {admin_emails}")
+    db = SessionLocal()
+    try:
+        for email in admin_emails:
+            user = db.query(User).filter(User.email.ilike(email)).first()
+            if user:
+                if user.role != UserRole.ADMIN.value:
+                    user.role = UserRole.ADMIN.value
+                    db.commit()
+                    logger.info(f"Upgraded user {email} to admin")
+                else:
+                    logger.info(f"User {email} is already admin")
+            else:
+                logger.info(f"User {email} not found in database (will get admin on first login)")
+    except Exception as e:
+        logger.error(f"Error syncing admin users: {e}")
+    finally:
+        db.close()
 
 
 @app.get("/")
