@@ -14,7 +14,8 @@
       "Bash(git config:*)",
       "Bash(gh auth status:*)",
       "Bash(gcloud services list:*)",
-      "Bash(gcloud builds describe:*)"
+      "Bash(gcloud builds describe:*)",
+      "Bash(gcloud builds list:*)"
     ],
     "deny": [],
     "ask": []

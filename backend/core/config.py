@@ -69,6 +69,16 @@ class Settings(BaseSettings):
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
     FRONTEND_URL: str = "http://localhost:4200"
 
+    # Admin emails - comma-separated list of emails that should be admin on first login
+    ADMIN_EMAILS: str = ""
+
+    @property
+    def ADMIN_EMAIL_LIST(self) -> List[str]:
+        """Get list of admin emails from env var"""
+        if self.ADMIN_EMAILS:
+            return [email.strip().lower() for email in self.ADMIN_EMAILS.split(",")]
+        return []
+
     class Config:
         env_file = ".env"
         case_sensitive = True

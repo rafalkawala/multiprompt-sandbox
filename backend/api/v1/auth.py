@@ -143,25 +143,34 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
         user = db.query(User).filter(User.email == email).first()
 
         if not user:
+            # Determine role - admin if email is in ADMIN_EMAILS list
+            role = UserRole.ADMIN.value if email.lower() in settings.ADMIN_EMAIL_LIST else UserRole.USER.value
+
             # Create new user
             user = User(
                 email=email,
                 google_id=google_id,
                 name=name,
                 picture_url=picture,
-                role=UserRole.USER.value,
+                role=role,
                 is_active=True
             )
             db.add(user)
             db.commit()
             db.refresh(user)
-            logger.info(f"Created new user: {email}")
+            logger.info(f"Created new user: {email} with role: {role}")
         else:
             # Update existing user
             user.google_id = google_id
             user.name = name
             user.picture_url = picture
             user.last_login_at = datetime.utcnow()
+
+            # Upgrade to admin if email is in ADMIN_EMAILS list
+            if email.lower() in settings.ADMIN_EMAIL_LIST and user.role != UserRole.ADMIN.value:
+                user.role = UserRole.ADMIN.value
+                logger.info(f"Upgraded user {email} to admin")
+
             db.commit()
             logger.info(f"Updated existing user: {email}")
 

@@ -28,6 +28,9 @@ echo 'YOUR_CLIENT_SECRET' | gcloud secrets create google-client-secret --data-fi
 
 # 4. Gemini API key
 echo 'YOUR_API_KEY' | gcloud secrets create multiprompt-gemini-api-key --data-file=- --project=$PROJECT_ID
+
+# 5. Admin emails (comma-separated list of emails that get admin role on login)
+echo 'admin@example.com' | gcloud secrets create multiprompt-admin-emails --data-file=- --project=$PROJECT_ID
 ```
 
 ### Environment Variables (cloudbuild.yaml)
@@ -55,6 +58,7 @@ The backend Cloud Run service receives these environment variables:
 | `GOOGLE_CLIENT_ID` | `google-client-id` |
 | `GOOGLE_CLIENT_SECRET` | `google-client-secret` |
 | `GEMINI_API_KEY` | `multiprompt-gemini-api-key` |
+| `ADMIN_EMAILS` | `multiprompt-admin-emails` |
 
 ## Local Development
 
