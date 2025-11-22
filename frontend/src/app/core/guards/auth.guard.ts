@@ -4,17 +4,12 @@ import { AuthService } from '../services/auth.service';
 
 export const authGuard: CanActivateFn = async () => {
   const authService = inject(AuthService);
-  const router = inject(Router);
 
   // Wait for auth initialization to complete
   await authService.waitForInit();
 
-  if (authService.isAuthenticated()) {
-    return true;
-  }
-
-  authService.login();
-  return false;
+  // Just return auth status - app component handles showing login screen
+  return authService.isAuthenticated();
 };
 
 export const adminGuard: CanActivateFn = async () => {

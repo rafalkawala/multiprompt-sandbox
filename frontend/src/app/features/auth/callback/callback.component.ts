@@ -40,8 +40,7 @@ export class CallbackComponent implements OnInit {
   }
 
   private async handleCallback(): Promise<void> {
-    // Cookie is already set by the backend redirect
-    // Just load the user and navigate to home
+    // Cookie is set by backend redirect, just call handleCallback
     await this.authService.handleCallback();
   }
 }

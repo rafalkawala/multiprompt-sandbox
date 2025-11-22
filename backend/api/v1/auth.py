@@ -183,7 +183,7 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
             data={"sub": user.email, "role": user.role}
         )
 
-        # Redirect to frontend and set HttpOnly cookie
+        # Redirect to frontend - cookie will be sent with subsequent requests
         redirect_url = f"{settings.FRONTEND_URL}/auth/callback"
         response = RedirectResponse(url=redirect_url)
 

@@ -1,5 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 
@@ -80,9 +80,17 @@ export class AuthService {
     }
   }
 
-  async handleCallback(): Promise<void> {
+  async handleCallback(tokenFromHash: string | null = null): Promise<void> {
     this.errorSignal.set(null);
-    // Cookie is already set by the backend redirect
+
+    // If a token is provided in the hash (dev environment workaround)
+    if (tokenFromHash) {
+      localStorage.setItem('dev_access_token', tokenFromHash);
+      // Remove the token from the URL hash to clean up the URL
+      this.router.navigate([], { replaceUrl: true, fragment: undefined });
+    }
+
+    // Attempt to load the user (will now also check localStorage token if available)
     await this.loadUser();
 
     if (this.userSignal()) {
@@ -101,9 +109,15 @@ export class AuthService {
     this.loadingSignal.set(true);
     this.errorSignal.set(null);
     try {
+      let httpHeaders = new HttpHeaders();
+      const devToken = localStorage.getItem('dev_access_token');
+      if (devToken) {
+        httpHeaders = httpHeaders.set('Authorization', `Bearer ${devToken}`);
+      }
+
       const user = await this.http.get<User>(
         `${this.API_URL}/auth/me`,
-        { withCredentials: true }
+        { withCredentials: true, headers: httpHeaders, responseType: 'json' }
       ).toPromise();
 
       if (user) {
