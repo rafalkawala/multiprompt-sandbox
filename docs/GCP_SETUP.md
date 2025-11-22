@@ -5,9 +5,9 @@
 All environment configuration has been standardized between `deploy-gcp.sh` and `cloudbuild.yaml`.
 
 ### Database Configuration
-- **Instance**: `multiprompt-db`
-- **Database Name**: `multiprompt`
-- **User**: `multiprompt`
+- **Instance**: `mllm-sandbox-db-instance`
+- **Database Name**: `mllm_sandbox_db`
+- **User**: `mllm_sandbox_user`
 
 ### Required Secrets in Secret Manager
 
@@ -160,9 +160,9 @@ All configurable values are defined as substitutions:
 ```yaml
 substitutions:
   _REGION: 'us-central1'
-  _DB_INSTANCE: 'multiprompt-db'
-  _DB_NAME: 'multiprompt'
-  _DB_USER: 'multiprompt'
+  _DB_INSTANCE: 'mllm-sandbox-db-instance'
+  _DB_NAME: 'mllm_sandbox_db'
+  _DB_USER: 'mllm_sandbox_user'
   _VPC_CONNECTOR: 'mllm-vpc-connector'
 ```
 

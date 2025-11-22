@@ -1,8 +1,8 @@
 substitutions:
   _REGION: 'us-central1'
-  _DB_INSTANCE: 'multiprompt-db'
-  _DB_NAME: 'multiprompt'
-  _DB_USER: 'multiprompt'
+  _DB_INSTANCE: 'mllm-sandbox-db-instance'
+  _DB_NAME: 'mllm_sandbox_db'
+  _DB_USER: 'mllm_sandbox_user'
   _VPC_CONNECTOR: 'mllm-vpc-connector'
 
 steps:
