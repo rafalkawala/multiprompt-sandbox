@@ -1,5 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 
@@ -23,17 +23,21 @@ export class AuthService {
 
   private userSignal = signal<User | null>(null);
   private loadingSignal = signal<boolean>(false);
+  private authInitializedSignal = signal<boolean>(false);
 
   user = this.userSignal.asReadonly();
   loading = this.loadingSignal.asReadonly();
   isAuthenticated = computed(() => !!this.userSignal());
   isAdmin = computed(() => this.userSignal()?.role === 'admin');
+  authInitialized = this.authInitializedSignal.asReadonly();
+
+  private initPromise: Promise<void>;
 
   constructor(
     private http: HttpClient,
     private router: Router
   ) {
-    this.initializeAuth();
+    this.initPromise = this.initializeAuth();
   }
 
   private async initializeAuth(): Promise<void> {
@@ -41,6 +45,11 @@ export class AuthService {
     if (token) {
       await this.loadUser();
     }
+    this.authInitializedSignal.set(true);
+  }
+
+  waitForInit(): Promise<void> {
+    return this.initPromise;
   }
 
   async login(): Promise<void> {
@@ -79,7 +88,10 @@ export class AuthService {
       }
     } catch (error) {
       console.error('Failed to load user:', error);
-      this.logout();
+      // Only logout on 401 (unauthorized) - other errors might be temporary
+      if (error instanceof HttpErrorResponse && error.status === 401) {
+        this.logout();
+      }
     } finally {
       this.loadingSignal.set(false);
     }

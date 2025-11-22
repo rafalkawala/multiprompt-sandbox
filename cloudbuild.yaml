@@ -1,3 +1,10 @@
+substitutions:
+  _REGION: 'us-central1'
+  _DB_INSTANCE: 'multiprompt-db'
+  _DB_NAME: 'multiprompt'
+  _DB_USER: 'multiprompt'
+  _VPC_CONNECTOR: 'mllm-vpc-connector'
+
 steps:
   # Run backend tests
   - name: 'python:3.11-slim'
@@ -10,41 +17,92 @@ steps:
         python -m pytest tests/ -v --tb=short
     id: 'test-backend'
 
+  # Get Cloud SQL private IP
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud sql instances describe ${_DB_INSTANCE} \
+          --format='value(ipAddresses[0].ipAddress)' \
+          --project=$PROJECT_ID > /workspace/db_host.txt
+        echo "DB_HOST: $(cat /workspace/db_host.txt)"
+    id: 'get-db-host'
+
+  # Get existing Cloud Run URLs (for services that already exist)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Get backend URL (may not exist on first deploy)
+        BACKEND_URL=$(gcloud run services describe multiprompt-backend \
+          --region=${_REGION} --format='value(status.url)' \
+          --project=$PROJECT_ID 2>/dev/null || echo "")
+
+        # Get frontend URL (may not exist on first deploy)
+        FRONTEND_URL=$(gcloud run services describe multiprompt-frontend \
+          --region=${_REGION} --format='value(status.url)' \
+          --project=$PROJECT_ID 2>/dev/null || echo "")
+
+        echo "$BACKEND_URL" > /workspace/backend_url.txt
+        echo "$FRONTEND_URL" > /workspace/frontend_url.txt
+
+        echo "Backend URL: $BACKEND_URL"
+        echo "Frontend URL: $FRONTEND_URL"
+    id: 'get-urls'
+    waitFor: ['-']
+
   # Build backend image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA', '-f', 'backend/Dockerfile', 'backend']
+    args: ['build', '-t', '${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA', '-f', 'backend/Dockerfile', 'backend']
     waitFor: ['test-backend']
 
   # Push backend image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA']
+    args: ['push', '${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA']
 
   # Deploy backend to Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
     args:
-      - 'run'
-      - 'deploy'
-      - 'multiprompt-backend'
-      - '--image=us-central1-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA'
-      - '--region=us-central1'
-      - '--platform=managed'
-      - '--allow-unauthenticated'
-      - '--vpc-connector=mllm-vpc-connector'
-      - '--vpc-egress=private-ranges-only'
-      - '--set-env-vars=ENVIRONMENT=production,DB_HOST=10.205.0.3,DB_PORT=5432,DB_USER=mllm_sandbox_user,DB_NAME=mllm_sandbox_db,GCP_PROJECT_ID=$PROJECT_ID,FRONTEND_URL=https://multiprompt-frontend-h7qqra6pma-uc.a.run.app,GOOGLE_REDIRECT_URI=https://multiprompt-backend-h7qqra6pma-uc.a.run.app/api/v1/auth/google/callback'
-      - '--set-secrets=DB_PASSWORD=mllm_sandbox_user-password:latest,GOOGLE_CLIENT_ID=google-client-id:latest,GOOGLE_CLIENT_SECRET=google-client-secret:latest'
-      - '--memory=512Mi'
-      - '--cpu=1'
-      - '--min-instances=0'
-      - '--max-instances=10'
+      - '-c'
+      - |
+        DB_HOST=$(cat /workspace/db_host.txt)
+        FRONTEND_URL=$(cat /workspace/frontend_url.txt)
+        BACKEND_URL=$(cat /workspace/backend_url.txt)
+
+        # Use placeholder if URLs don't exist yet (first deploy)
+        if [ -z "$FRONTEND_URL" ]; then
+          FRONTEND_URL="https://multiprompt-frontend-PLACEHOLDER.a.run.app"
+        fi
+        if [ -z "$BACKEND_URL" ]; then
+          BACKEND_URL="https://multiprompt-backend-PLACEHOLDER.a.run.app"
+        fi
+
+        gcloud run deploy multiprompt-backend \
+          --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA \
+          --region=${_REGION} \
+          --platform=managed \
+          --allow-unauthenticated \
+          --vpc-connector=${_VPC_CONNECTOR} \
+          --vpc-egress=private-ranges-only \
+          --set-env-vars="ENVIRONMENT=production,DB_HOST=$DB_HOST,DB_PORT=5432,DB_USER=${_DB_USER},DB_NAME=${_DB_NAME},GCP_PROJECT_ID=$PROJECT_ID,FRONTEND_URL=$FRONTEND_URL,GOOGLE_REDIRECT_URI=$BACKEND_URL/api/v1/auth/google/callback,CORS_ALLOWED_ORIGINS=$FRONTEND_URL" \
+          --set-secrets=DB_PASSWORD=multiprompt-db-password:latest,SECRET_KEY=multiprompt-secret-key:latest,GOOGLE_CLIENT_ID=google-client-id:latest,GOOGLE_CLIENT_SECRET=google-client-secret:latest,GEMINI_API_KEY=multiprompt-gemini-api-key:latest \
+          --memory=512Mi \
+          --cpu=1 \
+          --min-instances=0 \
+          --max-instances=10
+    waitFor: ['get-db-host', 'get-urls']
+    id: 'deploy-backend'
 
   # Build frontend image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/multiprompt/frontend:$COMMIT_SHA', '-f', 'frontend/Dockerfile', 'frontend']
+    args: ['build', '-t', '${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/frontend:$COMMIT_SHA', '-f', 'frontend/Dockerfile', 'frontend']
 
   # Push frontend image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/multiprompt/frontend:$COMMIT_SHA']
+    args: ['push', '${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/frontend:$COMMIT_SHA']
 
   # Deploy frontend to Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -52,8 +110,8 @@ steps:
       - 'run'
       - 'deploy'
       - 'multiprompt-frontend'
-      - '--image=us-central1-docker.pkg.dev/$PROJECT_ID/multiprompt/frontend:$COMMIT_SHA'
-      - '--region=us-central1'
+      - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/frontend:$COMMIT_SHA'
+      - '--region=${_REGION}'
       - '--platform=managed'
       - '--allow-unauthenticated'
       - '--memory=256Mi'
@@ -61,9 +119,30 @@ steps:
       - '--min-instances=0'
       - '--max-instances=5'
 
+  # Update backend with actual URLs after both services are deployed
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Get actual URLs after deployment
+        BACKEND_URL=$(gcloud run services describe multiprompt-backend \
+          --region=${_REGION} --format='value(status.url)' --project=$PROJECT_ID)
+        FRONTEND_URL=$(gcloud run services describe multiprompt-frontend \
+          --region=${_REGION} --format='value(status.url)' --project=$PROJECT_ID)
+
+        echo "Updating backend with final URLs..."
+        echo "Backend: $BACKEND_URL"
+        echo "Frontend: $FRONTEND_URL"
+
+        gcloud run services update multiprompt-backend \
+          --region=${_REGION} \
+          --update-env-vars="FRONTEND_URL=$FRONTEND_URL,GOOGLE_REDIRECT_URI=$BACKEND_URL/api/v1/auth/google/callback,CORS_ALLOWED_ORIGINS=$FRONTEND_URL"
+    id: 'update-urls'
+
 images:
-  - 'us-central1-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA'
-  - 'us-central1-docker.pkg.dev/$PROJECT_ID/multiprompt/frontend:$COMMIT_SHA'
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA'
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/frontend:$COMMIT_SHA'
 
 options:
   logging: CLOUD_LOGGING_ONLY

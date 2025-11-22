@@ -2,6 +2,7 @@
 Application configuration using Pydantic settings
 """
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from typing import List
 import os
 
@@ -17,14 +18,20 @@ class Settings(BaseSettings):
     # API Configuration
     API_V1_PREFIX: str = "/api/v1"
 
-    # CORS
-    ALLOWED_ORIGINS: List[str] = [
-        "http://localhost:4200",
-        "http://localhost:3000",
-        "http://localhost:8080",
-        "https://multiprompt-frontend-h7qqra6pma-uc.a.run.app",
-        "https://multiprompt-frontend-595703335416.us-central1.run.app"
-    ]
+    # CORS - can be set via CORS_ALLOWED_ORIGINS env var (comma-separated)
+    CORS_ALLOWED_ORIGINS: str = ""
+
+    @property
+    def ALLOWED_ORIGINS(self) -> List[str]:
+        """Get allowed origins from env var or use defaults for dev"""
+        if self.CORS_ALLOWED_ORIGINS:
+            return [origin.strip() for origin in self.CORS_ALLOWED_ORIGINS.split(",")]
+        # Default origins for local development
+        return [
+            "http://localhost:4200",
+            "http://localhost:3000",
+            "http://localhost:8080",
+        ]
 
     # Database - can use DATABASE_URL directly or construct from components
     DATABASE_URL: str = ""

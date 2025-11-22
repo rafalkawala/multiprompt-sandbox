@@ -1,7 +1,7 @@
 """
 User management endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
@@ -53,26 +53,22 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
-def require_admin(token: str, db: Session) -> User:
+async def require_admin(current_user: User = Depends(get_current_user)) -> User:
     """Require admin role"""
-    user = get_current_user(token, db)
-    if user.role != UserRole.ADMIN.value:
+    if current_user.role != UserRole.ADMIN.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
         )
-    return user
+    return current_user
 
 
 @router.get("/", response_model=List[UserResponse])
 async def list_users(
-    authorization: str = Header(...),
+    admin: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     """List all users (admin only)"""
-    token = authorization.replace("Bearer ", "")
-    require_admin(token, db)
-
     users = db.query(User).order_by(User.created_at.desc()).all()
     return [
         UserResponse(
@@ -92,12 +88,10 @@ async def list_users(
 @router.post("/", response_model=UserResponse)
 async def create_user(
     user_data: UserCreate,
-    authorization: str = Header(...),
+    admin: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     """Create a new user (admin only)"""
-    token = authorization.replace("Bearer ", "")
-    require_admin(token, db)
 
     # Check if user already exists
     existing = db.query(User).filter(User.email == user_data.email).first()
@@ -141,12 +135,10 @@ async def create_user(
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: str,
-    authorization: str = Header(...),
+    admin: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     """Get user by ID (admin only)"""
-    token = authorization.replace("Bearer ", "")
-    require_admin(token, db)
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -171,12 +163,10 @@ async def get_user(
 async def update_user(
     user_id: str,
     user_data: UserUpdate,
-    authorization: str = Header(...),
+    admin: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     """Update user (admin only)"""
-    token = authorization.replace("Bearer ", "")
-    require_admin(token, db)
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -219,12 +209,10 @@ async def update_user(
 @router.delete("/{user_id}")
 async def delete_user(
     user_id: str,
-    authorization: str = Header(...),
+    admin: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     """Delete user (admin only)"""
-    token = authorization.replace("Bearer ", "")
-    admin = require_admin(token, db)
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
