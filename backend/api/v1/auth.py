@@ -1,8 +1,8 @@
 """
 Google OAuth authentication endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Cookie
+from fastapi.responses import RedirectResponse, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from authlib.integrations.starlette_client import OAuth
@@ -56,17 +56,27 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    request: Request,
+    db: Session = Depends(get_db),
+    auth_token: Optional[str] = Cookie(default=None)
 ) -> User:
-    """Get current user from JWT token in Authorization header"""
+    """Get current user from JWT token in HttpOnly cookie or Authorization header"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    token = credentials.credentials
+    # Try to get token from cookie first, then fall back to Authorization header
+    token = auth_token
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+
+    if not token:
+        raise credentials_exception
+
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         email: str = payload.get("sub")
@@ -173,9 +183,23 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
             data={"sub": user.email, "role": user.role}
         )
 
-        # Redirect to frontend with token
-        redirect_url = f"{settings.FRONTEND_URL}/auth/callback?token={jwt_token}"
-        return RedirectResponse(url=redirect_url)
+        # Redirect to frontend and set HttpOnly cookie
+        redirect_url = f"{settings.FRONTEND_URL}/auth/callback"
+        response = RedirectResponse(url=redirect_url)
+
+        # Set secure HttpOnly cookie
+        is_production = settings.ENVIRONMENT == "production"
+        response.set_cookie(
+            key="auth_token",
+            value=jwt_token,
+            httponly=True,
+            secure=is_production,  # Only send over HTTPS in production
+            samesite="lax",
+            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            path="/"
+        )
+
+        return response
 
     except HTTPException:
         raise
@@ -201,5 +225,12 @@ async def get_me(current_user: User = Depends(get_current_user)):
 
 @router.post("/logout")
 async def logout():
-    """Logout endpoint (client should discard token)"""
-    return {"message": "Logged out successfully"}
+    """Logout endpoint - clears the auth cookie"""
+    response = Response(content='{"message": "Logged out successfully"}', media_type="application/json")
+    response.delete_cookie(
+        key="auth_token",
+        path="/",
+        httponly=True,
+        samesite="lax"
+    )
+    return response

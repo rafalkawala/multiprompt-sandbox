@@ -14,22 +14,28 @@ export interface User {
   last_login_at: string | null;
 }
 
+export interface AuthError {
+  message: string;
+  code: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
-  private readonly TOKEN_KEY = 'auth_token';
   private readonly API_URL = environment.apiUrl;
 
   private userSignal = signal<User | null>(null);
   private loadingSignal = signal<boolean>(false);
   private authInitializedSignal = signal<boolean>(false);
+  private errorSignal = signal<AuthError | null>(null);
 
   user = this.userSignal.asReadonly();
   loading = this.loadingSignal.asReadonly();
   isAuthenticated = computed(() => !!this.userSignal());
   isAdmin = computed(() => this.userSignal()?.role === 'admin');
   authInitialized = this.authInitializedSignal.asReadonly();
+  error = this.errorSignal.asReadonly();
 
   private initPromise: Promise<void>;
 
@@ -41,10 +47,8 @@ export class AuthService {
   }
 
   private async initializeAuth(): Promise<void> {
-    const token = this.getToken();
-    if (token) {
-      await this.loadUser();
-    }
+    // Try to load user - cookie will be sent automatically if present
+    await this.loadUser();
     this.authInitializedSignal.set(true);
   }
 
@@ -52,7 +56,12 @@ export class AuthService {
     return this.initPromise;
   }
 
+  clearError(): void {
+    this.errorSignal.set(null);
+  }
+
   async login(): Promise<void> {
+    this.errorSignal.set(null);
     try {
       const response = await this.http.get<{ auth_url: string }>(
         `${this.API_URL}/auth/google/login`
@@ -63,24 +72,38 @@ export class AuthService {
       }
     } catch (error) {
       console.error('Failed to get login URL:', error);
+      this.errorSignal.set({
+        message: 'Unable to connect to authentication service. Please try again.',
+        code: 'LOGIN_FAILED'
+      });
       throw error;
     }
   }
 
-  async handleCallback(token: string): Promise<void> {
-    this.setToken(token);
+  async handleCallback(): Promise<void> {
+    this.errorSignal.set(null);
+    // Cookie is already set by the backend redirect
     await this.loadUser();
-    this.router.navigate(['/home']);
+
+    if (this.userSignal()) {
+      this.router.navigate(['/home']);
+    } else {
+      // If no user after callback, something went wrong
+      this.errorSignal.set({
+        message: 'Authentication failed. Please try again.',
+        code: 'CALLBACK_FAILED'
+      });
+      this.router.navigate(['/']);
+    }
   }
 
   async loadUser(): Promise<void> {
-    const token = this.getToken();
-    if (!token) return;
-
     this.loadingSignal.set(true);
+    this.errorSignal.set(null);
     try {
       const user = await this.http.get<User>(
-        `${this.API_URL}/auth/me`
+        `${this.API_URL}/auth/me`,
+        { withCredentials: true }
       ).toPromise();
 
       if (user) {
@@ -88,26 +111,41 @@ export class AuthService {
       }
     } catch (error) {
       console.error('Failed to load user:', error);
-      // Only logout on 401 (unauthorized) - other errors might be temporary
-      if (error instanceof HttpErrorResponse && error.status === 401) {
-        this.logout();
+      if (error instanceof HttpErrorResponse) {
+        if (error.status === 401) {
+          // Not authenticated - this is normal for logged out users
+          this.userSignal.set(null);
+        } else if (error.status === 400) {
+          // User is deactivated
+          this.userSignal.set(null);
+          this.errorSignal.set({
+            message: 'Your account has been deactivated. Please contact an administrator.',
+            code: 'ACCOUNT_DEACTIVATED'
+          });
+        } else {
+          // Network or server error
+          this.errorSignal.set({
+            message: 'Unable to connect to server. Please check your connection.',
+            code: 'CONNECTION_ERROR'
+          });
+        }
       }
     } finally {
       this.loadingSignal.set(false);
     }
   }
 
-  logout(): void {
-    localStorage.removeItem(this.TOKEN_KEY);
+  async logout(): Promise<void> {
+    try {
+      await this.http.post(
+        `${this.API_URL}/auth/logout`,
+        {},
+        { withCredentials: true }
+      ).toPromise();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
     this.userSignal.set(null);
-    this.router.navigate(['/login']);
-  }
-
-  getToken(): string | null {
-    return localStorage.getItem(this.TOKEN_KEY);
-  }
-
-  private setToken(token: string): void {
-    localStorage.setItem(this.TOKEN_KEY, token);
+    this.errorSignal.set(null);
   }
 }

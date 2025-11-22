@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -28,6 +28,13 @@ import { AuthService } from '../../../core/services/auth.service';
           <p class="description">
             Sign in to access the benchmarking platform and manage your experiments.
           </p>
+
+          @if (authService.error()) {
+            <div class="error-message">
+              <mat-icon>error</mat-icon>
+              <span>{{ authService.error()?.message }}</span>
+            </div>
+          }
         </mat-card-content>
 
         <mat-card-actions>
@@ -55,6 +62,12 @@ import { AuthService } from '../../../core/services/auth.service';
       align-items: center;
       min-height: 100vh;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 1000;
     }
 
     .login-card {
@@ -79,6 +92,24 @@ import { AuthService } from '../../../core/services/auth.service';
       text-align: center;
       color: rgba(0, 0, 0, 0.6);
       margin: 16px 0;
+    }
+
+    .error-message {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: #ffebee;
+      border-radius: 4px;
+      color: #c62828;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    .error-message mat-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
     }
 
     mat-card-actions {
@@ -107,10 +138,11 @@ import { AuthService } from '../../../core/services/auth.service';
 export class LoginComponent {
   loading = false;
 
-  constructor(private authService: AuthService) {}
+  constructor(public authService: AuthService) {}
 
   async login(): Promise<void> {
     this.loading = true;
+    this.authService.clearError();
     try {
       await this.authService.login();
     } catch (error) {

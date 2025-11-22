@@ -7,6 +7,8 @@ from typing import Optional, Dict, Any
 import logging
 
 from app.services.agent_service import AgentService
+from api.v1.auth import get_current_user
+from models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +30,16 @@ class AgentResponse(BaseModel):
 
 
 @router.post("/execute", response_model=AgentResponse)
-async def execute_agent(request: AgentRequest):
+async def execute_agent(
+    request: AgentRequest,
+    current_user: User = Depends(get_current_user)
+):
     """
     Execute a LangChain agent with the given prompt
 
     Args:
         request: Agent execution request with prompt and context
+        current_user: Authenticated user
 
     Returns:
         Agent execution result with intermediate steps
@@ -47,7 +53,7 @@ async def execute_agent(request: AgentRequest):
         )
         return result
     except Exception as e:
-        logger.error(f"Agent execution failed: {str(e)}", exc_info=True)
+        logger.error(f"Agent execution failed for user {current_user.email}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

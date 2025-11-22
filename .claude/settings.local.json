@@ -15,7 +15,11 @@
       "Bash(gh auth status:*)",
       "Bash(gcloud services list:*)",
       "Bash(gcloud builds describe:*)",
-      "Bash(gcloud builds list:*)"
+      "Bash(gcloud builds list:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker compose build:*)",
+      "Bash(docker compose:*)"
     ],
     "deny": [],
     "ask": []

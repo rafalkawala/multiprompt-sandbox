@@ -30,11 +30,17 @@ steps:
     id: 'get-db-host'
 
   # Run database migrations
-  - name: 'gcr.io/cloud-builders/gcloud'
+  - name: 'python:3.11-slim'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
+        # Install curl and gcloud CLI
+        apt-get update && apt-get install -y curl apt-transport-https ca-certificates gnupg
+        echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+        curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
+        apt-get update && apt-get install -y google-cloud-cli
+
         # Install cloud-sql-proxy
         curl -o cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.8.0/cloud-sql-proxy.linux.amd64
         chmod +x cloud-sql-proxy

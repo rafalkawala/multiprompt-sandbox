@@ -9,11 +9,11 @@ export const authGuard: CanActivateFn = async () => {
   // Wait for auth initialization to complete
   await authService.waitForInit();
 
-  if (authService.getToken()) {
+  if (authService.isAuthenticated()) {
     return true;
   }
 
-  router.navigate(['/login']);
+  authService.login();
   return false;
 };
 

@@ -7,6 +7,10 @@ import { MatListModule } from '@angular/material/list';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { AuthService } from './core/services/auth.service';
+import { LoginComponent } from './features/auth/login/login.component';
 
 @Component({
   selector: 'app-root',
@@ -21,7 +25,10 @@ import { MatDividerModule } from '@angular/material/divider';
     MatListModule,
     MatIconModule,
     MatButtonModule,
-    MatDividerModule
+    MatDividerModule,
+    MatMenuModule,
+    MatProgressSpinnerModule,
+    LoginComponent
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
@@ -38,4 +45,10 @@ export class AppComponent {
     { icon: 'science', label: 'Experiments', route: '/experiments' },
     { icon: 'analytics', label: 'Results', route: '/results' }
   ];
+
+  constructor(public authService: AuthService) {}
+
+  async logout(): Promise<void> {
+    await this.authService.logout();
+  }
 }

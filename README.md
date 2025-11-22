@@ -443,7 +443,7 @@ git push origin feature/my-feature
 
 ## 📍 Current Implementation Status
 
-> **Last Updated**: 2025-11-21
+> **Last Updated**: 2025-11-22
 > For more granular and the absolute latest status, refer to [`PROJECT_STATE.md`](./PROJECT_STATE.md).
 
 This section helps you understand **what's actually working** vs. what's planned. Essential for AI agents and new developers.
@@ -456,6 +456,17 @@ This section helps you understand **what's actually working** vs. what's planned
   - CORS configuration for frontend integration
   - Global exception handling
   - OpenAPI documentation at `/docs`
+
+- **Database & Persistence**
+  - PostgreSQL with SQLAlchemy ORM
+  - Alembic migrations for schema management
+  - User model with roles (admin, user, viewer)
+
+- **Authentication & Authorization**
+  - Google OAuth2 login
+  - JWT tokens in HttpOnly cookies
+  - Role-based access control
+  - Protected API endpoints
 
 - **Frontend (Angular 17)**
   - Home dashboard with feature overview
@@ -512,7 +523,7 @@ The following features are documented and planned but **not yet built**:
   - Precision/Recall/F1 scores
 
 - **Experiment Repository**
-  - Persistent storage (requires PostgreSQL)
+  - Persistent storage
   - Side-by-side comparison
   - Trend analysis and export
 
@@ -520,15 +531,6 @@ The following features are documented and planned but **not yet built**:
   - Multimodal embeddings
   - Similar-example identification
 
-- **Database Persistence**
-  - PostgreSQL setup (currently no persistence)
-  - SQLAlchemy models
-  - Alembic migrations
-
-- **Authentication & Authorization**
-  - User registration/login
-  - JWT tokens
-  - Role-based access control
 
 For detailed implementation plan, see [MVP Roadmap](#-mvp-roadmap-2-months) and [GitHub Issues](https://github.com/rafalkawala/multiprompt-sandbox/issues).
 

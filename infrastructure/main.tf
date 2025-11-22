@@ -69,7 +69,7 @@ resource "google_secret_manager_secret_version" "db_password_secret_version" {
 resource "google_sql_database_instance" "db_instance" {
   project              = google_project.project.project_id
   name                 = var.db_instance_name
-  database_version     = "POSTGRES_14"
+  database_version     = "POSTGRES_18"
   region               = var.gcp_region
 
   settings {

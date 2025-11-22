@@ -1,13 +1,15 @@
 """
 Image analysis endpoints using Gemini Pro Vision
 """
-from fastapi import APIRouter, File, UploadFile, HTTPException, Form
+from fastapi import APIRouter, File, UploadFile, HTTPException, Form, Depends
 from pydantic import BaseModel
 from typing import Optional
 import logging
 
 from services.gemini_service import GeminiService
 from core.config import settings
+from api.v1.auth import get_current_user
+from models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +26,8 @@ class ImageAnalysisResponse(BaseModel):
 @router.post("/analyze", response_model=ImageAnalysisResponse)
 async def analyze_image(
     file: UploadFile = File(...),
-    prompt: Optional[str] = Form("Describe this image in detail")
+    prompt: Optional[str] = Form("Describe this image in detail"),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Analyze an image using Gemini Pro Vision
@@ -32,6 +35,7 @@ async def analyze_image(
     Args:
         file: Image file to analyze
         prompt: Custom prompt for image analysis
+        current_user: Authenticated user
 
     Returns:
         Image analysis result with description and labels

@@ -2,12 +2,12 @@ version: '3.8'
 
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     restart: always
     environment:
-      POSTGRES_DB: appdb
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mllm_sandbox_db
+      POSTGRES_USER: mllm_sandbox_user
+      POSTGRES_PASSWORD: mllm_sandbox_pass
     volumes:
       - db-data:/var/lib/postgresql/data
     ports:
@@ -15,7 +15,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d appdb"]
+      test: ["CMD-SHELL", "pg_isready -U mllm_sandbox_user -d mllm_sandbox_db"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -25,10 +25,11 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "4200:80"
+      - "4200:8080"
     environment:
+      - PORT=8080
       - NODE_ENV=development
-      - API_URL=http://backend:8000/api/v1 # Frontend connects to backend service name
+      - API_URL=http://backend:8000/api/v1
     depends_on:
       - backend
     networks:
@@ -44,7 +45,8 @@ services:
       - ENVIRONMENT=development
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GCP_PROJECT_ID=${GCP_PROJECT_ID}
-      - DATABASE_URL=postgresql://user:password@db:5432/appdb # Connect to db service
+      - DATABASE_URL=postgresql://mllm_sandbox_user:mllm_sandbox_pass@db:5432/mllm_sandbox_db
+      - ADMIN_EMAILS=rafal.kawala@gmail.com
     env_file:
       - ./backend/.env
     volumes:

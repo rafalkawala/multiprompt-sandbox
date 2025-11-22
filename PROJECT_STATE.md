@@ -1,6 +1,6 @@
 # Project State
 
-> **Last Updated**: 2025-11-21
+> **Last Updated**: 2025-11-22
 > **For**: AI Agents and New Developers
 > **Purpose**: Single source of truth for current technical state
 
@@ -59,15 +59,18 @@
   - Endpoint: `backend/api/v1/agents.py` (exists but not routed)
   - Router: `backend/api/v1/__init__.py` (line 23 commented out)
 
-#### No Database Persistence
-- ❌ PostgreSQL not yet configured
-- ❌ All data is ephemeral (lost on restart)
-- ❌ No SQLAlchemy models or migrations
+#### Database Persistence
+- ✅ PostgreSQL configured with SQLAlchemy ORM
+- ✅ Alembic migrations for schema management
+- ✅ User model with roles (admin, user, viewer)
+- ✅ Database session management in `backend/core/database.py`
 
-#### No Authentication
-- ❌ No user registration/login
-- ❌ No JWT tokens
-- ❌ All endpoints are public
+#### Authentication & Authorization
+- ✅ Google OAuth2 login flow
+- ✅ JWT tokens stored in HttpOnly cookies
+- ✅ User management with role-based access control
+- ✅ Protected endpoints require authentication
+- ✅ Admin email configuration for automatic admin role assignment
 
 ### Not Yet Implemented (MVP Features)
 
@@ -299,7 +302,6 @@ npm test
 
 ### Optional (Not Yet Used)
 - Claude API key (for multi-model benchmarking)
-- PostgreSQL database (for persistence)
 - Google Cloud Storage (for image storage)
 
 ### External Package Issues
@@ -312,8 +314,8 @@ npm test
 Based on the MVP Golden Path, the next implementation priorities are:
 
 ### Phase 1: MVP Core (Weeks 1-3)
-1.  **Set up Database**: Configure PostgreSQL and define the core schema for users, projects, and datasets (`Epic 5`).
-2.  **Implement Authentication**: Add Google OAuth2 login and user management (`Epic 4`).
+1.  ~~**Set up Database**: Configure PostgreSQL and define the core schema for users, projects, and datasets (`Epic 5`).~~ ✅ **COMPLETED**
+2.  ~~**Implement Authentication**: Add Google OAuth2 login and user management (`Epic 4`).~~ ✅ **COMPLETED**
 3.  **Build Project & Dataset Management**: Implement the core logic for creating projects and uploading images to datasets (`Epic 6`).
 
 ### Phase 2: Core Features (Weeks 3-6)
@@ -389,7 +391,7 @@ When working on this project:
 4. **Key entry points**:
    - Backend: `backend/main.py`
    - Frontend: `frontend/src/app/app.component.ts`
-5. **Known blockers**: LangChain agents disabled, no database persistence
+5. **Known blockers**: LangChain agents disabled
 6. **What works**: Image analysis via Gemini, basic Angular UI
 7. **What's planned**: Everything in "Not Yet Implemented" section above
 

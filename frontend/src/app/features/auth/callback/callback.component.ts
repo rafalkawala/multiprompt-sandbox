@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router } from '@angular/router';
+import { Router } from '@angular/router';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../../core/services/auth.service';
 
@@ -31,7 +31,6 @@ import { AuthService } from '../../../core/services/auth.service';
 })
 export class CallbackComponent implements OnInit {
   constructor(
-    private route: ActivatedRoute,
     private router: Router,
     private authService: AuthService
   ) {}
@@ -41,13 +40,8 @@ export class CallbackComponent implements OnInit {
   }
 
   private async handleCallback(): Promise<void> {
-    const token = this.route.snapshot.queryParamMap.get('token');
-
-    if (token) {
-      await this.authService.handleCallback(token);
-    } else {
-      console.error('No token in callback');
-      this.router.navigate(['/login']);
-    }
+    // Cookie is already set by the backend redirect
+    // Just load the user and navigate to home
+    await this.authService.handleCallback();
   }
 }

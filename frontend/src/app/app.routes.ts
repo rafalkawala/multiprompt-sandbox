@@ -8,10 +8,6 @@ export const routes: Routes = [
     pathMatch: 'full'
   },
   {
-    path: 'login',
-    loadComponent: () => import('./features/auth/login/login.component').then(m => m.LoginComponent)
-  },
-  {
     path: 'auth/callback',
     loadComponent: () => import('./features/auth/callback/callback.component').then(m => m.CallbackComponent)
   },
@@ -27,6 +23,6 @@ export const routes: Routes = [
   },
   {
     path: '**',
-    redirectTo: '/login'
+    redirectTo: '/home'
   }
 ];

@@ -37,9 +37,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = ""
     DB_HOST: str = "localhost"
     DB_PORT: str = "5432"
-    DB_USER: str = "user"
-    DB_PASSWORD: str = "password"
-    DB_NAME: str = "appdb"
+    DB_USER: str = ""
+    DB_PASSWORD: str = ""
+    DB_NAME: str = ""
 
     # Google Cloud / Gemini Configuration
     GEMINI_API_KEY: str = ""
@@ -58,8 +58,8 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
     ALLOWED_IMAGE_TYPES: List[str] = ["image/jpeg", "image/png", "image/gif", "image/webp"]
 
-    # Security
-    SECRET_KEY: str = "your-secret-key-change-in-production"
+    # Security - SECRET_KEY must be provided via environment variable
+    SECRET_KEY: str = ""
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
@@ -85,18 +85,21 @@ class Settings(BaseSettings):
 
     def validate_production_settings(self):
         """Validate that critical settings are properly configured for production"""
+        errors = []
+        # SECRET_KEY is always required
+        if not self.SECRET_KEY:
+            errors.append("SECRET_KEY must be set via environment variable")
+
         if self.ENVIRONMENT == "production":
-            errors = []
-            if self.SECRET_KEY == "your-secret-key-change-in-production":
-                errors.append("SECRET_KEY must be set to a secure value in production")
-            if self.DB_PASSWORD == "password":
-                errors.append("DB_PASSWORD must be set to a secure value in production")
+            if not self.DATABASE_URL and not self.DB_PASSWORD:
+                errors.append("DATABASE_URL or DB_PASSWORD must be set in production")
             if not self.GOOGLE_CLIENT_ID:
                 errors.append("GOOGLE_CLIENT_ID must be set in production")
             if not self.GOOGLE_CLIENT_SECRET:
                 errors.append("GOOGLE_CLIENT_SECRET must be set in production")
-            if errors:
-                raise ValueError(f"Production configuration errors: {'; '.join(errors)}")
+
+        if errors:
+            raise ValueError(f"Configuration errors: {'; '.join(errors)}")
 
 
 # Create settings instance
