@@ -36,20 +36,20 @@ steps:
       - '-c'
       - |
         # Get backend URL (may not exist on first deploy)
-        BACKEND_URL=$(gcloud run services describe multiprompt-backend \
+        BACKEND_URL=$$(gcloud run services describe multiprompt-backend \
           --region=${_REGION} --format='value(status.url)' \
           --project=$PROJECT_ID 2>/dev/null || echo "")
 
         # Get frontend URL (may not exist on first deploy)
-        FRONTEND_URL=$(gcloud run services describe multiprompt-frontend \
+        FRONTEND_URL=$$(gcloud run services describe multiprompt-frontend \
           --region=${_REGION} --format='value(status.url)' \
           --project=$PROJECT_ID 2>/dev/null || echo "")
 
-        echo "$BACKEND_URL" > /workspace/backend_url.txt
-        echo "$FRONTEND_URL" > /workspace/frontend_url.txt
+        echo "$$BACKEND_URL" > /workspace/backend_url.txt
+        echo "$$FRONTEND_URL" > /workspace/frontend_url.txt
 
-        echo "Backend URL: $BACKEND_URL"
-        echo "Frontend URL: $FRONTEND_URL"
+        echo "Backend URL: $$BACKEND_URL"
+        echo "Frontend URL: $$FRONTEND_URL"
     id: 'get-urls'
     waitFor: ['-']
 
