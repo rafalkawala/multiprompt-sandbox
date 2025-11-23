@@ -18,6 +18,7 @@ langgraph==0.3.0
 # Google AI
 google-generativeai==0.7.2
 google-cloud-aiplatform==1.71.0
+google-auth==2.27.0
 
 # HTTP client
 httpx==0.26.0
@@ -32,6 +33,7 @@ psycopg2-binary==2.9.9
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 tenacity==8.2.3
+pyyaml==6.0.1
 
 # OAuth
 authlib==1.6.0

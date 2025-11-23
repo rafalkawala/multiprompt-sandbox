@@ -9,6 +9,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from './core/services/auth.service';
 import { LoginComponent } from './features/auth/login/login.component';
 
@@ -28,6 +29,7 @@ import { LoginComponent } from './features/auth/login/login.component';
     MatDividerModule,
     MatMenuModule,
     MatProgressSpinnerModule,
+    MatTooltipModule,
     LoginComponent
   ],
   templateUrl: './app.component.html',
@@ -37,16 +39,19 @@ export class AppComponent {
   title = 'MLLM Benchmarking Platform';
 
   menuItems = [
-    { icon: 'dashboard', label: 'Dashboard', route: '/home' },
-    { icon: 'folder', label: 'Projects', route: '/projects' },
-    { icon: 'cloud_upload', label: 'Datasets', route: '/datasets' },
-    { icon: 'label', label: 'Labeling', route: '/labeling' },
-    { icon: 'edit_note', label: 'Prompts', route: '/prompts' },
-    { icon: 'science', label: 'Experiments', route: '/experiments' },
-    { icon: 'analytics', label: 'Results', route: '/results' }
+    { icon: 'dashboard', label: 'Dashboard', route: '/home', adminOnly: false },
+    { icon: 'folder', label: 'Projects', route: '/projects', adminOnly: false },
+    { icon: 'edit_note', label: 'Annotations', route: '/annotations', adminOnly: false },
+    { icon: 'science', label: 'Evaluations', route: '/evaluations', adminOnly: false }
   ];
 
+  sidenavCollapsed = false;
+
   constructor(public authService: AuthService) {}
+
+  toggleSidenav() {
+    this.sidenavCollapsed = !this.sidenavCollapsed;
+  }
 
   async logout(): Promise<void> {
     await this.authService.logout();

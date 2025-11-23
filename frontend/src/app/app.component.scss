@@ -22,6 +22,34 @@
   width: 256px;
   border-right: 1px solid #e8eaed;
   background-color: #f8f9fa;
+  transition: width 0.3s ease;
+
+  &.collapsed {
+    width: 64px;
+
+    .sidenav-header {
+      padding: 12px;
+      justify-content: center;
+    }
+
+    mat-nav-list a.mat-mdc-list-item {
+      justify-content: center;
+      padding: 0 8px;
+
+      mat-icon {
+        margin-right: 0;
+      }
+    }
+
+    .sidenav-footer a.mat-mdc-list-item {
+      justify-content: center;
+      padding: 0 8px;
+
+      mat-icon {
+        margin-right: 0;
+      }
+    }
+  }
 
   .sidenav-header {
     display: flex;
@@ -43,6 +71,10 @@
       font-size: 18px;
       font-weight: 500;
       color: #202124;
+    }
+
+    .collapse-btn {
+      margin-left: auto;
     }
   }
 

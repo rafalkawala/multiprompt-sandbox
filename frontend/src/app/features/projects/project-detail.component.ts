@@ -139,6 +139,10 @@ import { ProjectsService, Project, DatasetDetail, ImageItem } from '../../core/s
                 }
               </mat-card-content>
               <mat-card-actions>
+                <button mat-button [routerLink]="['/projects', projectId, 'datasets', dataset.id, 'annotate']">
+                  <mat-icon>edit_note</mat-icon>
+                  Annotate
+                </button>
                 <button mat-button (click)="loadImages(dataset.id)" [disabled]="loadingImages[dataset.id]">
                   <mat-icon>refresh</mat-icon>
                   Refresh
@@ -320,7 +324,7 @@ export class ProjectDetailComponent implements OnInit {
   datasetImages: Record<string, ImageItem[]> = {};
   loadingImages: Record<string, boolean> = {};
 
-  private projectId = '';
+  projectId = '';
 
   constructor(
     private route: ActivatedRoute,

@@ -1,0 +1,25 @@
+# System prompts for different question types
+# These are injected based on the project's question_type setting
+
+system_prompts:
+  binary: |
+    Reply only true or false, nothing else, only true or false depending on your judgement.
+
+  multiple_choice: |
+    Reply only with one of these values: {options}
+    Nothing else, just the exact value from the list above.
+
+  text: |
+    Reply as short as you can with classification of what you see.
+    Do not go longer than absolutely necessary.
+    Distil to as short and precise label as possible in reply to question.
+
+  count: |
+    Reply only with a number that is a count.
+    Only return the number, nothing else.
+    Do not show calculation details in the final output (keep it in thinking).
+    Only return a number.
+
+# Default prompt if question_type is not recognized
+default: |
+  Answer the question based on the image.

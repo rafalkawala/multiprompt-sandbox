@@ -27,6 +27,26 @@ export const routes: Routes = [
     canActivate: [authGuard]
   },
   {
+    path: 'annotations',
+    loadComponent: () => import('./features/annotations/annotations-list.component').then(m => m.AnnotationsListComponent),
+    canActivate: [authGuard]
+  },
+  {
+    path: 'projects/:projectId/datasets/:datasetId/annotate',
+    loadComponent: () => import('./features/annotations/annotation.component').then(m => m.AnnotationComponent),
+    canActivate: [authGuard]
+  },
+  {
+    path: 'models',
+    loadComponent: () => import('./features/models/models.component').then(m => m.ModelsComponent),
+    canActivate: [authGuard, adminGuard]
+  },
+  {
+    path: 'evaluations',
+    loadComponent: () => import('./features/evaluations/evaluations.component').then(m => m.EvaluationsComponent),
+    canActivate: [authGuard]
+  },
+  {
     path: 'admin/users',
     loadComponent: () => import('./features/admin/users/users.component').then(m => m.AdminUsersComponent),
     canActivate: [authGuard, adminGuard]
