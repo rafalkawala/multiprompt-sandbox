@@ -194,7 +194,7 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
             value=jwt_token,
             httponly=True,
             secure=is_production,  # Only send over HTTPS in production
-            samesite="lax",
+            samesite="none" if is_production else "lax",  # none for cross-origin in prod
             max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             path="/"
         )
