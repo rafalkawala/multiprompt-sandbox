@@ -13,8 +13,11 @@ steps:
     args:
       - '-c'
       - |
+        apt-get update && apt-get install -y curl
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
         cd backend
-        pip install -r requirements.txt
+        uv pip install --system -r requirements.txt
         python -m pytest tests/ -v --tb=short
     id: 'test-backend'
     env:
@@ -56,9 +59,12 @@ steps:
         PROXY_PID=$$!
         sleep 5
 
-        # Install dependencies and run migrations
+        # Install uv and dependencies
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
+
         cd backend
-        pip install -q -r requirements.txt
+        uv pip install --system -q -r requirements.txt
 
         export DATABASE_URL="postgresql://${_DB_USER}:$${DB_PASSWORD}@localhost:5432/${_DB_NAME}"
         export SECRET_KEY="migration-temp-key"

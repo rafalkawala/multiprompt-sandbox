@@ -3,13 +3,16 @@
 # Stage 1: Build the Angular application
 FROM node:18-alpine AS build
 
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY package.json pnpm-lock.yaml* ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies with pnpm
+RUN pnpm install --frozen-lockfile
 
 # Copy source code
 COPY . .
@@ -18,7 +21,7 @@ COPY . .
 ARG BUILD_CONFIG=production
 
 # Build the application
-RUN npm run build -- --configuration=${BUILD_CONFIG}
+RUN pnpm run build --configuration=${BUILD_CONFIG}
 
 # Stage 2: Serve with Nginx
 FROM nginx:alpine

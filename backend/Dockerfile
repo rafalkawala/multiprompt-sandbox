@@ -1,25 +1,27 @@
 # Multi-stage build for FastAPI application
 
 # Builder stage - includes build dependencies
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
-# Install build dependencies
+# Install build dependencies and uv
 RUN apt-get update && apt-get install -y \
     gcc \
+    curl \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install dependencies
+# Add uv to PATH
+ENV PATH="/root/.local/bin:$PATH"
+
+# Copy requirements and install dependencies with uv
 COPY requirements.txt .
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+RUN uv pip install --system -r requirements.txt
 
 # Final stage - minimal runtime image
 FROM python:3.11-slim
