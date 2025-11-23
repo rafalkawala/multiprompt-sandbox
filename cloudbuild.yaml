@@ -15,7 +15,7 @@ steps:
       - |
         apt-get update && apt-get install -y curl
         curl -LsSf https://astral.sh/uv/install.sh | sh
-        export PATH="/root/.local/bin:$PATH"
+        export PATH="/root/.local/bin:$$PATH"
         cd backend
         uv pip install --system -r requirements.txt
         python -m pytest tests/ -v --tb=short
@@ -61,7 +61,7 @@ steps:
 
         # Install uv and dependencies
         curl -LsSf https://astral.sh/uv/install.sh | sh
-        export PATH="/root/.local/bin:$PATH"
+        export PATH="/root/.local/bin:$$PATH"
 
         cd backend
         uv pip install --system -q -r requirements.txt
