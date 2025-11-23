@@ -2,7 +2,7 @@
 Dataset and image management endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
@@ -23,9 +23,28 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Create uploads directory
+# Create local uploads directory for development
 UPLOAD_DIR = "/app/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# GCS client initialization
+_gcs_client = None
+_gcs_bucket = None
+
+def get_gcs_bucket():
+    """Get GCS bucket client (lazy initialization)"""
+    global _gcs_client, _gcs_bucket
+    if settings.GCS_BUCKET_NAME:
+        if _gcs_bucket is None:
+            from google.cloud import storage
+            _gcs_client = storage.Client()
+            _gcs_bucket = _gcs_client.bucket(settings.GCS_BUCKET_NAME)
+        return _gcs_bucket
+    return None
+
+def use_gcs() -> bool:
+    """Check if GCS should be used for storage"""
+    return bool(settings.GCS_BUCKET_NAME)
 
 
 def get_db():
@@ -170,11 +189,17 @@ async def delete_dataset(
             detail="Project not found"
         )
 
-    # Delete image files
+    # Delete image files from GCS or local storage
     for image in dataset.images:
         try:
-            if os.path.exists(image.storage_path):
-                os.remove(image.storage_path)
+            if use_gcs():
+                bucket = get_gcs_bucket()
+                blob = bucket.blob(image.storage_path)
+                if blob.exists():
+                    blob.delete()
+            else:
+                if os.path.exists(image.storage_path):
+                    os.remove(image.storage_path)
         except Exception as e:
             logger.error(f"Failed to delete image file: {e}")
 
@@ -222,8 +247,14 @@ async def upload_images(
         )
 
     uploaded_images = []
-    dataset_dir = os.path.join(UPLOAD_DIR, str(project_id), str(dataset_id))
-    os.makedirs(dataset_dir, exist_ok=True)
+
+    # Determine storage location
+    if use_gcs():
+        bucket = get_gcs_bucket()
+        gcs_prefix = f"projects/{project_id}/datasets/{dataset_id}"
+    else:
+        dataset_dir = os.path.join(UPLOAD_DIR, str(project_id), str(dataset_id))
+        os.makedirs(dataset_dir, exist_ok=True)
 
     for file in files:
         # Validate file type
@@ -240,17 +271,22 @@ async def upload_images(
         # Generate unique filename
         ext = os.path.splitext(file.filename)[1]
         unique_filename = f"{uuid.uuid4()}{ext}"
-        file_path = os.path.join(dataset_dir, unique_filename)
 
-        # Save file
-        with open(file_path, "wb") as f:
-            f.write(content)
+        # Save file to GCS or local storage
+        if use_gcs():
+            storage_path = f"{gcs_prefix}/{unique_filename}"
+            blob = bucket.blob(storage_path)
+            blob.upload_from_string(content, content_type=file.content_type)
+        else:
+            storage_path = os.path.join(dataset_dir, unique_filename)
+            with open(storage_path, "wb") as f:
+                f.write(content)
 
         # Create database record
         image = Image(
             dataset_id=dataset_id,
             filename=file.filename,
-            storage_path=file_path,
+            storage_path=storage_path,
             file_size=len(content),
             uploaded_by_id=current_user.id
         )
@@ -352,13 +388,33 @@ async def get_image_file(
             detail="Project not found"
         )
 
-    if not os.path.exists(image.storage_path):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Image file not found"
-        )
-
-    return FileResponse(image.storage_path, filename=image.filename)
+    # Serve from GCS or local storage
+    if use_gcs():
+        bucket = get_gcs_bucket()
+        blob = bucket.blob(image.storage_path)
+        if not blob.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Image file not found"
+            )
+        content = blob.download_as_bytes()
+        # Determine content type from filename
+        ext = os.path.splitext(image.filename)[1].lower()
+        content_type = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.webp': 'image/webp'
+        }.get(ext, 'application/octet-stream')
+        return Response(content=content, media_type=content_type)
+    else:
+        if not os.path.exists(image.storage_path):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Image file not found"
+            )
+        return FileResponse(image.storage_path, filename=image.filename)
 
 
 @router.delete("/{project_id}/datasets/{dataset_id}/images/{image_id}")
@@ -394,10 +450,16 @@ async def delete_image(
             detail="Project not found"
         )
 
-    # Delete file
+    # Delete file from GCS or local storage
     try:
-        if os.path.exists(image.storage_path):
-            os.remove(image.storage_path)
+        if use_gcs():
+            bucket = get_gcs_bucket()
+            blob = bucket.blob(image.storage_path)
+            if blob.exists():
+                blob.delete()
+        else:
+            if os.path.exists(image.storage_path):
+                os.remove(image.storage_path)
     except Exception as e:
         logger.error(f"Failed to delete image file: {e}")
 

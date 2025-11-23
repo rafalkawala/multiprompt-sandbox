@@ -10,7 +10,7 @@ from core.config import settings
 from core.database import Base
 
 # Import all models to ensure they are registered with Base.metadata
-from models import user, project, image, experiment
+from models import user, project, image, experiment, evaluation
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -66,3 +66,15 @@ variable "db_tier" {
   type        = string
   default     = "db-g1-small"
 }
+
+variable "storage_bucket_name" {
+  description = "The name of the GCS bucket for image uploads."
+  type        = string
+  default     = "multiprompt-uploads"
+}
+
+variable "allowed_email_domain" {
+  description = "Email domain allowed to access the application (e.g., 'example.com'). Empty string allows all domains."
+  type        = string
+  default     = ""
+}

@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GCP_PROJECT_ID: str = ""
     GEMINI_MODEL: str = "gemini-pro-vision"
+    GCS_BUCKET_NAME: str = ""  # GCS bucket for image uploads
 
     # LangChain Configuration
     LANGCHAIN_TRACING_V2: bool = False
@@ -72,12 +73,20 @@ class Settings(BaseSettings):
     # Admin emails - comma-separated list of emails that should be admin on first login
     ADMIN_EMAILS: str = ""
 
+    # Allowed email domain for access control (e.g., "example.com")
+    ALLOWED_EMAIL_DOMAIN: str = ""
+
     @property
     def ADMIN_EMAIL_LIST(self) -> List[str]:
         """Get list of admin emails from env var"""
         if self.ADMIN_EMAILS:
             return [email.strip().lower() for email in self.ADMIN_EMAILS.split(",")]
         return []
+
+    @property
+    def ALLOWED_DOMAIN(self) -> str:
+        """Get allowed email domain for access control"""
+        return self.ALLOWED_EMAIL_DOMAIN.strip().lower() if self.ALLOWED_EMAIL_DOMAIN else ""
 
     class Config:
         env_file = ".env"

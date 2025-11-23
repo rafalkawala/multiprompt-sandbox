@@ -150,6 +150,17 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
         name = userinfo.get("name")
         picture = userinfo.get("picture")
 
+        # Check email domain restriction
+        allowed_domain = settings.ALLOWED_DOMAIN
+        if allowed_domain:
+            email_domain = email.lower().split('@')[-1]
+            if email_domain != allowed_domain:
+                logger.warning(f"Access denied for {email} - domain {email_domain} not allowed (required: {allowed_domain})")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Access denied. Only users from {allowed_domain} domain are allowed."
+                )
+
         user = db.query(User).filter(User.email == email).first()
 
         if not user:
