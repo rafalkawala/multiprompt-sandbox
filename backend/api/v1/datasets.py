@@ -267,78 +267,100 @@ async def upload_images(
 
     errors = []
 
-    for file in files:
-        try:
-            # Validate file type
-            if file.content_type not in settings.ALLOWED_IMAGE_TYPES:
-                errors.append(f"{file.filename}: Invalid file type")
+    try:
+        for file in files:
+            try:
+                # Validate file type
+                if file.content_type not in settings.ALLOWED_IMAGE_TYPES:
+                    errors.append(f"{file.filename}: Invalid file type")
+                    logger.warning(f"Skipping {file.filename}: invalid type {file.content_type}")
+                    continue
+
+                # Read file content
+                content = await file.read()
+
+                # Validate file size
+                if len(content) > settings.MAX_UPLOAD_SIZE:
+                    errors.append(f"{file.filename}: File too large ({len(content)} bytes)")
+                    logger.warning(f"Skipping {file.filename}: too large {len(content)} bytes")
+                    continue
+
+                # Generate unique filename
+                ext = os.path.splitext(file.filename)[1]
+                unique_filename = f"{uuid.uuid4()}{ext}"
+
+                # Save file to GCS or local storage
+                if use_gcs():
+                    storage_path = f"{gcs_prefix}/{unique_filename}"
+                    blob = bucket.blob(storage_path)
+                    blob.upload_from_string(content, content_type=file.content_type)
+                else:
+                    storage_path = os.path.join(dataset_dir, unique_filename)
+                    with open(storage_path, "wb") as f:
+                        f.write(content)
+
+                # Create database record
+                image = Image(
+                    dataset_id=dataset_id,
+                    filename=file.filename,
+                    storage_path=storage_path,
+                    file_size=len(content),
+                    uploaded_by_id=current_user.id
+                )
+                db.add(image)
+                uploaded_images.append(image)
+                logger.info(f"Successfully queued {file.filename} for upload")
+
+            except Exception as e:
+                logger.error(f"Failed to upload {file.filename}: {str(e)}", exc_info=True)
+                errors.append(f"{file.filename}: {str(e)}")
                 continue
 
-            # Read file content
-            content = await file.read()
+        # Commit all successful uploads
+        if uploaded_images:
+            db.commit()
+            logger.info(f"Committed {len(uploaded_images)} images to database")
 
-            # Validate file size
-            if len(content) > settings.MAX_UPLOAD_SIZE:
-                errors.append(f"{file.filename}: File too large")
-                continue
+            # Refresh to get IDs
+            for img in uploaded_images:
+                db.refresh(img)
 
-            # Generate unique filename
-            ext = os.path.splitext(file.filename)[1]
-            unique_filename = f"{uuid.uuid4()}{ext}"
+        if errors:
+            logger.warning(f"Upload completed with {len(errors)} errors: {errors}")
 
-            # Save file to GCS or local storage
-            if use_gcs():
-                storage_path = f"{gcs_prefix}/{unique_filename}"
-                blob = bucket.blob(storage_path)
-                blob.upload_from_string(content, content_type=file.content_type)
-            else:
-                storage_path = os.path.join(dataset_dir, unique_filename)
-                with open(storage_path, "wb") as f:
-                    f.write(content)
-
-            # Create database record
-            image = Image(
-                dataset_id=dataset_id,
-                filename=file.filename,
-                storage_path=storage_path,
-                file_size=len(content),
-                uploaded_by_id=current_user.id
+        if not uploaded_images:
+            error_msg = "; ".join(errors[:5]) if errors else "No valid images to upload"
+            if len(errors) > 5:
+                error_msg += f" (and {len(errors) - 5} more errors)"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_msg
             )
-            db.add(image)
-            uploaded_images.append(image)
 
-        except Exception as e:
-            logger.error(f"Failed to upload {file.filename}: {str(e)}")
-            errors.append(f"{file.filename}: {str(e)}")
-            continue
+        logger.info(f"Successfully uploaded {len(uploaded_images)} of {len(files)} images to dataset: {dataset.name}")
 
-    db.commit()
+        return [
+            ImageResponse(
+                id=str(img.id),
+                filename=img.filename,
+                file_size=img.file_size,
+                uploaded_at=img.uploaded_at.isoformat()
+            )
+            for img in uploaded_images
+        ]
 
-    # Refresh to get IDs
-    for img in uploaded_images:
-        db.refresh(img)
-
-    if errors:
-        logger.warning(f"Upload completed with errors: {errors}")
-
-    if not uploaded_images:
-        error_msg = "; ".join(errors) if errors else "No valid images to upload"
+    except HTTPException:
+        # Re-raise HTTP exceptions (like the "no valid images" one)
+        db.rollback()
+        raise
+    except Exception as e:
+        # Rollback on any unexpected error
+        db.rollback()
+        logger.error(f"Unexpected error during image upload: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Upload failed: {error_msg}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Upload failed: {str(e)}"
         )
-
-    logger.info(f"Uploaded {len(uploaded_images)} images to dataset: {dataset.name}")
-
-    return [
-        ImageResponse(
-            id=str(img.id),
-            filename=img.filename,
-            file_size=img.file_size,
-            uploaded_at=img.uploaded_at.isoformat()
-        )
-        for img in uploaded_images
-    ]
 
 
 @router.get("/{project_id}/datasets/{dataset_id}/images", response_model=List[ImageResponse])
