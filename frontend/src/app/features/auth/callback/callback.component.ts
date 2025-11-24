@@ -40,7 +40,15 @@ export class CallbackComponent implements OnInit {
   }
 
   private async handleCallback(): Promise<void> {
-    // Cookie is set by backend redirect, just call handleCallback
-    await this.authService.handleCallback();
+    // Extract token from URL hash if present
+    let token: string | null = null;
+    const hash = window.location.hash;
+    if (hash && hash.includes('token=')) {
+      token = hash.split('token=')[1];
+      // Clean the URL
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+
+    await this.authService.handleCallback(token);
   }
 }

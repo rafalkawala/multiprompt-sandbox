@@ -192,18 +192,18 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
             data={"sub": user.email, "role": user.role}
         )
 
-        # Redirect to frontend - cookie will be sent with subsequent requests
-        redirect_url = f"{settings.FRONTEND_URL}/auth/callback"
+        # Redirect to frontend with token in URL hash (avoids third-party cookie issues)
+        redirect_url = f"{settings.FRONTEND_URL}/auth/callback#token={jwt_token}"
         response = RedirectResponse(url=redirect_url)
 
-        # Set secure HttpOnly cookie
+        # Also set cookie as fallback for same-origin setups
         is_production = settings.ENVIRONMENT == "production"
         response.set_cookie(
             key="auth_token",
             value=jwt_token,
             httponly=True,
-            secure=is_production,  # Only send over HTTPS in production
-            samesite="none" if is_production else "lax",  # none for cross-origin in prod
+            secure=is_production,
+            samesite="none" if is_production else "lax",
             max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             path="/"
         )
