@@ -61,8 +61,8 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
               <input matInput [(ngModel)]="newConfig.model_name" [placeholder]="getModelPlaceholder()">
             </mat-form-field>
             <mat-form-field appearance="outline">
-              <mat-label>API Key</mat-label>
-              <input matInput [(ngModel)]="newConfig.api_key" type="password" placeholder="sk-...">
+              <mat-label>API Key (optional for Gemini with service account)</mat-label>
+              <input matInput [(ngModel)]="newConfig.api_key" type="password" placeholder="Leave empty to use service account">
             </mat-form-field>
           </div>
           <div class="form-row">
@@ -351,7 +351,7 @@ export class ModelsComponent implements OnInit {
   }
 
   isFormValid(): boolean {
-    return !!(this.newConfig.name && this.newConfig.provider && this.newConfig.model_name && this.newConfig.api_key);
+    return !!(this.newConfig.name && this.newConfig.provider && this.newConfig.model_name);
   }
 
   getModelPlaceholder(): string {

@@ -28,7 +28,7 @@ export interface CreateModelConfig {
   name: string;
   provider: string;
   model_name: string;
-  api_key: string;
+  api_key?: string;  // Optional - uses service account auth if not provided
   temperature?: number;
   max_tokens?: number;
   additional_params?: any;
