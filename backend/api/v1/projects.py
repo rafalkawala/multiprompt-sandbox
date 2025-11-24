@@ -84,7 +84,7 @@ class ProjectListResponse(BaseModel):
         from_attributes = True
 
 
-@router.get("/", response_model=List[ProjectListResponse])
+@router.get("", response_model=List[ProjectListResponse])
 async def list_projects(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -108,7 +108,7 @@ async def list_projects(
     ]
 
 
-@router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
     project_data: ProjectCreate,
     current_user: User = Depends(get_current_user),

@@ -63,7 +63,7 @@ async def require_admin(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 
-@router.get("/", response_model=List[UserResponse])
+@router.get("", response_model=List[UserResponse])
 async def list_users(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db)
@@ -85,7 +85,7 @@ async def list_users(
     ]
 
 
-@router.post("/", response_model=UserResponse)
+@router.post("", response_model=UserResponse)
 async def create_user(
     user_data: UserCreate,
     admin: User = Depends(require_admin),
