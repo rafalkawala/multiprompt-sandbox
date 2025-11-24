@@ -29,7 +29,7 @@ class ModelConfigCreate(BaseModel):
     name: str
     provider: str  # 'gemini', 'openai', 'anthropic'
     model_name: str
-    api_key: str
+    api_key: Optional[str] = None  # Optional - will use service account auth if empty
     temperature: float = 0.0
     max_tokens: int = 1024
     additional_params: Optional[dict] = None
@@ -231,18 +231,42 @@ async def test_model_config(
 
     try:
         if config.provider == 'gemini':
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/{config.model_name}:generateContent",
-                    params={"key": config.api_key},
-                    json={
-                        "contents": [{"parts": [{"text": data.prompt}]}],
-                        "generationConfig": {
-                            "temperature": config.temperature,
-                            "maxOutputTokens": config.max_tokens
+            # Use Vertex AI if no API key provided (service account auth)
+            if not config.api_key:
+                from google.auth import default
+                from google.auth.transport.requests import Request
+
+                # Get default credentials (works with service account in Cloud Run)
+                credentials, project = default()
+                credentials.refresh(Request())
+
+                # Use Vertex AI endpoint
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    response = await client.post(
+                        f"https://us-central1-aiplatform.googleapis.com/v1/projects/{project}/locations/us-central1/publishers/google/models/{config.model_name}:generateContent",
+                        headers={"Authorization": f"Bearer {credentials.token}"},
+                        json={
+                            "contents": [{"parts": [{"text": data.prompt}]}],
+                            "generationConfig": {
+                                "temperature": config.temperature,
+                                "maxOutputTokens": config.max_tokens
+                            }
                         }
-                    }
-                )
+                    )
+            else:
+                # Use Gemini AI API with API key
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    response = await client.post(
+                        f"https://generativelanguage.googleapis.com/v1beta/models/{config.model_name}:generateContent",
+                        params={"key": config.api_key},
+                        json={
+                            "contents": [{"parts": [{"text": data.prompt}]}],
+                            "generationConfig": {
+                                "temperature": config.temperature,
+                                "maxOutputTokens": config.max_tokens
+                            }
+                        }
+                    )
 
             latency = int((time.time() - start_time) * 1000)
 
