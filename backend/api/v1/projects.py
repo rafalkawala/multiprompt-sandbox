@@ -18,6 +18,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def require_write_access(current_user: User = Depends(get_current_user)) -> User:
+    """Require user to have write access (not a viewer)"""
+    from models.user import UserRole
+    if current_user.role == UserRole.VIEWER.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Viewers have read-only access. Cannot create, update, or delete resources."
+        )
+    return current_user
+
+
 def get_db():
     """Database session dependency"""
     db = SessionLocal()
@@ -71,6 +82,11 @@ class ProjectResponse(BaseModel):
         from_attributes = True
 
 
+class CreatorInfo(BaseModel):
+    id: str
+    email: str
+    name: Optional[str]
+
 class ProjectListResponse(BaseModel):
     id: str
     name: str
@@ -79,6 +95,7 @@ class ProjectListResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     dataset_count: int
+    created_by: CreatorInfo
 
     class Config:
         from_attributes = True
@@ -89,10 +106,8 @@ async def list_projects(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """List all projects for current user"""
-    projects = db.query(Project).filter(
-        Project.created_by_id == current_user.id
-    ).order_by(Project.created_at.desc()).all()
+    """List all projects (visible to all authenticated users)"""
+    projects = db.query(Project).order_by(Project.created_at.desc()).all()
 
     return [
         ProjectListResponse(
@@ -102,7 +117,12 @@ async def list_projects(
             question_type=p.question_type,
             created_at=p.created_at,
             updated_at=p.updated_at,
-            dataset_count=len(p.datasets) if p.datasets else 0
+            dataset_count=len(p.datasets) if p.datasets else 0,
+            created_by=CreatorInfo(
+                id=str(p.created_by.id),
+                email=p.created_by.email,
+                name=p.created_by.name
+            )
         )
         for p in projects
     ]
@@ -111,10 +131,10 @@ async def list_projects(
 @router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
     project_data: ProjectCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_write_access),
     db: Session = Depends(get_db)
 ):
-    """Create a new project"""
+    """Create a new project (requires write access)"""
 
     # Validate question_type
     valid_types = ['binary', 'multiple_choice', 'text', 'count']
@@ -166,12 +186,9 @@ async def get_project(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get project by ID"""
+    """Get project by ID (visible to all authenticated users)"""
 
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -208,20 +225,24 @@ async def get_project(
 async def update_project(
     project_id: str,
     project_data: ProjectUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_write_access),
     db: Session = Depends(get_db)
 ):
-    """Update project"""
+    """Update project (requires write access, owner can edit their own projects)"""
 
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found"
+        )
+
+    # Only the project owner can edit their project
+    if str(project.created_by_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only edit your own projects"
         )
 
     if project_data.name is not None:
@@ -274,20 +295,24 @@ async def update_project(
 @router.delete("/{project_id}")
 async def delete_project(
     project_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_write_access),
     db: Session = Depends(get_db)
 ):
-    """Delete project and all its datasets/images"""
+    """Delete project and all its datasets/images (requires write access, owner only)"""
 
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found"
+        )
+
+    # Only the project owner can delete their project
+    if str(project.created_by_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete your own projects"
         )
 
     project_name = project.name

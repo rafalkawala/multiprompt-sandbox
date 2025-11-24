@@ -23,6 +23,18 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
+def require_write_access(current_user: User = Depends(get_current_user)) -> User:
+    """Require user to have write access (not a viewer)"""
+    from models.user import UserRole
+    if current_user.role == UserRole.VIEWER.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Viewers have read-only access. Cannot create, update, or delete resources."
+        )
+    return current_user
+
+
 # Create local uploads directory for development
 UPLOAD_DIR = "/app/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -87,16 +99,13 @@ class DatasetResponse(BaseModel):
 async def create_dataset(
     project_id: str,
     dataset_data: DatasetCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_write_access),
     db: Session = Depends(get_db)
 ):
-    """Create a new dataset in a project"""
+    """Create a new dataset in a project (requires write access)"""
 
-    # Verify project exists and belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -161,10 +170,10 @@ async def list_datasets(
 async def delete_dataset(
     project_id: str,
     dataset_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_write_access),
     db: Session = Depends(get_db)
 ):
-    """Delete a dataset and all its images"""
+    """Delete a dataset and all its images (requires write access)"""
 
     dataset = db.query(Dataset).filter(
         Dataset.id == dataset_id,
@@ -217,10 +226,10 @@ async def upload_images(
     project_id: str,
     dataset_id: str,
     files: List[UploadFile] = File(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_write_access),
     db: Session = Depends(get_db)
 ):
-    """Upload images to a dataset"""
+    """Upload images to a dataset (requires write access)"""
 
     # Verify dataset exists
     dataset = db.query(Dataset).filter(
@@ -422,10 +431,10 @@ async def delete_image(
     project_id: str,
     dataset_id: str,
     image_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_write_access),
     db: Session = Depends(get_db)
 ):
-    """Delete an image"""
+    """Delete an image (requires write access)"""
 
     image = db.query(Image).filter(
         Image.id == image_id,
