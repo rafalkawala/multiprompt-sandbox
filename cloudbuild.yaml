@@ -36,44 +36,46 @@ steps:
     id: 'get-db-host'
 
   # Run database migrations
-  - name: 'python:3.11-slim'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        # Install curl and gcloud CLI
-        apt-get update && apt-get install -y curl apt-transport-https ca-certificates gnupg
-        curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
-        echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
-        apt-get update && apt-get install -y google-cloud-cli
-
-        # Install cloud-sql-proxy
-        curl -o cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.8.0/cloud-sql-proxy.linux.amd64
-        chmod +x cloud-sql-proxy
-
-        # Get DB password from Secret Manager
-        DB_PASSWORD=$$(gcloud secrets versions access latest --secret=mllm_sandbox_user-password --project=$PROJECT_ID)
-
-        # Start proxy in background
-        ./cloud-sql-proxy --port 5432 $PROJECT_ID:${_REGION}:${_DB_INSTANCE} &
-        PROXY_PID=$$!
-        sleep 5
-
-        # Install uv and dependencies
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        export PATH="/builder/home/.local/bin:$$PATH"
-
-        cd backend
-        uv pip install --system -q -r requirements.txt
-
-        export DATABASE_URL="postgresql://${_DB_USER}:$${DB_PASSWORD}@localhost:5432/${_DB_NAME}"
-        export SECRET_KEY="migration-temp-key"
-        alembic upgrade head
-
-        # Cleanup
-        kill $$PROXY_PID || true
-    waitFor: ['get-db-host', 'test-backend']
-    id: 'run-migrations'
+  # DISABLED: Database has private IP only, Cloud Build has no VPC access
+  # Migrations run automatically on Cloud Run backend startup (see backend/Dockerfile CMD)
+  # - name: 'python:3.11-slim'
+  #   entrypoint: 'bash'
+  #   args:
+  #     - '-c'
+  #     - |
+  #       # Install curl and gcloud CLI
+  #       apt-get update && apt-get install -y curl apt-transport-https ca-certificates gnupg
+  #       curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
+  #       echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+  #       apt-get update && apt-get install -y google-cloud-cli
+  #
+  #       # Install cloud-sql-proxy
+  #       curl -o cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.8.0/cloud-sql-proxy.linux.amd64
+  #       chmod +x cloud-sql-proxy
+  #
+  #       # Get DB password from Secret Manager
+  #       DB_PASSWORD=$$(gcloud secrets versions access latest --secret=mllm_sandbox_user-password --project=$PROJECT_ID)
+  #
+  #       # Start proxy in background
+  #       ./cloud-sql-proxy --port 5432 $PROJECT_ID:${_REGION}:${_DB_INSTANCE} &
+  #       PROXY_PID=$$!
+  #       sleep 5
+  #
+  #       # Install uv and dependencies
+  #       curl -LsSf https://astral.sh/uv/install.sh | sh
+  #       export PATH="/builder/home/.local/bin:$$PATH"
+  #
+  #       cd backend
+  #       uv pip install --system -q -r requirements.txt
+  #
+  #       export DATABASE_URL="postgresql://${_DB_USER}:$${DB_PASSWORD}@localhost:5432/${_DB_NAME}"
+  #       export SECRET_KEY="migration-temp-key"
+  #       alembic upgrade head
+  #
+  #       # Cleanup
+  #       kill $$PROXY_PID || true
+  #   waitFor: ['get-db-host', 'test-backend']
+  #   id: 'run-migrations'
 
   # Get existing Cloud Run URLs (for services that already exist)
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -141,7 +143,7 @@ steps:
           --cpu=1 \
           --min-instances=0 \
           --max-instances=10
-    waitFor: ['get-db-host', 'get-urls', 'push-backend', 'run-migrations']
+    waitFor: ['get-db-host', 'get-urls', 'push-backend']
     id: 'deploy-backend'
 
   # Build frontend image
