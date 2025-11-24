@@ -32,7 +32,8 @@ app = FastAPI(
     description="MultiPrompt Sandbox API with LangChain agents and Gemini Pro",
     docs_url="/docs",
     redoc_url="/redoc",
-    openapi_url="/openapi.json"
+    openapi_url="/openapi.json",
+    redirect_slashes=False  # Prevent 307 redirects that strip Authorization headers
 )
 
 # Configure CORS
