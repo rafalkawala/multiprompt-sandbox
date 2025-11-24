@@ -109,15 +109,10 @@ export class AuthService {
     this.loadingSignal.set(true);
     this.errorSignal.set(null);
     try {
-      let httpHeaders = new HttpHeaders();
-      const devToken = localStorage.getItem('dev_access_token');
-      if (devToken) {
-        httpHeaders = httpHeaders.set('Authorization', `Bearer ${devToken}`);
-      }
-
+      // Token is automatically added by auth interceptor
       const user = await this.http.get<User>(
         `${this.API_URL}/auth/me`,
-        { withCredentials: true, headers: httpHeaders, responseType: 'json' }
+        { withCredentials: true, responseType: 'json' }
       ).toPromise();
 
       if (user) {
