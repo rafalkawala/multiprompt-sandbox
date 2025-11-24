@@ -73,8 +73,8 @@ class Settings(BaseSettings):
     # Admin emails - comma-separated list of emails that should be admin on first login
     ADMIN_EMAILS: str = ""
 
-    # Allowed email domain for access control (e.g., "example.com")
-    ALLOWED_EMAIL_DOMAIN: str = ""
+    # Allowed email domains for access control (comma-separated, e.g., "gmail.com,google.com")
+    ALLOWED_EMAIL_DOMAINS: str = ""
 
     @property
     def ADMIN_EMAIL_LIST(self) -> List[str]:
@@ -84,9 +84,11 @@ class Settings(BaseSettings):
         return []
 
     @property
-    def ALLOWED_DOMAIN(self) -> str:
-        """Get allowed email domain for access control"""
-        return self.ALLOWED_EMAIL_DOMAIN.strip().lower() if self.ALLOWED_EMAIL_DOMAIN else ""
+    def ALLOWED_DOMAIN_LIST(self) -> List[str]:
+        """Get list of allowed email domains for access control"""
+        if self.ALLOWED_EMAIL_DOMAINS:
+            return [domain.strip().lower() for domain in self.ALLOWED_EMAIL_DOMAINS.split(",")]
+        return []
 
     class Config:
         env_file = ".env"

@@ -144,50 +144,48 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
 
             userinfo = userinfo_response.json()
 
-        # Get or create user
+        # Get user info
         email = userinfo.get("email")
         google_id = userinfo.get("id")
         name = userinfo.get("name")
         picture = userinfo.get("picture")
 
         # Check email domain restriction
-        allowed_domain = settings.ALLOWED_DOMAIN
-        if allowed_domain:
+        allowed_domains = settings.ALLOWED_DOMAIN_LIST
+        if allowed_domains:
             email_domain = email.lower().split('@')[-1]
-            if email_domain != allowed_domain:
-                logger.warning(f"Access denied for {email} - domain {email_domain} not allowed (required: {allowed_domain})")
+            if email_domain not in allowed_domains:
+                logger.warning(f"Access denied for {email} - domain {email_domain} not in allowed list: {allowed_domains}")
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Access denied. Only users from {allowed_domain} domain are allowed."
+                    detail=f"Access denied. Only users from approved domains are allowed."
                 )
 
+        # Check if user exists in database - only existing users can log in
         user = db.query(User).filter(User.email == email).first()
 
         if not user:
-            # Determine role - admin if email is in ADMIN_EMAILS list
-            role = UserRole.ADMIN.value if email.lower() in settings.ADMIN_EMAIL_LIST else UserRole.USER.value
-
-            # Create new user
-            user = User(
-                email=email,
-                google_id=google_id,
-                name=name,
-                picture_url=picture,
-                role=role,
-                is_active=True
+            logger.warning(f"Access denied for {email} - user not found in database")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied. Your account has not been provisioned. Please contact an administrator."
             )
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-            logger.info(f"Created new user: {email} with role: {role}")
-        else:
-            # Update existing user
-            user.google_id = google_id
-            user.name = name
-            user.picture_url = picture
-            user.last_login_at = datetime.utcnow()
-            db.commit()
-            logger.info(f"Updated existing user: {email}")
+
+        # Check if user is active
+        if not user.is_active:
+            logger.warning(f"Access denied for {email} - user account is deactivated")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied. Your account has been deactivated."
+            )
+
+        # Update existing user info
+        user.google_id = google_id
+        user.name = name
+        user.picture_url = picture
+        user.last_login_at = datetime.utcnow()
+        db.commit()
+        logger.info(f"User logged in: {email}")
 
         # Create JWT token
         jwt_token = create_access_token(
