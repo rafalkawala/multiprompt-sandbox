@@ -246,7 +246,7 @@ async def test_model_config(
                         f"https://us-central1-aiplatform.googleapis.com/v1/projects/{project}/locations/us-central1/publishers/google/models/{config.model_name}:generateContent",
                         headers={"Authorization": f"Bearer {credentials.token}"},
                         json={
-                            "contents": [{"parts": [{"text": data.prompt}]}],
+                            "contents": [{"role": "user", "parts": [{"text": data.prompt}]}],
                             "generationConfig": {
                                 "temperature": config.temperature,
                                 "maxOutputTokens": config.max_tokens
