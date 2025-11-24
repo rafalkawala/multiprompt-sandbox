@@ -265,48 +265,68 @@ async def upload_images(
         dataset_dir = os.path.join(UPLOAD_DIR, str(project_id), str(dataset_id))
         os.makedirs(dataset_dir, exist_ok=True)
 
+    errors = []
+
     for file in files:
-        # Validate file type
-        if file.content_type not in settings.ALLOWED_IMAGE_TYPES:
-            continue  # Skip invalid files
+        try:
+            # Validate file type
+            if file.content_type not in settings.ALLOWED_IMAGE_TYPES:
+                errors.append(f"{file.filename}: Invalid file type")
+                continue
 
-        # Read file content
-        content = await file.read()
+            # Read file content
+            content = await file.read()
 
-        # Validate file size
-        if len(content) > settings.MAX_UPLOAD_SIZE:
-            continue  # Skip too large files
+            # Validate file size
+            if len(content) > settings.MAX_UPLOAD_SIZE:
+                errors.append(f"{file.filename}: File too large")
+                continue
 
-        # Generate unique filename
-        ext = os.path.splitext(file.filename)[1]
-        unique_filename = f"{uuid.uuid4()}{ext}"
+            # Generate unique filename
+            ext = os.path.splitext(file.filename)[1]
+            unique_filename = f"{uuid.uuid4()}{ext}"
 
-        # Save file to GCS or local storage
-        if use_gcs():
-            storage_path = f"{gcs_prefix}/{unique_filename}"
-            blob = bucket.blob(storage_path)
-            blob.upload_from_string(content, content_type=file.content_type)
-        else:
-            storage_path = os.path.join(dataset_dir, unique_filename)
-            with open(storage_path, "wb") as f:
-                f.write(content)
+            # Save file to GCS or local storage
+            if use_gcs():
+                storage_path = f"{gcs_prefix}/{unique_filename}"
+                blob = bucket.blob(storage_path)
+                blob.upload_from_string(content, content_type=file.content_type)
+            else:
+                storage_path = os.path.join(dataset_dir, unique_filename)
+                with open(storage_path, "wb") as f:
+                    f.write(content)
 
-        # Create database record
-        image = Image(
-            dataset_id=dataset_id,
-            filename=file.filename,
-            storage_path=storage_path,
-            file_size=len(content),
-            uploaded_by_id=current_user.id
-        )
-        db.add(image)
-        uploaded_images.append(image)
+            # Create database record
+            image = Image(
+                dataset_id=dataset_id,
+                filename=file.filename,
+                storage_path=storage_path,
+                file_size=len(content),
+                uploaded_by_id=current_user.id
+            )
+            db.add(image)
+            uploaded_images.append(image)
+
+        except Exception as e:
+            logger.error(f"Failed to upload {file.filename}: {str(e)}")
+            errors.append(f"{file.filename}: {str(e)}")
+            continue
 
     db.commit()
 
     # Refresh to get IDs
     for img in uploaded_images:
         db.refresh(img)
+
+    if errors:
+        logger.warning(f"Upload completed with errors: {errors}")
+
+    if not uploaded_images:
+        error_msg = "; ".join(errors) if errors else "No valid images to upload"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Upload failed: {error_msg}"
+        )
 
     logger.info(f"Uploaded {len(uploaded_images)} images to dataset: {dataset.name}")
 

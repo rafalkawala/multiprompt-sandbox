@@ -231,7 +231,7 @@ async def test_model_config(
 
     try:
         if config.provider == 'gemini':
-            # Use Vertex AI if no API key provided (service account auth)
+            # Use Gemini API with service account auth if no API key provided
             if not config.api_key:
                 from google.auth import default
                 from google.auth.transport.requests import Request
@@ -240,13 +240,13 @@ async def test_model_config(
                 credentials, project = default()
                 credentials.refresh(Request())
 
-                # Use Vertex AI endpoint
+                # Use Gemini API with OAuth token
                 async with httpx.AsyncClient(timeout=60.0) as client:
                     response = await client.post(
-                        f"https://us-central1-aiplatform.googleapis.com/v1/projects/{project}/locations/us-central1/publishers/google/models/{config.model_name}:generateContent",
+                        f"https://generativelanguage.googleapis.com/v1beta/models/{config.model_name}:generateContent",
                         headers={"Authorization": f"Bearer {credentials.token}"},
                         json={
-                            "contents": [{"role": "user", "parts": [{"text": data.prompt}]}],
+                            "contents": [{"parts": [{"text": data.prompt}]}],
                             "generationConfig": {
                                 "temperature": config.temperature,
                                 "maxOutputTokens": config.max_tokens
@@ -254,7 +254,7 @@ async def test_model_config(
                         }
                     )
             else:
-                # Use Gemini AI API with API key
+                # Use Gemini API with API key
                 async with httpx.AsyncClient(timeout=60.0) as client:
                     response = await client.post(
                         f"https://generativelanguage.googleapis.com/v1beta/models/{config.model_name}:generateContent",
