@@ -12,6 +12,8 @@ import os
 import logging
 import json
 import time
+import asyncio
+import threading
 
 from core.database import SessionLocal
 from core.prompt_config import get_system_prompt
