@@ -303,8 +303,23 @@ async def upload_images(
                         logger.warning(f"Deleted oversized file {file.filename}: {file_size} bytes")
                         await file.close()
                         continue
-                # Local storage - stream in chunks
-                storage_path = os.path.join(dataset_dir, unique_filename)
+
+                    # Create database record for GCS upload
+                    image = Image(
+                        dataset_id=dataset_id,
+                        filename=file.filename,
+                        storage_path=storage_path,
+                        file_size=file_size,
+                        uploaded_by_id=current_user.id
+                    )
+                    db.add(image)
+                    uploaded_images.append(image)
+                    logger.info(f"Successfully uploaded {file.filename} ({file_size} bytes)")
+                    await file.close()
+
+                else:
+                    # Local storage - stream in chunks
+                    storage_path = os.path.join(dataset_dir, unique_filename)
 
                 size_exceeded = False
                 with open(storage_path, "wb") as f:
@@ -318,26 +333,26 @@ async def upload_images(
 
                         f.write(chunk)
 
-                # Handle size limit exceeded
-                if size_exceeded:
-                    os.remove(storage_path)  # Remove partial file
-                    errors.append(f"{file.filename}: File too large ({file_size} bytes)")
-                    logger.warning(f"Stopped upload {file.filename}: exceeded size limit")
-                    await file.close()
-                    continue
+                    # Handle size limit exceeded
+                    if size_exceeded:
+                        os.remove(storage_path)  # Remove partial file
+                        errors.append(f"{file.filename}: File too large ({file_size} bytes)")
+                        logger.warning(f"Stopped upload {file.filename}: exceeded size limit")
+                        await file.close()
+                        continue
 
-                # File completed successfully - create database record
-                image = Image(
-                    dataset_id=dataset_id,
-                    filename=file.filename,
-                    storage_path=storage_path,
-                    file_size=file_size,
-                    uploaded_by_id=current_user.id
-                )
-                db.add(image)
-                uploaded_images.append(image)
-                logger.info(f"Successfully uploaded {file.filename} ({file_size} bytes)")
-                await file.close()
+                    # File completed successfully - create database record
+                    image = Image(
+                        dataset_id=dataset_id,
+                        filename=file.filename,
+                        storage_path=storage_path,
+                        file_size=file_size,
+                        uploaded_by_id=current_user.id
+                    )
+                    db.add(image)
+                    uploaded_images.append(image)
+                    logger.info(f"Successfully uploaded {file.filename} ({file_size} bytes)")
+                    await file.close()
 
             except Exception as e:
                 logger.error(f"Failed to upload {file.filename}: {str(e)}", exc_info=True)
