@@ -143,6 +143,10 @@ import { ProjectsService, Project, DatasetDetail, ImageItem } from '../../core/s
                   <mat-icon>edit_note</mat-icon>
                   Annotate
                 </button>
+                <button mat-button [routerLink]="['/evaluations']" [queryParams]="{projectId: projectId, datasetId: dataset.id}">
+                  <mat-icon>analytics</mat-icon>
+                  Evaluate
+                </button>
                 <button mat-button (click)="loadImages(dataset.id)" [disabled]="loadingImages[dataset.id]">
                   <mat-icon>refresh</mat-icon>
                   Refresh

@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -9,6 +9,9 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { ProjectsService } from '../../core/services/projects.service';
+import { EvaluationsService } from '../../core/services/evaluations.service';
+import { forkJoin } from 'rxjs';
 
 @Component({
   selector: 'app-home',
@@ -27,12 +30,52 @@ import { AuthService } from '../../core/services/auth.service';
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss'
 })
-export class HomeComponent {
-  constructor(public authService: AuthService) {}
+export class HomeComponent implements OnInit {
+  constructor(
+    public authService: AuthService,
+    private projectsService: ProjectsService,
+    private evaluationsService: EvaluationsService
+  ) {}
+
+  ngOnInit() {
+    this.loadStats();
+  }
 
   logout(): void {
     this.authService.logout();
   }
+
+  loadStats() {
+    forkJoin({
+      projects: this.projectsService.getProjects(),
+      evaluations: this.evaluationsService.getEvaluations()
+    }).subscribe({
+      next: (data) => {
+        const projects = data.projects;
+        const evaluations = data.evaluations;
+
+        // Count total datasets - for now just show project count (datasets not in list)
+        const totalDatasets = 0; // TODO: fetch dataset count
+
+        // Calculate average accuracy from completed evaluations
+        const completedEvals = evaluations.filter(e => e.status === 'completed' && e.accuracy != null);
+        const avgAccuracy = completedEvals.length > 0
+          ? completedEvals.reduce((sum, e) => sum + (e.accuracy || 0), 0) / completedEvals.length
+          : 0;
+
+        this.stats = [
+          { label: 'Projects', value: projects.length.toString(), icon: 'folder' },
+          { label: 'Datasets', value: totalDatasets.toString(), icon: 'cloud_upload' },
+          { label: 'Evaluations', value: evaluations.length.toString(), icon: 'science' },
+          { label: 'Avg Accuracy', value: avgAccuracy > 0 ? `${avgAccuracy.toFixed(1)}%` : '--%', icon: 'analytics' }
+        ];
+      },
+      error: (err) => {
+        console.error('Failed to load dashboard stats:', err);
+      }
+    });
+  }
+
   features = [
     {
       icon: 'folder',
