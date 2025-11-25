@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     GCP_PROJECT_ID: str = ""
     GEMINI_MODEL: str = "gemini-pro-vision"
     GCS_BUCKET_NAME: str = ""  # GCS bucket for image uploads
+    STORAGE_TYPE: str = "local" # local or gcs
+    UPLOAD_DIR: str = "uploads" # Directory for local storage
 
     # LangChain Configuration
     LANGCHAIN_TRACING_V2: bool = False

@@ -127,3 +127,7 @@ infrastructure/.terraform/
 infrastructure/*.tfstate*
 infrastructure/.terraform.lock.hcl
 infrastructure/terraform.tfvars
+
+# Gemini recommendation files
+GEMINI-*.md
+backend/uploads/

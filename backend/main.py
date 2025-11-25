@@ -73,6 +73,13 @@ async def sync_admin_users():
     finally:
         db.close()
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Close resources on shutdown"""
+    from core.http_client import HttpClient
+    await HttpClient.close()
+
+
 
 @app.get("/")
 async def root():

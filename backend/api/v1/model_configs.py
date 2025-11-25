@@ -8,11 +8,13 @@ from typing import Optional, List
 from datetime import datetime
 import httpx
 import logging
+import time
 
-from core.database import SessionLocal
-from models.evaluation import ModelConfig
-from models.user import User
-from api.v1.auth import get_current_user
+from backend.core.database import SessionLocal
+from backend.models.evaluation import ModelConfig
+from backend.models.user import User
+from backend.api.v1.auth import get_current_user
+from backend.services.llm_service import get_llm_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -237,8 +239,6 @@ async def test_model_config(
     db: Session = Depends(get_db)
 ):
     """Test a model configuration with a simple text prompt"""
-    import time
-
     config = db.query(ModelConfig).filter(
         ModelConfig.id == config_id,
         ModelConfig.created_by_id == current_user.id
@@ -249,132 +249,22 @@ async def test_model_config(
     start_time = time.time()
 
     try:
-        if config.provider == 'gemini':
-            # Use Gemini API with service account auth if no API key provided
-            if not config.api_key:
-                from google.auth import default
-                from google.auth.transport.requests import Request
+        llm_service = get_llm_service()
+        
+        response_text, latency = await llm_service.generate_content(
+            provider_name=config.provider,
+            api_key=config.api_key,
+            model_name=config.model_name,
+            prompt=data.prompt,
+            temperature=config.temperature,
+            max_tokens=config.max_tokens
+        )
 
-                # Get default credentials (works with service account in Cloud Run)
-                credentials, project = default()
-                credentials.refresh(Request())
-
-                # Use Gemini API with OAuth token
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    response = await client.post(
-                        f"https://generativelanguage.googleapis.com/v1beta/models/{config.model_name}:generateContent",
-                        headers={"Authorization": f"Bearer {credentials.token}"},
-                        json={
-                            "contents": [{"parts": [{"text": data.prompt}]}],
-                            "generationConfig": {
-                                "temperature": config.temperature,
-                                "maxOutputTokens": config.max_tokens
-                            }
-                        }
-                    )
-            else:
-                # Use Gemini API with API key
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    response = await client.post(
-                        f"https://generativelanguage.googleapis.com/v1beta/models/{config.model_name}:generateContent",
-                        params={"key": config.api_key},
-                        json={
-                            "contents": [{"parts": [{"text": data.prompt}]}],
-                            "generationConfig": {
-                                "temperature": config.temperature,
-                                "maxOutputTokens": config.max_tokens
-                            }
-                        }
-                    )
-
-            latency = int((time.time() - start_time) * 1000)
-
-            if response.status_code != 200:
-                return TestResponse(
-                    success=False,
-                    error=f"API error ({response.status_code}): {response.text}",
-                    latency_ms=latency
-                )
-
-            result = response.json()
-            text = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
-
-            return TestResponse(
-                success=True,
-                response=text,
-                latency_ms=latency
-            )
-
-        elif config.provider == 'openai':
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {config.api_key}"},
-                    json={
-                        "model": config.model_name,
-                        "messages": [{"role": "user", "content": data.prompt}],
-                        "temperature": config.temperature,
-                        "max_tokens": config.max_tokens
-                    }
-                )
-
-            latency = int((time.time() - start_time) * 1000)
-
-            if response.status_code != 200:
-                return TestResponse(
-                    success=False,
-                    error=f"API error ({response.status_code}): {response.text}",
-                    latency_ms=latency
-                )
-
-            result = response.json()
-            text = result.get('choices', [{}])[0].get('message', {}).get('content', '')
-
-            return TestResponse(
-                success=True,
-                response=text,
-                latency_ms=latency
-            )
-
-        elif config.provider == 'anthropic':
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    "https://api.anthropic.com/v1/messages",
-                    headers={
-                        "x-api-key": config.api_key,
-                        "anthropic-version": "2023-06-01",
-                        "content-type": "application/json"
-                    },
-                    json={
-                        "model": config.model_name,
-                        "max_tokens": config.max_tokens,
-                        "messages": [{"role": "user", "content": data.prompt}]
-                    }
-                )
-
-            latency = int((time.time() - start_time) * 1000)
-
-            if response.status_code != 200:
-                return TestResponse(
-                    success=False,
-                    error=f"API error ({response.status_code}): {response.text}",
-                    latency_ms=latency
-                )
-
-            result = response.json()
-            text = result.get('content', [{}])[0].get('text', '')
-
-            return TestResponse(
-                success=True,
-                response=text,
-                latency_ms=latency
-            )
-
-        else:
-            return TestResponse(
-                success=False,
-                error=f"Unknown provider: {config.provider}"
-            )
+        return TestResponse(
+            success=True,
+            response=response_text,
+            latency_ms=latency
+        )
 
     except Exception as e:
         latency = int((time.time() - start_time) * 1000)

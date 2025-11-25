@@ -7,20 +7,16 @@
 ```bash
 conda activate multiprompt-sandbox
 ```
-
 Before running any `pip install` commands, ensure this environment is activated.
 
 ## Project Structure
-
 - `backend/` - FastAPI backend with Python
 - `frontend/` - Angular frontend with TypeScript
 - `infrastructure/` - Terraform/GCP configurations
 - `docs/` - Project documentation
 
 ## Common Commands
-
 ### Backend Development
-
 ```bash
 conda activate multiprompt-sandbox
 cd backend
@@ -29,13 +25,11 @@ uvicorn main:app --reload
 ```
 
 ### Database
-
 ```bash
 docker-compose up -d db
 ```
 
 ### Frontend Development
-
 ```bash
 cd frontend
 npm install
@@ -43,12 +37,10 @@ npm start
 ```
 
 ## Google Cloud Project
-
 - Project: `prompting-sandbox-mvp`
 - Account: `rafalkawtradegpt@gmail.com`
 
 ## Infrastructure Deployment
-
 **IMPORTANT**: Always use Terraform for GCP infrastructure provisioning. Do NOT use gcloud CLI for creating resources like Cloud SQL, VPC, etc.
 
 ```bash
@@ -64,3 +56,5 @@ The Terraform configuration includes:
 - Secret Manager
 - Cloud Run services
 - All required APIs
+
+Important: for any database migration ALWAYS use Alembic

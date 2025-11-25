@@ -5,11 +5,12 @@ from fastapi import APIRouter, File, UploadFile, HTTPException, Form, Depends
 from pydantic import BaseModel
 from typing import Optional
 import logging
+import base64
 
-from services.gemini_service import GeminiService
-from core.config import settings
-from api.v1.auth import get_current_user
-from models.user import User
+from backend.core.config import settings
+from backend.api.v1.auth import get_current_user
+from backend.models.user import User
+from backend.services.llm_service import get_llm_service
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,25 @@ class ImageAnalysisResponse(BaseModel):
     labels: list[str]
     confidence: Optional[float] = None
 
+def extract_labels(description: str) -> list[str]:
+    """
+    Extract potential labels from description
+    This is a simple implementation - can be enhanced
+    """
+    # Basic keyword extraction
+    # In production, you might want to use NLP techniques or another model
+    common_objects = [
+        "person", "people", "car", "building", "tree", "animal",
+        "dog", "cat", "food", "nature", "urban", "indoor", "outdoor"
+    ]
+
+    description_lower = description.lower()
+    found_labels = [
+        obj for obj in common_objects
+        if obj in description_lower
+    ]
+
+    return found_labels[:5]  # Return top 5 labels
 
 @router.post("/analyze", response_model=ImageAnalysisResponse)
 async def analyze_image(
@@ -58,15 +78,27 @@ async def analyze_image(
                 detail=f"File too large. Max size: {settings.MAX_UPLOAD_SIZE} bytes"
             )
 
-        # Analyze image
-        gemini_service = GeminiService()
-        result = await gemini_service.analyze_image(
-            image_data=content,
+        # Analyze image using LLM Service
+        llm_service = get_llm_service()
+        
+        image_b64 = base64.b64encode(content).decode('utf-8')
+        
+        text, _ = await llm_service.generate_content(
+            provider_name="gemini",
+            api_key=settings.GEMINI_API_KEY,
+            model_name=settings.GEMINI_MODEL,
             prompt=prompt,
+            image_data=image_b64,
             mime_type=file.content_type
         )
 
-        return result
+        labels = extract_labels(text)
+
+        return {
+            "description": text,
+            "labels": labels,
+            "confidence": None
+        }
 
     except HTTPException:
         raise

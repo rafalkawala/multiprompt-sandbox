@@ -15,13 +15,18 @@ import time
 import asyncio
 import threading
 
-from core.database import SessionLocal
-from core.prompt_config import get_system_prompt
-from models.evaluation import ModelConfig, Evaluation, EvaluationResult
-from models.project import Project, Dataset
-from models.image import Image, Annotation
-from models.user import User
-from api.v1.auth import get_current_user
+from backend.core.database import SessionLocal
+from backend.core.prompt_config import get_system_prompt
+from backend.models.evaluation import ModelConfig, Evaluation, EvaluationResult
+from backend.models.project import Project, Dataset
+from backend.models.image import Image, Annotation
+from backend.models.user import User
+from backend.api.v1.auth import get_current_user
+
+# Import Storage Service
+from backend.services.storage_service import get_storage_provider
+# Import LLM Service
+from backend.services.llm_service import get_llm_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -81,40 +86,26 @@ class EvaluationResultItem(BaseModel):
     is_correct: Optional[bool]
     latency_ms: Optional[int]
 
-# Helper function to get image data from GCS or local storage
-def get_image_data(storage_path: str) -> tuple:
+# Helper function to get image data from storage
+async def get_image_data(storage_path: str) -> tuple:
     """Get image data and mime type from storage path (GCS or local)
 
     Returns: (image_data_base64, mime_type)
     """
-    from core.config import settings
+    storage = get_storage_provider()
 
     # Determine mime type from path
     ext = os.path.splitext(storage_path)[1].lower()
     mime_types = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp'}
     mime_type = mime_types.get(ext, 'image/jpeg')
 
-    # Check if using GCS
-    if settings.GCS_BUCKET_NAME and storage_path.startswith('projects/'):
-        # Download from GCS directly to memory (no temp file)
-        from google.cloud import storage
-
-        client = storage.Client()
-        bucket = client.bucket(settings.GCS_BUCKET_NAME)
-        blob = bucket.blob(storage_path)
-
-        # Download directly to memory
-        image_bytes = blob.download_as_bytes(timeout=30)
+    try:
+        image_bytes = await storage.download(storage_path)
         image_data = base64.standard_b64encode(image_bytes).decode('utf-8')
-
         return image_data, mime_type
-    else:
-        # Local file
-        with open(storage_path, 'rb') as f:
-            image_data = base64.standard_b64encode(f.read()).decode('utf-8')
-
-        return image_data, mime_type
-
+    except Exception as e:
+        logger.error(f"Failed to download image {storage_path}: {e}")
+        raise
 
 async def preload_images(images: list) -> dict:
     """Pre-load all images in parallel for faster evaluation
@@ -125,14 +116,14 @@ async def preload_images(images: list) -> dict:
 
     async def load_image(image):
         try:
-            # Run blocking I/O in thread pool for true parallelization
-            image_data, mime_type = await asyncio.to_thread(get_image_data, image.storage_path)
+            # Storage provider handles async/sync logic
+            image_data, mime_type = await get_image_data(image.storage_path)
             return image.id, (image_data, mime_type)
         except Exception as e:
             logger.error(f"Failed to preload image {image.id}: {e}")
             return image.id, None
 
-    # Load all images in parallel (truly parallel with to_thread)
+    # Load all images in parallel
     results = await asyncio.gather(*[load_image(img) for img in images])
 
     # Build cache dict
@@ -142,194 +133,6 @@ async def preload_images(images: list) -> dict:
 
     logger.info(f"Preloaded {len(image_cache)}/{len(images)} images into cache")
     return image_cache
-
-# LLM Provider Functions
-async def call_gemini(api_key: str, model_name: str, image_data: str, mime_type: str, prompt: str, system_message: str, temperature: float, max_tokens: int) -> tuple:
-    """Call Gemini API with image
-
-    If api_key is provided, uses Google AI API (for local dev).
-    If api_key is empty/None, uses Vertex AI with service account (for Cloud Run).
-
-    Args:
-        image_data: Base64-encoded image data
-        mime_type: MIME type of the image
-    """
-    start_time = time.time()
-
-    # Combine system message with prompt
-    full_prompt = f"{system_message}\n\n{prompt}" if system_message else prompt
-
-    # Use Vertex AI if no API key (service account auth in Cloud Run)
-    if not api_key:
-        result = await call_gemini_vertex(model_name, None, image_data, mime_type, full_prompt, temperature, max_tokens, start_time)
-        return result
-
-    # Use Google AI API with API key (local development)
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent",
-            params={"key": api_key},
-            json={
-                "contents": [{
-                    "parts": [
-                        {"inline_data": {"mime_type": mime_type, "data": image_data}},
-                        {"text": full_prompt}
-                    ]
-                }],
-                "generationConfig": {
-                    "temperature": temperature,
-                    "maxOutputTokens": max_tokens
-                }
-            }
-        )
-
-    latency = int((time.time() - start_time) * 1000)
-
-    if response.status_code != 200:
-        raise Exception(f"Gemini API error: {response.text}")
-
-    result = response.json()
-    text = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
-    return text, latency
-
-async def call_gemini_vertex(model_name: str, image_path: str, image_data: str, mime_type: str, prompt: str, temperature: float, max_tokens: int, start_time: float) -> tuple:
-    """Call Gemini via Vertex AI using service account credentials (ADC)"""
-    import google.auth
-    import google.auth.transport.requests
-
-    # Get credentials and project from ADC
-    credentials, project = google.auth.default()
-
-    # Get project from environment if not in credentials
-    if not project:
-        project = os.environ.get('GOOGLE_CLOUD_PROJECT') or os.environ.get('GCP_PROJECT')
-
-    if not project:
-        raise Exception("No GCP project found. Set GOOGLE_CLOUD_PROJECT environment variable.")
-
-    # Refresh credentials to get access token
-    auth_req = google.auth.transport.requests.Request()
-    credentials.refresh(auth_req)
-
-    # Vertex AI endpoint
-    location = os.environ.get('VERTEX_AI_LOCATION', 'us-central1')
-    endpoint = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project}/locations/{location}/publishers/google/models/{model_name}:generateContent"
-
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            endpoint,
-            headers={
-                "Authorization": f"Bearer {credentials.token}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "contents": [{
-                    "role": "user",
-                    "parts": [
-                        {"inline_data": {"mime_type": mime_type, "data": image_data}},
-                        {"text": prompt}
-                    ]
-                }],
-                "generationConfig": {
-                    "temperature": temperature,
-                    "maxOutputTokens": max_tokens
-                }
-            }
-        )
-
-    latency = int((time.time() - start_time) * 1000)
-
-    if response.status_code != 200:
-        raise Exception(f"Vertex AI error: {response.text}")
-
-    result = response.json()
-    text = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
-    return text, latency
-
-async def call_openai(api_key: str, model_name: str, image_data: str, mime_type: str, prompt: str, system_message: str, temperature: float, max_tokens: int) -> tuple:
-    """Call OpenAI API with image
-
-    Args:
-        image_data: Base64-encoded image data
-        mime_type: MIME type of the image
-    """
-    start_time = time.time()
-
-    messages = []
-    if system_message:
-        messages.append({"role": "system", "content": system_message})
-    messages.append({
-        "role": "user",
-        "content": [
-            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image_data}"}},
-            {"type": "text", "text": prompt}
-        ]
-    })
-
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}"},
-            json={
-                "model": model_name,
-                "messages": messages,
-                "temperature": temperature,
-                "max_tokens": max_tokens
-            }
-        )
-
-    latency = int((time.time() - start_time) * 1000)
-
-    if response.status_code != 200:
-        raise Exception(f"OpenAI API error: {response.text}")
-
-    result = response.json()
-    text = result.get('choices', [{}])[0].get('message', {}).get('content', '')
-    return text, latency
-
-async def call_anthropic(api_key: str, model_name: str, image_data: str, mime_type: str, prompt: str, system_message: str, temperature: float, max_tokens: int) -> tuple:
-    """Call Anthropic API with image
-
-    Args:
-        image_data: Base64-encoded image data
-        mime_type: MIME type of the image
-    """
-    start_time = time.time()
-
-    request_body = {
-        "model": model_name,
-        "max_tokens": max_tokens,
-        "messages": [{
-            "role": "user",
-            "content": [
-                {"type": "image", "source": {"type": "base64", "media_type": mime_type, "data": image_data}},
-                {"type": "text", "text": prompt}
-            ]
-        }]
-    }
-
-    if system_message:
-        request_body["system"] = system_message
-
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            },
-            json=request_body
-        )
-
-    latency = int((time.time() - start_time) * 1000)
-
-    if response.status_code != 200:
-        raise Exception(f"Anthropic API error: {response.text}")
-
-    result = response.json()
-    text = result.get('content', [{}])[0].get('text', '')
-    return text, latency
 
 def parse_answer(response: str, question_type: str):
     """Parse model response based on question type"""
@@ -443,24 +246,19 @@ async def run_evaluation_task(evaluation_id: str):
 
                     image_data, mime_type = cached_data
 
-                    # Call appropriate LLM with preloaded image data
-                    if model_config.provider == 'gemini':
-                        response_text, latency = await call_gemini(
-                            model_config.api_key, model_config.model_name,
-                            image_data, mime_type, prompt, system_message, model_config.temperature, model_config.max_tokens
-                        )
-                    elif model_config.provider == 'openai':
-                        response_text, latency = await call_openai(
-                            model_config.api_key, model_config.model_name,
-                            image_data, mime_type, prompt, system_message, model_config.temperature, model_config.max_tokens
-                        )
-                    elif model_config.provider == 'anthropic':
-                        response_text, latency = await call_anthropic(
-                            model_config.api_key, model_config.model_name,
-                            image_data, mime_type, prompt, system_message, model_config.temperature, model_config.max_tokens
-                        )
-                    else:
-                        raise Exception(f"Unknown provider: {model_config.provider}")
+                    # Call LLM Service
+                    llm_service = get_llm_service()
+                    response_text, latency = await llm_service.generate_content(
+                        provider_name=model_config.provider,
+                        api_key=model_config.api_key,
+                        model_name=model_config.model_name,
+                        image_data=image_data,
+                        mime_type=mime_type,
+                        prompt=prompt,
+                        system_message=system_message,
+                        temperature=model_config.temperature,
+                        max_tokens=model_config.max_tokens
+                    )
 
                     # Parse and check
                     parsed = parse_answer(response_text, project.question_type)

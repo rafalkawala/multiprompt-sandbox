@@ -43,5 +43,15 @@
     "karma-jasmine-html-reporter": "~2.1.0",
     "prettier": "^3.0.0",
     "typescript": "~5.2.2"
+  },
+  "pnpm": {
+    "build-settings": {
+      "esbuild": {
+        "allow": true
+      },
+      "nice-napi": {
+        "allow": true
+      }
+    }
   }
 }

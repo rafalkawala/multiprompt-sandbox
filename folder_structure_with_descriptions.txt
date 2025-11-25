@@ -1,0 +1,180 @@
+├── .env.example - Environment variable example.
+├── .gemini-ignore - Gemini tool ignore rules.
+├── .gitignore - Git ignore rules.
+├── CLAUDE.md - Markdown documentation.
+├── GEMINI-auth-flow.md - Markdown documentation.
+├── GEMINI-code-modularity.md - Markdown documentation.
+├── GEMINI-libs-reco.md - Markdown documentation.
+├── GEMINI-recos.md - Markdown documentation.
+├── PROJECT_STATE.md - Markdown documentation.
+├── README.md - Markdown documentation.
+├── cloudbuild.yaml - Google Cloud Build configuration.
+├── docker-compose.yaml - Docker Compose configuration.
+├── findings.md - Markdown documentation.
+├── .claude/
+│   └── settings.local.json - Local settings configuration.
+├── .github/
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug_report.md - Markdown documentation.
+│   │   ├── epic.md - Markdown documentation.
+│   │   └── feature_request.md - Markdown documentation.
+│   └── workflows/
+│       └── ci-cd.yaml - YAML configuration file.
+├── backend/
+│   ├── .env.example - Environment variable example.
+│   ├── Dockerfile - Docker build instructions.
+│   ├── __init__.py - Python package initialization.
+│   ├── alembic.ini - Configuration INI file.
+│   ├── environment.yml - Conda environment configuration.
+│   ├── main.py - Python main application entry point.
+│   ├── pytest.ini - Configuration INI file.
+│   ├── requirements.txt - Python dependency list.
+│   ├── alembic/
+│   │   ├── README - Project README.
+│   │   ├── env.py - Python source code.
+│   │   ├── script.py.mako - Generic file.
+│   │   └── versions/
+│   │       ├── 29312a5c2041_add_user_role_and_is_active.py - Python source code.
+│   │       ├── 356c6b671d5e_initial_migration.py - Python source code.
+│   │       └── 40f830e2ff94_add_evaluation_tables.py - Python source code.
+│   ├── api/
+│   │   ├── __init__.py - Python package initialization.
+│   │   └── v1/
+│   │       ├── __init__.py - Python package initialization.
+│   │       ├── agents.py - Python API endpoint.
+│   │       ├── annotations.py - Python API endpoint.
+│   │       ├── auth.py - Python API endpoint.
+│   │       ├── datasets.py - Python API endpoint.
+│   │       ├── evaluations.py - Python API endpoint.
+│   │       ├── images.py - Python API endpoint.
+│   │       ├── model_configs.py - Python API endpoint.
+│   │       ├── projects.py - Python API endpoint.
+│   │       └── users.py - Python API endpoint.
+│   ├── config/
+│   │   └── prompts.yaml - Prompt templates configuration.
+│   ├── core/
+│   │   ├── __init__.py - Python package initialization.
+│   │   ├── config.py - Python configuration file.
+│   │   ├── database.py - Python source code.
+│   │   └── prompt_config.py - Python configuration file.
+│   ├── models/
+│   │   ├── __init__.py - Python package initialization.
+│   │   ├── evaluation.py - Python data model definition.
+│   │   ├── experiment.py - Python data model definition.
+│   │   ├── image.py - Python data model definition.
+│   │   ├── project.py - Python data model definition.
+│   │   └── user.py - Python data model definition.
+│   ├── scripts/
+│   │   ├── seed_admin.py - Python utility script.
+│   │   └── set_admin.py - Python utility script.
+│   ├── services/
+│   │   ├── __init__.py - Python package initialization.
+│   │   ├── agent_service.py - Python service logic.
+│   │   └── gemini_service.py - Python service logic.
+│   ├── tests/
+│   │   ├── __init__.py - Python package initialization.
+│   │   ├── integration/
+│   │   │   └── __init__.py - Python package initialization.
+│   │   └── unit/
+│   │       ├── __init__.py - Python package initialization.
+│   │       └── test_api.py - Python API endpoint.
+│   └── uploads/
+│       ├── 095974d6-b418-4695-a3d4-8a192f5f618e/
+│       │   ├── bb6bdc89-d6e0-48f0-87eb-abb7560c01099.png - Image file.
+│       │   └── bb6bdc89-d6e0-48f0-87eb-abb7595cd25e/
+│       │       ├── 0133a732-a668-47cd-b8f7-b657a07cd89e.png - Image file.
+│       │       ├── 307f51f8-2d80-47ea-ac26-d1620d51ab3d.png - Image file.
+│       │       ├── 366b17d4-93ae-4c01-ac40-1f977ff084d6.png - Image file.
+│       │       ├── 38f29edb-9aa3-4a31-92ee-8ae65f72f6be.png - Image file.
+│       │       ├── 3c2274bc-47a0-46af-ba6c-00abdf48a1ff.png - Image file.
+│       │       ├── 529f4a23-f230-416b-8125-dc7cf74767b0.png - Image file.
+│       │       ├── 8717359c-863c-44dc-a2de-580e90cbada8.png - Image file.
+│       │       ├── af971e66-fa51-45a6-b44b-348f467f6ace.png - Image file.
+│       │       ├── d78480fa-1783-40b6-9847-2f7560c01099.png - Image file.
+│       │       └── e97a8f66-7979-49f1-9570-f6dad59fbd34.png - Image file.
+│       ├── 649334b5-2c69-4456-a512-a9d8b73c6171/
+│       │   └── 46b9ea01-adbf-4b07-8567-c00f40a32e61/
+│       │       └── 4ce01f12-a917-4c92-8e79-f667e114933a.jpeg - Image file.
+│       └── 9d70a352-f8e0-4fad-bd6b-486cc5d49d5a/
+│           └── a22334a4-a775-4b05-b640-607c7d262f14/
+│               └── ed1bee5d-082c-4394-aa4a-8aced1a8b0f5.jpeg - Image file.
+├── docs/
+│   ├── GCP_SETUP.md - Markdown documentation.
+│   ├── api.md - Markdown documentation.
+│   ├── architecture.md - Markdown documentation.
+│   ├── deployment.md - Markdown documentation.
+│   ├── github-setup.md - Markdown documentation.
+│   └── issues-summary.md - Markdown documentation.
+├── frontend/
+│   ├── Dockerfile - Docker build instructions.
+│   ├── angular.json - Angular CLI configuration.
+│   ├── karma.conf.js - Karma test runner configuration.
+│   ├── nginx.conf - Nginx web server configuration.
+│   ├── package-lock.json - Node.js package lock file.
+│   ├── package.json - Node.js package configuration.
+│   ├── pnpm-lock.yaml - YAML configuration file.
+│   ├── tsconfig.app.json - TypeScript compiler configuration.
+│   ├── tsconfig.json - TypeScript compiler configuration.
+│   ├── tsconfig.spec.json - TypeScript compiler configuration.
+│   └── src/
+│       ├── index.html - Main HTML entry point.
+│       ├── main.ts - Angular application entry point.
+│       ├── styles.scss - SCSS stylesheet.
+│       ├── theme.scss - SCSS stylesheet.
+│       ├── app/
+│       │   ├── app.component.html - Angular component template.
+│       │   ├── app.component.scss - SCSS stylesheet.
+│       │   ├── app.component.spec.ts - Angular component/service test.
+│       │   ├── app.component.ts - Angular component logic.
+│       │   ├── app.config.ts - Angular configuration file.
+│       │   ├── app.routes.ts - Angular routing module.
+│       │   ├── core/
+│       │   │   ├── guards/
+│       │   │   │   └── auth.guard.ts - Angular route guard.
+│       │   │   ├── interceptors/
+│       │   │   │   └── auth.interceptor.ts - Angular HTTP interceptor.
+│       │   │   └── services/
+│       │   │       ├── admin.service.ts - Angular service.
+│       │   │       ├── auth.service.ts - Angular service.
+│       │   │       ├── evaluations.service.ts - Angular service.
+│       │   │       └── projects.service.ts - Angular service.
+│       │   └── features/
+│       │       ├── admin/
+│       │       │   └── users/
+│       │       │       └── users.component.ts - Angular component logic.
+│       │       ├── annotations/
+│       │       │   ├── annotation.component.ts - Angular component logic.
+│       │       │   └── annotations-list.component.ts - Angular component logic.
+│       │       ├── auth/
+│       │       │   ├── callback/
+│       │       │   │   └── callback.component.ts - Angular component logic.
+│       │       │   └── login/
+│       │       │       └── login.component.ts - Angular component logic.
+│       │       ├── evaluations/
+│       │       │   └── evaluations.component.ts - Angular component logic.
+│       │       ├── home/
+│       │       │   ├── home.component.html - Angular component template.
+│       │       │   ├── home.component.scss - SCSS stylesheet.
+│       │       │   └── home.component.ts - Angular component logic.
+│       │       ├── models/
+│       │       │   └── models.component.ts - Angular component logic.
+│       │       └── projects/
+│       │           ├── project-detail.component.ts - Angular component logic.
+│       │           └── projects.component.ts - Angular component logic.
+│       └── environments/
+│           ├── environment.prod.ts - Angular environment configuration.
+│           └── environment.ts - Angular environment configuration.
+├── infrastructure/
+│   ├── cloudrun.tf - Terraform infrastructure as code.
+│   ├── main.tf - Terraform infrastructure as code.
+│   ├── networking.tf - Terraform infrastructure as code.
+│   ├── outputs.tf - Terraform infrastructure as code.
+│   └── variables.tf - Terraform infrastructure as code.
+└── scripts/
+    ├── deploy-gcp.sh - Shell script.
+    ├── setup.sh - Shell script.
+    ├── ci/
+    │   ├── create-issues.bat - Shell script.
+    │   └── create-issues.sh - Shell script.
+    └── deploy/
+        └── build-and-push.sh - Shell script.
