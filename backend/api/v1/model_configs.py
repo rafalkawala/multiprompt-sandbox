@@ -3,7 +3,7 @@ Model Configuration API endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator
 from typing import Optional, List
 from datetime import datetime
 import httpx
@@ -32,7 +32,14 @@ class ModelConfigCreate(BaseModel):
     api_key: Optional[str] = None  # Optional - will use service account auth if empty
     temperature: float = 0.0
     max_tokens: int = 1024
+    concurrency: int = Field(default=3, ge=1, le=100, description="Number of parallel API calls (1-100)")
     additional_params: Optional[dict] = None
+
+    @validator('concurrency')
+    def validate_concurrency(cls, v):
+        if v < 1 or v > 100:
+            raise ValueError('Concurrency must be between 1 and 100')
+        return v
 
 class ModelConfigUpdate(BaseModel):
     name: Optional[str] = None
@@ -41,8 +48,15 @@ class ModelConfigUpdate(BaseModel):
     api_key: Optional[str] = None
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
+    concurrency: Optional[int] = Field(default=None, ge=1, le=100, description="Number of parallel API calls (1-100)")
     additional_params: Optional[dict] = None
     is_active: Optional[bool] = None
+
+    @validator('concurrency')
+    def validate_concurrency(cls, v):
+        if v is not None and (v < 1 or v > 100):
+            raise ValueError('Concurrency must be between 1 and 100')
+        return v
 
 class ModelConfigResponse(BaseModel):
     id: str
@@ -51,6 +65,7 @@ class ModelConfigResponse(BaseModel):
     model_name: str
     temperature: float
     max_tokens: int
+    concurrency: int
     additional_params: Optional[dict]
     is_active: bool
     created_at: datetime

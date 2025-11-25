@@ -78,8 +78,8 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
           <div class="form-row">
             <mat-form-field appearance="outline">
               <mat-label>Concurrency</mat-label>
-              <input matInput type="number" [(ngModel)]="newConfig.concurrency" min="1" max="10" step="1">
-              <mat-hint>Number of parallel API calls (1-10)</mat-hint>
+              <input matInput type="number" [(ngModel)]="newConfig.concurrency" min="1" max="100" step="1">
+              <mat-hint>Number of parallel API calls (1-100, recommended: 3-10)</mat-hint>
             </mat-form-field>
           </div>
         </mat-card-content>
