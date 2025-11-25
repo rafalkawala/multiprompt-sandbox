@@ -48,6 +48,8 @@ export interface Evaluation {
   processed_images: number;
   accuracy: number | null;
   error_message: string | null;
+  system_message: string | null;
+  question_text: string | null;
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
@@ -81,6 +83,8 @@ export interface CreateEvaluation {
   project_id: string;
   dataset_id: string;
   model_config_id: string;
+  system_message?: string;
+  question_text?: string;
 }
 
 export interface AnnotationStats {

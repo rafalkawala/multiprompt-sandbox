@@ -39,6 +39,8 @@ class EvaluationCreate(BaseModel):
     project_id: str
     dataset_id: str
     model_config_id: str
+    system_message: Optional[str] = None
+    question_text: Optional[str] = None
 
 class EvaluationResponse(BaseModel):
     id: str
@@ -52,6 +54,8 @@ class EvaluationResponse(BaseModel):
     processed_images: int
     accuracy: Optional[float]
     error_message: Optional[str]
+    system_message: Optional[str]
+    question_text: Optional[str]
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
     created_at: datetime
@@ -392,14 +396,21 @@ async def run_evaluation_task(evaluation_id: str):
             db.commit()
             return
 
-        # Get system prompt from config based on question type
-        system_message = get_system_prompt(
-            project.question_type,
-            project.question_options if project.question_type == 'multiple_choice' else None
-        )
+        # Use saved prompts if available, otherwise fall back to project defaults
+        if evaluation.system_message:
+            system_message = evaluation.system_message
+        else:
+            # Get system prompt from config based on question type
+            system_message = get_system_prompt(
+                project.question_type,
+                project.question_options if project.question_type == 'multiple_choice' else None
+            )
 
         # Build user prompt (just the question)
-        prompt = project.question_text
+        if evaluation.question_text:
+            prompt = evaluation.question_text
+        else:
+            prompt = project.question_text
 
         # Preload all images in parallel for faster processing
         logger.info(f"Evaluation {evaluation_id}: Preloading {len(images)} images...")
@@ -604,6 +615,8 @@ async def create_evaluation(
         project_id=data.project_id,
         dataset_id=data.dataset_id,
         model_config_id=data.model_config_id,
+        system_message=data.system_message,
+        question_text=data.question_text,
         created_by_id=current_user.id
     )
     db.add(evaluation)
@@ -631,6 +644,8 @@ async def create_evaluation(
         processed_images=evaluation.processed_images,
         accuracy=evaluation.accuracy,
         error_message=evaluation.error_message,
+        system_message=evaluation.system_message,
+        question_text=evaluation.question_text,
         started_at=evaluation.started_at,
         completed_at=evaluation.completed_at,
         created_at=evaluation.created_at
@@ -662,6 +677,8 @@ async def get_evaluation(
         processed_images=evaluation.processed_images,
         accuracy=evaluation.accuracy,
         error_message=evaluation.error_message,
+        system_message=evaluation.system_message,
+        question_text=evaluation.question_text,
         started_at=evaluation.started_at,
         completed_at=evaluation.completed_at,
         created_at=evaluation.created_at

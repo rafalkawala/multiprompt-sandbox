@@ -46,6 +46,10 @@ class Evaluation(Base):
     results_summary = Column(JSON, nullable=True)
     error_message = Column(Text, nullable=True)
 
+    # Evaluation prompts (saved at creation time, editable before starting)
+    system_message = Column(Text, nullable=True)
+    question_text = Column(Text, nullable=True)
+
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)

@@ -13,8 +13,8 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTableModule } from '@angular/material/table';
 import { MatExpansionModule } from '@angular/material/expansion';
-import { EvaluationsService, EvaluationListItem, ModelConfigListItem, CreateEvaluation, EvaluationResult } from '../../core/services/evaluations.service';
-import { ProjectsService, ProjectListItem, DatasetDetail } from '../../core/services/projects.service';
+import { EvaluationsService, EvaluationListItem, ModelConfigListItem, CreateEvaluation, EvaluationResult, Evaluation } from '../../core/services/evaluations.service';
+import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../core/services/projects.service';
 
 @Component({
   selector: 'app-evaluations',
@@ -78,6 +78,25 @@ import { ProjectsService, ProjectListItem, DatasetDetail } from '../../core/serv
               </mat-select>
             </mat-form-field>
           </div>
+
+          <!-- Editable Prompts -->
+          @if (newEval.project_id) {
+            <div class="prompts-section">
+              <h3 class="section-title">Evaluation Prompts (editable)</h3>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>System Message</mat-label>
+                <textarea matInput [(ngModel)]="newEval.system_message" rows="3"
+                  placeholder="Instructions for the model"></textarea>
+                <mat-hint>System-level instructions for the model</mat-hint>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Question Text</mat-label>
+                <input matInput [(ngModel)]="newEval.question_text"
+                  placeholder="What question should the model answer?">
+                <mat-hint>The question to ask about each image</mat-hint>
+              </mat-form-field>
+            </div>
+          }
         </mat-card-content>
         <mat-card-actions>
           <button mat-raised-button color="primary" (click)="startEvaluation()" [disabled]="!isFormValid()">
@@ -134,12 +153,39 @@ import { ProjectsService, ProjectListItem, DatasetDetail } from '../../core/serv
             </mat-card-actions>
 
             <!-- Results Panel -->
-            @if (selectedEvaluationId === evaluation.id && results().length > 0) {
-              <mat-expansion-panel [expanded]="true">
-                <mat-expansion-panel-header>
-                  <mat-panel-title>Results ({{ results().length }} images)</mat-panel-title>
-                </mat-expansion-panel-header>
-                <div class="results-table">
+            @if (selectedEvaluationId === evaluation.id) {
+              <!-- Prompts Panel -->
+              @if (selectedEvaluation) {
+                <mat-expansion-panel class="prompts-panel">
+                  <mat-expansion-panel-header>
+                    <mat-panel-title>
+                      <mat-icon>article</mat-icon>
+                      Evaluation Prompts
+                    </mat-panel-title>
+                  </mat-expansion-panel-header>
+                  <div class="prompt-content">
+                    <div class="prompt-field">
+                      <strong>System Message:</strong>
+                      <pre>{{ selectedEvaluation.system_message || 'Not specified' }}</pre>
+                    </div>
+                    <div class="prompt-field">
+                      <strong>Question Text:</strong>
+                      <pre>{{ selectedEvaluation.question_text || 'Not specified' }}</pre>
+                    </div>
+                  </div>
+                </mat-expansion-panel>
+              }
+
+              <!-- Results Table Panel -->
+              @if (results().length > 0) {
+                <mat-expansion-panel [expanded]="true">
+                  <mat-expansion-panel-header>
+                    <mat-panel-title>
+                      <mat-icon>table_chart</mat-icon>
+                      Results ({{ results().length }} images)
+                    </mat-panel-title>
+                  </mat-expansion-panel-header>
+                  <div class="results-table">
                   <table mat-table [dataSource]="results()">
                     <ng-container matColumnDef="image">
                       <th mat-header-cell *matHeaderCellDef>Image</th>
@@ -174,6 +220,7 @@ import { ProjectsService, ProjectListItem, DatasetDetail } from '../../core/serv
                   </table>
                 </div>
               </mat-expansion-panel>
+              }
             }
           </mat-card>
         }
@@ -209,6 +256,23 @@ import { ProjectsService, ProjectListItem, DatasetDetail } from '../../core/serv
       mat-form-field {
         flex: 1;
       }
+    }
+
+    .prompts-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #e0e0e0;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: #5f6368;
+      margin: 0 0 12px 0;
+    }
+
+    .full-width {
+      width: 100%;
     }
 
     .loading {
@@ -270,6 +334,48 @@ import { ProjectsService, ProjectListItem, DatasetDetail } from '../../core/serv
     .incorrect {
       color: #ea4335;
     }
+
+    .prompts-panel {
+      margin-top: 16px;
+      margin-bottom: 8px;
+    }
+
+    .prompt-content {
+      padding: 16px 0;
+    }
+
+    .prompt-field {
+      margin-bottom: 16px;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      strong {
+        display: block;
+        margin-bottom: 8px;
+        color: #202124;
+      }
+
+      pre {
+        background: #f8f9fa;
+        padding: 12px;
+        border-radius: 4px;
+        border: 1px solid #e0e0e0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: inherit;
+        font-size: 14px;
+        margin: 0;
+        color: #5f6368;
+      }
+    }
+
+    mat-panel-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
   `]
 })
 export class EvaluationsComponent implements OnInit {
@@ -287,8 +393,13 @@ export class EvaluationsComponent implements OnInit {
     name: '',
     project_id: '',
     dataset_id: '',
-    model_config_id: ''
+    model_config_id: '',
+    system_message: '',
+    question_text: ''
   };
+
+  selectedProject: Project | null = null;
+  selectedEvaluation: Evaluation | null = null;
 
   private refreshInterval: any;
 
@@ -351,6 +462,7 @@ export class EvaluationsComponent implements OnInit {
 
   onProjectChange() {
     if (this.newEval.project_id) {
+      // Load datasets
       this.projectsService.getDatasets(this.newEval.project_id).subscribe({
         next: (datasets) => {
           this.datasets.set(datasets);
@@ -358,7 +470,38 @@ export class EvaluationsComponent implements OnInit {
         },
         error: (err) => console.error('Failed to load datasets:', err)
       });
+
+      // Load project details to pre-populate prompts
+      this.projectsService.getProject(this.newEval.project_id).subscribe({
+        next: (project) => {
+          this.selectedProject = project;
+          // Pre-populate system message and question text
+          this.newEval.system_message = this.getSystemPrompt(project.question_type, project.question_options);
+          this.newEval.question_text = project.question_text;
+        },
+        error: (err) => console.error('Failed to load project:', err)
+      });
     }
+  }
+
+  getSystemPrompt(questionType: string, options: string[] | null = null): string {
+    const prompts: Record<string, string> = {
+      'binary': 'Reply only true or false, nothing else.',
+      'multiple_choice': 'Reply only with one of these values: {options}',
+      'text': 'Reply as short as you can with classification of what you see.',
+      'count': 'Reply only with a number that is a count.',
+      'default': 'Answer the question based on the image.'
+    };
+
+    let prompt = prompts[questionType] || prompts['default'];
+
+    // Replace {options} placeholder for multiple choice
+    if (questionType === 'multiple_choice' && options) {
+      const optionsStr = options.join(', ');
+      prompt = prompt.replace('{options}', optionsStr);
+    }
+
+    return prompt;
   }
 
   isFormValid(): boolean {
@@ -381,7 +524,15 @@ export class EvaluationsComponent implements OnInit {
       next: (evaluation) => {
         this.loadEvaluations();
         this.snackBar.open('Evaluation started', 'Close', { duration: 3000 });
-        this.newEval = { name: '', project_id: '', dataset_id: '', model_config_id: '' };
+        this.newEval = {
+          name: '',
+          project_id: '',
+          dataset_id: '',
+          model_config_id: '',
+          system_message: '',
+          question_text: ''
+        };
+        this.selectedProject = null;
       },
       error: (err) => {
         console.error('Failed to start evaluation:', err);
@@ -393,11 +544,24 @@ export class EvaluationsComponent implements OnInit {
   viewResults(evaluation: EvaluationListItem) {
     if (this.selectedEvaluationId === evaluation.id) {
       this.selectedEvaluationId = null;
+      this.selectedEvaluation = null;
       this.results.set([]);
       return;
     }
 
     this.selectedEvaluationId = evaluation.id;
+
+    // Load full evaluation details (including prompts)
+    this.evaluationsService.getEvaluation(evaluation.id).subscribe({
+      next: (evalDetails) => {
+        this.selectedEvaluation = evalDetails;
+      },
+      error: (err) => {
+        console.error('Failed to load evaluation details:', err);
+      }
+    });
+
+    // Load results
     this.evaluationsService.getEvaluationResults(evaluation.id).subscribe({
       next: (results) => this.results.set(results),
       error: (err) => {
