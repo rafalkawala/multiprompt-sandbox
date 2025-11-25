@@ -101,18 +101,31 @@ steps:
     id: 'get-urls'
     waitFor: ['-']
 
-  # Build backend image
+  # Build backend image (parallel: starts after tests pass)
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', '${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA', '-f', 'backend/Dockerfile', 'backend']
     waitFor: ['test-backend']
     id: 'build-backend'
 
-  # Push backend image
+  # Build frontend image (parallel: starts immediately, independent of backend tests)
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/frontend:$COMMIT_SHA', '-f', 'frontend/Dockerfile', 'frontend']
+    waitFor: ['-']  # Run immediately in parallel
+    id: 'build-frontend'
+
+  # Push backend image (runs after backend build)
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', '${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA']
+    waitFor: ['build-backend']
     id: 'push-backend'
 
-  # Deploy backend to Cloud Run
+  # Push frontend image (runs after frontend build, parallel to backend push)
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/frontend:$COMMIT_SHA']
+    waitFor: ['build-frontend']
+    id: 'push-frontend'
+
+  # Deploy backend to Cloud Run (parallel: runs after backend push + metadata ready)
   - name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: 'bash'
     args:
@@ -147,17 +160,7 @@ steps:
     waitFor: ['get-db-host', 'get-urls', 'push-backend']
     id: 'deploy-backend'
 
-  # Build frontend image
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', '${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/frontend:$COMMIT_SHA', '-f', 'frontend/Dockerfile', 'frontend']
-    id: 'build-frontend'
-
-  # Push frontend image
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', '${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/frontend:$COMMIT_SHA']
-    id: 'push-frontend'
-
-  # Deploy frontend to Cloud Run
+  # Deploy frontend to Cloud Run (parallel: runs after frontend push)
   - name: 'gcr.io/cloud-builders/gcloud'
     args:
       - 'run'
