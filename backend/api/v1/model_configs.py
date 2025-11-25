@@ -125,6 +125,7 @@ async def create_model_config(
         api_key=data.api_key,
         temperature=data.temperature,
         max_tokens=data.max_tokens,
+        concurrency=data.concurrency,
         additional_params=data.additional_params,
         created_by_id=current_user.id
     )
@@ -139,6 +140,7 @@ async def create_model_config(
         model_name=config.model_name,
         temperature=config.temperature,
         max_tokens=config.max_tokens,
+        concurrency=config.concurrency,
         additional_params=config.additional_params,
         is_active=config.is_active,
         created_at=config.created_at,
@@ -166,6 +168,7 @@ async def get_model_config(
         model_name=config.model_name,
         temperature=config.temperature,
         max_tokens=config.max_tokens,
+        concurrency=config.concurrency,
         additional_params=config.additional_params,
         is_active=config.is_active,
         created_at=config.created_at,
@@ -201,6 +204,7 @@ async def update_model_config(
         model_name=config.model_name,
         temperature=config.temperature,
         max_tokens=config.max_tokens,
+        concurrency=config.concurrency,
         additional_params=config.additional_params,
         is_active=config.is_active,
         created_at=config.created_at,
