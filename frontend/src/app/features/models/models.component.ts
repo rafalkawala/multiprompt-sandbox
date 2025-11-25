@@ -35,10 +35,10 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
       <h1>Model Configurations</h1>
       <p class="subtitle">Configure LLM providers for running evaluations</p>
 
-      <!-- Create New Config -->
+      <!-- Create/Edit Config Form -->
       <mat-card class="create-card">
         <mat-card-header>
-          <mat-card-title>Add New Model</mat-card-title>
+          <mat-card-title>{{ editingConfigId ? 'Edit Model' : 'Add New Model' }}</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <div class="form-row">
@@ -84,10 +84,18 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
           </div>
         </mat-card-content>
         <mat-card-actions>
-          <button mat-raised-button color="primary" (click)="createConfig()" [disabled]="!isFormValid()">
-            <mat-icon>add</mat-icon>
-            Add Configuration
-          </button>
+          @if (editingConfigId) {
+            <button mat-button (click)="cancelEdit()">Cancel</button>
+            <button mat-raised-button color="primary" (click)="saveConfig()" [disabled]="!isFormValid()">
+              <mat-icon>save</mat-icon>
+              Update Configuration
+            </button>
+          } @else {
+            <button mat-raised-button color="primary" (click)="saveConfig()" [disabled]="!isFormValid()">
+              <mat-icon>add</mat-icon>
+              Add Configuration
+            </button>
+          }
         </mat-card-actions>
       </mat-card>
 
@@ -118,6 +126,10 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
                 <p><strong>Created:</strong> {{ config.created_at | date:'short' }}</p>
               </mat-card-content>
               <mat-card-actions>
+                <button mat-button (click)="editConfig(config)">
+                  <mat-icon>edit</mat-icon>
+                  Edit
+                </button>
                 <button mat-button (click)="openTest(config)">
                   <mat-icon>play_arrow</mat-icon>
                   Test
@@ -319,6 +331,7 @@ export class ModelsComponent implements OnInit {
   configs = signal<ModelConfigListItem[]>([]);
   loading = signal(true);
   testing = signal(false);
+  editingConfigId: string | null = null;
 
   newConfig: CreateModelConfig = {
     name: '',
@@ -380,27 +393,83 @@ export class ModelsComponent implements OnInit {
     return labels[provider] || provider;
   }
 
-  createConfig() {
-    if (!this.isFormValid()) return;
-
-    this.evaluationsService.createModelConfig(this.newConfig).subscribe({
-      next: (config) => {
-        this.configs.set([{
-          id: config.id,
-          name: config.name,
-          provider: config.provider,
-          model_name: config.model_name,
-          is_active: config.is_active,
-          created_at: config.created_at
-        }, ...this.configs()]);
-        this.resetForm();
-        this.snackBar.open('Configuration created', 'Close', { duration: 3000 });
+  editConfig(config: ModelConfigListItem) {
+    this.editingConfigId = config.id;
+    // Fetch full config details to get all fields
+    this.evaluationsService.getModelConfig(config.id).subscribe({
+      next: (fullConfig) => {
+        this.newConfig = {
+          name: fullConfig.name,
+          provider: fullConfig.provider,
+          model_name: fullConfig.model_name,
+          api_key: '', // Don't populate API key for security
+          temperature: fullConfig.temperature,
+          max_tokens: fullConfig.max_tokens,
+          concurrency: fullConfig.concurrency
+        };
       },
       error: (err) => {
-        console.error('Failed to create config:', err);
-        this.snackBar.open('Failed to create configuration', 'Close', { duration: 3000 });
+        console.error('Failed to load config:', err);
+        this.snackBar.open('Failed to load configuration', 'Close', { duration: 3000 });
       }
     });
+  }
+
+  cancelEdit() {
+    this.editingConfigId = null;
+    this.resetForm();
+  }
+
+  saveConfig() {
+    if (!this.isFormValid()) return;
+
+    if (this.editingConfigId) {
+      // Update existing config
+      this.evaluationsService.updateModelConfig(this.editingConfigId, this.newConfig).subscribe({
+        next: (config) => {
+          const index = this.configs().findIndex(c => c.id === config.id);
+          if (index !== -1) {
+            const updated = [...this.configs()];
+            updated[index] = {
+              id: config.id,
+              name: config.name,
+              provider: config.provider,
+              model_name: config.model_name,
+              is_active: config.is_active,
+              created_at: config.created_at
+            };
+            this.configs.set(updated);
+          }
+          this.editingConfigId = null;
+          this.resetForm();
+          this.snackBar.open('Configuration updated', 'Close', { duration: 3000 });
+        },
+        error: (err) => {
+          console.error('Failed to update config:', err);
+          this.snackBar.open('Failed to update configuration', 'Close', { duration: 3000 });
+        }
+      });
+    } else {
+      // Create new config
+      this.evaluationsService.createModelConfig(this.newConfig).subscribe({
+        next: (config) => {
+          this.configs.set([{
+            id: config.id,
+            name: config.name,
+            provider: config.provider,
+            model_name: config.model_name,
+            is_active: config.is_active,
+            created_at: config.created_at
+          }, ...this.configs()]);
+          this.resetForm();
+          this.snackBar.open('Configuration created', 'Close', { duration: 3000 });
+        },
+        error: (err) => {
+          console.error('Failed to create config:', err);
+          this.snackBar.open('Failed to create configuration', 'Close', { duration: 3000 });
+        }
+      });
+    }
   }
 
   deleteConfig(config: ModelConfigListItem) {
@@ -419,6 +488,7 @@ export class ModelsComponent implements OnInit {
   }
 
   resetForm() {
+    this.editingConfigId = null;
     this.newConfig = {
       name: '',
       provider: 'gemini',

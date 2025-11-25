@@ -9,6 +9,7 @@ export interface ModelConfig {
   model_name: string;
   temperature: number;
   max_tokens: number;
+  concurrency: number;
   additional_params: any;
   is_active: boolean;
   created_at: string;
