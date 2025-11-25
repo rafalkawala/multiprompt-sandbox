@@ -75,6 +75,55 @@ class EvaluationResultItem(BaseModel):
     is_correct: Optional[bool]
     latency_ms: Optional[int]
 
+# Helper function to get image data from GCS or local storage
+def get_image_data(storage_path: str) -> tuple:
+    """Get image data and mime type from storage path (GCS or local)
+
+    Returns: (image_data_base64, mime_type, cleanup_func)
+    """
+    from core.config import settings
+
+    # Determine mime type from path
+    ext = os.path.splitext(storage_path)[1].lower()
+    mime_types = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp'}
+    mime_type = mime_types.get(ext, 'image/jpeg')
+
+    # Check if using GCS
+    if settings.GCS_BUCKET_NAME and storage_path.startswith('projects/'):
+        # Download from GCS to temp file
+        from google.cloud import storage
+        import tempfile
+
+        client = storage.Client()
+        bucket = client.bucket(settings.GCS_BUCKET_NAME)
+        blob = bucket.blob(storage_path)
+
+        # Create temp file
+        temp_fd, temp_path = tempfile.mkstemp(suffix=ext)
+        os.close(temp_fd)
+
+        # Download to temp file
+        blob.download_to_filename(temp_path)
+
+        # Read and encode
+        with open(temp_path, 'rb') as f:
+            image_data = base64.standard_b64encode(f.read()).decode('utf-8')
+
+        # Return with cleanup function
+        def cleanup():
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+
+        return image_data, mime_type, cleanup
+    else:
+        # Local file
+        with open(storage_path, 'rb') as f:
+            image_data = base64.standard_b64encode(f.read()).decode('utf-8')
+
+        return image_data, mime_type, lambda: None
+
 # LLM Provider Functions
 async def call_gemini(api_key: str, model_name: str, image_path: str, prompt: str, system_message: str, temperature: float, max_tokens: int) -> tuple:
     """Call Gemini API with image
@@ -84,49 +133,48 @@ async def call_gemini(api_key: str, model_name: str, image_path: str, prompt: st
     """
     start_time = time.time()
 
-    # Read and encode image
-    with open(image_path, 'rb') as f:
-        image_data = base64.standard_b64encode(f.read()).decode('utf-8')
+    # Get image data (works with both GCS and local storage)
+    image_data, mime_type, cleanup = get_image_data(image_path)
 
-    # Determine mime type
-    ext = os.path.splitext(image_path)[1].lower()
-    mime_types = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp'}
-    mime_type = mime_types.get(ext, 'image/jpeg')
+    try:
 
-    # Combine system message with prompt
-    full_prompt = f"{system_message}\n\n{prompt}" if system_message else prompt
+        # Combine system message with prompt
+        full_prompt = f"{system_message}\n\n{prompt}" if system_message else prompt
 
-    # Use Vertex AI if no API key (service account auth in Cloud Run)
-    if not api_key:
-        return await call_gemini_vertex(model_name, image_path, image_data, mime_type, full_prompt, temperature, max_tokens, start_time)
+        # Use Vertex AI if no API key (service account auth in Cloud Run)
+        if not api_key:
+            result = await call_gemini_vertex(model_name, image_path, image_data, mime_type, full_prompt, temperature, max_tokens, start_time)
+            return result
 
-    # Use Google AI API with API key (local development)
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent",
-            params={"key": api_key},
-            json={
-                "contents": [{
-                    "parts": [
-                        {"inline_data": {"mime_type": mime_type, "data": image_data}},
-                        {"text": full_prompt}
-                    ]
-                }],
-                "generationConfig": {
-                    "temperature": temperature,
-                    "maxOutputTokens": max_tokens
+        # Use Google AI API with API key (local development)
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent",
+                params={"key": api_key},
+                json={
+                    "contents": [{
+                        "parts": [
+                            {"inline_data": {"mime_type": mime_type, "data": image_data}},
+                            {"text": full_prompt}
+                        ]
+                    }],
+                    "generationConfig": {
+                        "temperature": temperature,
+                        "maxOutputTokens": max_tokens
+                    }
                 }
-            }
-        )
+            )
 
-    latency = int((time.time() - start_time) * 1000)
+        latency = int((time.time() - start_time) * 1000)
 
-    if response.status_code != 200:
-        raise Exception(f"Gemini API error: {response.text}")
+        if response.status_code != 200:
+            raise Exception(f"Gemini API error: {response.text}")
 
-    result = response.json()
-    text = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
-    return text, latency
+        result = response.json()
+        text = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+        return text, latency
+    finally:
+        cleanup()
 
 async def call_gemini_vertex(model_name: str, image_path: str, image_data: str, mime_type: str, prompt: str, temperature: float, max_tokens: int, start_time: float) -> tuple:
     """Call Gemini via Vertex AI using service account credentials (ADC)"""
@@ -185,90 +233,90 @@ async def call_openai(api_key: str, model_name: str, image_path: str, prompt: st
     """Call OpenAI API with image"""
     start_time = time.time()
 
-    with open(image_path, 'rb') as f:
-        image_data = base64.standard_b64encode(f.read()).decode('utf-8')
+    # Get image data (works with both GCS and local storage)
+    image_data, mime_type, cleanup = get_image_data(image_path)
 
-    ext = os.path.splitext(image_path)[1].lower()
-    mime_types = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp'}
-    mime_type = mime_types.get(ext, 'image/jpeg')
+    try:
 
-    messages = []
-    if system_message:
-        messages.append({"role": "system", "content": system_message})
-    messages.append({
-        "role": "user",
-        "content": [
-            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image_data}"}},
-            {"type": "text", "text": prompt}
-        ]
-    })
+        messages = []
+        if system_message:
+            messages.append({"role": "system", "content": system_message})
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image_data}"}},
+                {"type": "text", "text": prompt}
+            ]
+        })
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}"},
-            json={
-                "model": model_name,
-                "messages": messages,
-                "temperature": temperature,
-                "max_tokens": max_tokens
-            }
-        )
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={
+                    "model": model_name,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens
+                }
+            )
 
-    latency = int((time.time() - start_time) * 1000)
+        latency = int((time.time() - start_time) * 1000)
 
-    if response.status_code != 200:
-        raise Exception(f"OpenAI API error: {response.text}")
+        if response.status_code != 200:
+            raise Exception(f"OpenAI API error: {response.text}")
 
-    result = response.json()
-    text = result.get('choices', [{}])[0].get('message', {}).get('content', '')
-    return text, latency
+        result = response.json()
+        text = result.get('choices', [{}])[0].get('message', {}).get('content', '')
+        return text, latency
+    finally:
+        cleanup()
 
 async def call_anthropic(api_key: str, model_name: str, image_path: str, prompt: str, system_message: str, temperature: float, max_tokens: int) -> tuple:
     """Call Anthropic API with image"""
     start_time = time.time()
 
-    with open(image_path, 'rb') as f:
-        image_data = base64.standard_b64encode(f.read()).decode('utf-8')
+    # Get image data (works with both GCS and local storage)
+    image_data, mime_type, cleanup = get_image_data(image_path)
 
-    ext = os.path.splitext(image_path)[1].lower()
-    mime_types = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp'}
-    mime_type = mime_types.get(ext, 'image/jpeg')
+    try:
 
-    request_body = {
-        "model": model_name,
-        "max_tokens": max_tokens,
-        "messages": [{
-            "role": "user",
-            "content": [
-                {"type": "image", "source": {"type": "base64", "media_type": mime_type, "data": image_data}},
-                {"type": "text", "text": prompt}
-            ]
-        }]
-    }
+        request_body = {
+            "model": model_name,
+            "max_tokens": max_tokens,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": mime_type, "data": image_data}},
+                    {"type": "text", "text": prompt}
+                ]
+            }]
+        }
 
-    if system_message:
-        request_body["system"] = system_message
+        if system_message:
+            request_body["system"] = system_message
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            },
-            json=request_body
-        )
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json"
+                },
+                json=request_body
+            )
 
-    latency = int((time.time() - start_time) * 1000)
+        latency = int((time.time() - start_time) * 1000)
 
-    if response.status_code != 200:
-        raise Exception(f"Anthropic API error: {response.text}")
+        if response.status_code != 200:
+            raise Exception(f"Anthropic API error: {response.text}")
 
-    result = response.json()
-    text = result.get('content', [{}])[0].get('text', '')
-    return text, latency
+        result = response.json()
+        text = result.get('content', [{}])[0].get('text', '')
+        return text, latency
+    finally:
+        cleanup()
 
 def parse_answer(response: str, question_type: str):
     """Parse model response based on question type"""
@@ -345,6 +393,8 @@ async def run_evaluation_task(evaluation_id: str):
         prompt = project.question_text
 
         correct_count = 0
+        failed_count = 0
+        error_messages = []
 
         for i, image in enumerate(images):
             try:
@@ -386,8 +436,14 @@ async def run_evaluation_task(evaluation_id: str):
                     latency_ms=latency
                 )
                 db.add(result)
+                logger.info(f"Evaluation {evaluation_id}: Processed image {i+1}/{len(images)} - Correct: {is_correct}")
 
             except Exception as e:
+                failed_count += 1
+                error_msg = f"Image {image.filename}: {str(e)}"
+                error_messages.append(error_msg)
+                logger.error(f"Evaluation {evaluation_id}: Failed image {i+1}/{len(images)} - {error_msg}", exc_info=True)
+
                 result = EvaluationResult(
                     evaluation_id=evaluation.id,
                     image_id=image.id,
@@ -400,16 +456,38 @@ async def run_evaluation_task(evaluation_id: str):
             evaluation.progress = int((i + 1) / len(images) * 100)
             db.commit()
 
-        # Complete evaluation
-        evaluation.status = 'completed'
+        # Calculate metrics
+        total_processed = len(images)
+        successful_count = total_processed - failed_count
+        failure_rate = (failed_count / total_processed * 100) if total_processed > 0 else 0
+
+        # Determine if evaluation should be marked as failed due to high failure rate
+        FAILURE_THRESHOLD_PERCENT = 50  # If >50% of predictions fail, mark evaluation as failed
+
+        if failure_rate > FAILURE_THRESHOLD_PERCENT:
+            evaluation.status = 'failed'
+            evaluation.error_message = f"Evaluation failed: {failure_rate:.1f}% of predictions failed ({failed_count}/{total_processed}). Errors: {'; '.join(error_messages[:3])}"
+            if len(error_messages) > 3:
+                evaluation.error_message += f" (and {len(error_messages) - 3} more errors)"
+            logger.error(f"Evaluation {evaluation_id} marked as failed due to high failure rate: {failure_rate:.1f}%")
+        else:
+            evaluation.status = 'completed'
+            if failed_count > 0:
+                logger.warning(f"Evaluation {evaluation_id} completed with {failed_count} failures ({failure_rate:.1f}%)")
+
         evaluation.completed_at = datetime.utcnow()
-        evaluation.accuracy = correct_count / len(images) if images else 0
+        evaluation.accuracy = correct_count / successful_count if successful_count > 0 else 0
         evaluation.results_summary = {
             'correct': correct_count,
-            'total': len(images),
+            'total': total_processed,
+            'successful': successful_count,
+            'failed': failed_count,
+            'failure_rate_percent': round(failure_rate, 2),
             'accuracy_percent': round(evaluation.accuracy * 100, 2)
         }
         db.commit()
+
+        logger.info(f"Evaluation {evaluation_id} finished: status={evaluation.status}, accuracy={evaluation.accuracy:.2%}, failed={failed_count}/{total_processed}")
 
     except Exception as e:
         logger.error(f"Evaluation error: {str(e)}", exc_info=True)
