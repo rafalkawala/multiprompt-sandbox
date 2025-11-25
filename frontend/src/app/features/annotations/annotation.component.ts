@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -64,6 +64,17 @@ import { ProjectsService, Project, ImageItem } from '../../core/services/project
             <mat-progress-bar mode="determinate" [value]="getProgress()"></mat-progress-bar>
           }
         </mat-card>
+
+        <!-- Keyboard Shortcuts Help -->
+        <div class="shortcuts-help">
+          <span class="shortcut-hint" matTooltip="Keyboard shortcuts available">
+            <mat-icon>keyboard</mat-icon>
+            @if (project()?.question_type === 'binary') {
+              <span>Y/N</span>
+            }
+            <span>Enter • Esc • ← →</span>
+          </span>
+        </div>
 
         <!-- Main Content -->
         @if (!currentImage()) {
@@ -212,6 +223,35 @@ import { ProjectsService, Project, ImageItem } from '../../core/services/project
           strong {
             color: #202124;
           }
+        }
+      }
+    }
+
+    .shortcuts-help {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 16px;
+
+      .shortcut-hint {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: #f1f3f4;
+        border-radius: 16px;
+        font-size: 13px;
+        color: #5f6368;
+        cursor: help;
+
+        mat-icon {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+        }
+
+        span {
+          font-family: 'Courier New', monospace;
+          font-weight: 500;
         }
       }
     }
@@ -506,5 +546,68 @@ export class AnnotationComponent implements OnInit {
     this.answer = null;
     this.isFlagged = false;
     this.flagReason = '';
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  handleKeyboardEvent(event: KeyboardEvent) {
+    // Ignore if user is typing in an input field
+    const target = event.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+      return;
+    }
+
+    // Ignore if no current image or currently saving
+    if (!this.currentImage() || this.saving()) {
+      return;
+    }
+
+    const project = this.project();
+    if (!project) return;
+
+    switch (event.key.toLowerCase()) {
+      case 'y':
+        // Y = Yes (for binary questions)
+        if (project.question_type === 'binary') {
+          this.answer = true;
+          event.preventDefault();
+        }
+        break;
+
+      case 'n':
+        // N = No (for binary questions)
+        if (project.question_type === 'binary') {
+          this.answer = false;
+          event.preventDefault();
+        }
+        break;
+
+      case 'enter':
+        // Enter = Save & Next
+        if (this.canSave() && !this.saving()) {
+          this.save();
+          event.preventDefault();
+        }
+        break;
+
+      case 'escape':
+        // Escape = Skip
+        if (!this.saving()) {
+          this.skip();
+          event.preventDefault();
+        }
+        break;
+
+      case 'arrowright':
+        // Arrow Right = Next image
+        this.loadNextImage();
+        event.preventDefault();
+        break;
+
+      case 'arrowleft':
+        // Arrow Left = Previous image
+        this.loadPreviousImage();
+        event.preventDefault();
+        break;
+    }
   }
 }
