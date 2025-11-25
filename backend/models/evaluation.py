@@ -16,6 +16,7 @@ class ModelConfig(Base):
 
     temperature = Column(Float, default=0.0)
     max_tokens = Column(Integer, default=1024)
+    concurrency = Column(Integer, default=3)  # Number of parallel API calls
     additional_params = Column(JSON, nullable=True)
 
     is_active = Column(Boolean, default=True)

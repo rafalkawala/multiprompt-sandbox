@@ -208,6 +208,7 @@ async def call_gemini_vertex(model_name: str, image_path: str, image_data: str, 
             },
             json={
                 "contents": [{
+                    "role": "user",
                     "parts": [
                         {"inline_data": {"mime_type": mime_type, "data": image_data}},
                         {"text": prompt}
@@ -396,65 +397,76 @@ async def run_evaluation_task(evaluation_id: str):
         failed_count = 0
         error_messages = []
 
-        for i, image in enumerate(images):
-            try:
-                # Call appropriate LLM
-                if model_config.provider == 'gemini':
-                    response_text, latency = await call_gemini(
-                        model_config.api_key, model_config.model_name,
-                        image.storage_path, prompt, system_message, model_config.temperature, model_config.max_tokens
+        # Get concurrency limit from model config
+        concurrency = getattr(model_config, 'concurrency', 3)
+        semaphore = asyncio.Semaphore(concurrency)
+
+        # Process images in parallel with concurrency limit
+        async def process_image(i: int, image):
+            nonlocal correct_count, failed_count, error_messages
+
+            async with semaphore:  # Limit concurrent API calls
+                try:
+                    # Call appropriate LLM
+                    if model_config.provider == 'gemini':
+                        response_text, latency = await call_gemini(
+                            model_config.api_key, model_config.model_name,
+                            image.storage_path, prompt, system_message, model_config.temperature, model_config.max_tokens
+                        )
+                    elif model_config.provider == 'openai':
+                        response_text, latency = await call_openai(
+                            model_config.api_key, model_config.model_name,
+                            image.storage_path, prompt, system_message, model_config.temperature, model_config.max_tokens
+                        )
+                    elif model_config.provider == 'anthropic':
+                        response_text, latency = await call_anthropic(
+                            model_config.api_key, model_config.model_name,
+                            image.storage_path, prompt, system_message, model_config.temperature, model_config.max_tokens
+                        )
+                    else:
+                        raise Exception(f"Unknown provider: {model_config.provider}")
+
+                    # Parse and check
+                    parsed = parse_answer(response_text, project.question_type)
+                    ground_truth = image.annotation.answer_value
+                    is_correct = check_answer(parsed, ground_truth, project.question_type)
+
+                    if is_correct:
+                        correct_count += 1
+
+                    # Save result
+                    result = EvaluationResult(
+                        evaluation_id=evaluation.id,
+                        image_id=image.id,
+                        model_response=response_text,
+                        parsed_answer=parsed,
+                        ground_truth=ground_truth,
+                        is_correct=is_correct,
+                        latency_ms=latency
                     )
-                elif model_config.provider == 'openai':
-                    response_text, latency = await call_openai(
-                        model_config.api_key, model_config.model_name,
-                        image.storage_path, prompt, system_message, model_config.temperature, model_config.max_tokens
+                    db.add(result)
+                    logger.info(f"Evaluation {evaluation_id}: Processed image {i+1}/{len(images)} - Correct: {is_correct}")
+
+                except Exception as e:
+                    failed_count += 1
+                    error_msg = f"Image {image.filename}: {str(e)}"
+                    error_messages.append(error_msg)
+                    logger.error(f"Evaluation {evaluation_id}: Failed image {i+1}/{len(images)} - {error_msg}", exc_info=True)
+
+                    result = EvaluationResult(
+                        evaluation_id=evaluation.id,
+                        image_id=image.id,
+                        error=str(e)
                     )
-                elif model_config.provider == 'anthropic':
-                    response_text, latency = await call_anthropic(
-                        model_config.api_key, model_config.model_name,
-                        image.storage_path, prompt, system_message, model_config.temperature, model_config.max_tokens
-                    )
-                else:
-                    raise Exception(f"Unknown provider: {model_config.provider}")
+                    db.add(result)
 
-                # Parse and check
-                parsed = parse_answer(response_text, project.question_type)
-                ground_truth = image.annotation.answer_value
-                is_correct = check_answer(parsed, ground_truth, project.question_type)
+                # Update progress
+                evaluation.processed_images = i + 1
+                evaluation.progress = int((i + 1) / len(images) * 100)
+                db.commit()
 
-                if is_correct:
-                    correct_count += 1
-
-                # Save result
-                result = EvaluationResult(
-                    evaluation_id=evaluation.id,
-                    image_id=image.id,
-                    model_response=response_text,
-                    parsed_answer=parsed,
-                    ground_truth=ground_truth,
-                    is_correct=is_correct,
-                    latency_ms=latency
-                )
-                db.add(result)
-                logger.info(f"Evaluation {evaluation_id}: Processed image {i+1}/{len(images)} - Correct: {is_correct}")
-
-            except Exception as e:
-                failed_count += 1
-                error_msg = f"Image {image.filename}: {str(e)}"
-                error_messages.append(error_msg)
-                logger.error(f"Evaluation {evaluation_id}: Failed image {i+1}/{len(images)} - {error_msg}", exc_info=True)
-
-                result = EvaluationResult(
-                    evaluation_id=evaluation.id,
-                    image_id=image.id,
-                    error=str(e)
-                )
-                db.add(result)
-
-            # Update progress
-            evaluation.processed_images = i + 1
-            evaluation.progress = int((i + 1) / len(images) * 100)
-            db.commit()
+        # Run all images in parallel with concurrency limit
+        await asyncio.gather(*[process_image(i, img) for i, img in enumerate(images)])
 
         # Calculate metrics
         total_processed = len(images)
@@ -526,14 +538,22 @@ async def list_evaluations(
         for e in evaluations
     ]
 
+def run_evaluation_in_thread(evaluation_id: str):
+    """Wrapper to run async evaluation task in a thread with its own event loop"""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(run_evaluation_task(evaluation_id))
+    finally:
+        loop.close()
+
 @router.post("", response_model=EvaluationResponse)
 async def create_evaluation(
     data: EvaluationCreate,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Create and start a new evaluation"""
+    """Create and start a new evaluation (runs in background thread)"""
     # Verify project and dataset
     project = db.query(Project).filter(Project.id == data.project_id).first()
     if not project:
@@ -565,8 +585,14 @@ async def create_evaluation(
     db.commit()
     db.refresh(evaluation)
 
-    # Start background task
-    background_tasks.add_task(run_evaluation_task, str(evaluation.id))
+    # Start evaluation in a background thread (survives even if user closes page)
+    thread = threading.Thread(
+        target=run_evaluation_in_thread,
+        args=(str(evaluation.id),),
+        daemon=True  # Daemon thread won't prevent app shutdown
+    )
+    thread.start()
+    logger.info(f"Started evaluation {evaluation.id} in background thread")
 
     return EvaluationResponse(
         id=str(evaluation.id),

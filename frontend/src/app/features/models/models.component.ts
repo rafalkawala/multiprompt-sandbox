@@ -75,6 +75,13 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
               <input matInput type="number" [(ngModel)]="newConfig.max_tokens" min="1" max="4096">
             </mat-form-field>
           </div>
+          <div class="form-row">
+            <mat-form-field appearance="outline">
+              <mat-label>Concurrency</mat-label>
+              <input matInput type="number" [(ngModel)]="newConfig.concurrency" min="1" max="10" step="1">
+              <mat-hint>Number of parallel API calls (1-10)</mat-hint>
+            </mat-form-field>
+          </div>
         </mat-card-content>
         <mat-card-actions>
           <button mat-raised-button color="primary" (click)="createConfig()" [disabled]="!isFormValid()">
@@ -319,7 +326,8 @@ export class ModelsComponent implements OnInit {
     model_name: '',
     api_key: '',
     temperature: 0,
-    max_tokens: 1024
+    max_tokens: 1024,
+    concurrency: 3
   };
 
   // Test state
@@ -417,7 +425,8 @@ export class ModelsComponent implements OnInit {
       model_name: '',
       api_key: '',
       temperature: 0,
-      max_tokens: 1024
+      max_tokens: 1024,
+      concurrency: 3
     };
   }
 

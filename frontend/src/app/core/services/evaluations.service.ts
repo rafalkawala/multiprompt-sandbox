@@ -31,6 +31,7 @@ export interface CreateModelConfig {
   api_key?: string;  // Optional - uses service account auth if not provided
   temperature?: number;
   max_tokens?: number;
+  concurrency?: number;  // Number of parallel API calls (default: 3)
   additional_params?: any;
 }
 
