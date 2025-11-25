@@ -324,6 +324,7 @@ export class AnnotationComponent implements OnInit {
   allImages = signal<ImageItem[]>([]);
   loading = signal(true);
   saving = signal(false);
+  imageUrl = signal<string>('');
 
   projectId = '';
   datasetId = '';
@@ -388,6 +389,19 @@ export class AnnotationComponent implements OnInit {
     const img = this.currentImage();
     if (!img) return;
 
+    // Load signed URL for image
+    this.projectsService.getImageSignedUrl(this.projectId, this.datasetId, img.id).subscribe({
+      next: (data) => {
+        this.imageUrl.set(data.url);
+      },
+      error: (err) => {
+        console.error('Failed to get image URL:', err);
+        // Fallback to proxy URL
+        this.imageUrl.set(this.projectsService.getImageUrl(this.projectId, this.datasetId, img.id));
+      }
+    });
+
+    // Load annotation
     this.evaluationsService.getAnnotation(this.projectId, this.datasetId, img.id).subscribe({
       next: (data) => {
         if (data.annotation) {
@@ -403,9 +417,7 @@ export class AnnotationComponent implements OnInit {
   }
 
   getImageUrl(): string {
-    const img = this.currentImage();
-    if (!img) return '';
-    return this.projectsService.getImageUrl(this.projectId, this.datasetId, img.id);
+    return this.imageUrl();
   }
 
   getProgress(): number {

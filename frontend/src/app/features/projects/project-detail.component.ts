@@ -461,23 +461,50 @@ export class ProjectDetailComponent implements OnInit {
   uploadFiles(datasetId: string, files: File[]) {
     this.uploadingDatasetId = datasetId;
 
-    this.projectsService.uploadImages(this.projectId, datasetId, files).subscribe({
-      next: (images) => {
-        this.datasetImages[datasetId] = [...(this.datasetImages[datasetId] || []), ...images];
-        // Update dataset count
-        const datasets = this.datasets();
-        const idx = datasets.findIndex(d => d.id === datasetId);
-        if (idx !== -1) {
-          datasets[idx].image_count += images.length;
-          this.datasets.set([...datasets]);
+    const uploadedImages: ImageItem[] = [];
+    let completedCount = 0;
+    let errorCount = 0;
+
+    this.projectsService.uploadImagesInParallel(this.projectId, datasetId, files, 3).subscribe({
+      next: (status) => {
+        if (status.result && status.result.length > 0) {
+          // File upload completed
+          uploadedImages.push(...status.result);
+          completedCount++;
+        } else if (status.error) {
+          // File upload failed
+          console.error(`Failed to upload ${status.filename}:`, status.error);
+          errorCount++;
         }
+        // Progress updates are logged but not shown in UI (could add progress bars here)
+      },
+      complete: () => {
+        // All uploads processed
         this.uploadingDatasetId = null;
-        this.snackBar.open(`${images.length} images uploaded`, 'Close', { duration: 3000 });
+
+        if (uploadedImages.length > 0) {
+          this.datasetImages[datasetId] = [...(this.datasetImages[datasetId] || []), ...uploadedImages];
+
+          // Update dataset count
+          const datasets = this.datasets();
+          const idx = datasets.findIndex(d => d.id === datasetId);
+          if (idx !== -1) {
+            datasets[idx].image_count += uploadedImages.length;
+            this.datasets.set([...datasets]);
+          }
+        }
+
+        // Show summary
+        let message = `${completedCount} of ${files.length} uploaded`;
+        if (errorCount > 0) {
+          message += ` (${errorCount} failed)`;
+        }
+        this.snackBar.open(message, 'Close', { duration: 3000 });
       },
       error: (err) => {
-        console.error('Failed to upload images:', err);
+        console.error('Upload error:', err);
         this.uploadingDatasetId = null;
-        this.snackBar.open('Failed to upload images', 'Close', { duration: 3000 });
+        this.snackBar.open('Upload failed', 'Close', { duration: 3000 });
       }
     });
   }

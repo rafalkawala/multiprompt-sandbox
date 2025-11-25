@@ -229,7 +229,7 @@ async def upload_images(
     current_user: User = Depends(require_write_access),
     db: Session = Depends(get_db)
 ):
-    """Upload images to a dataset (requires write access)"""
+    """Upload images to a dataset (requires write access) - uses streaming for memory efficiency"""
 
     # Verify dataset exists
     dataset = db.query(Dataset).filter(
@@ -269,52 +269,95 @@ async def upload_images(
 
     try:
         for file in files:
+            file_size = 0
             try:
                 # Validate file type
                 if file.content_type not in settings.ALLOWED_IMAGE_TYPES:
                     errors.append(f"{file.filename}: Invalid file type")
                     logger.warning(f"Skipping {file.filename}: invalid type {file.content_type}")
-                    continue
-
-                # Read file content
-                content = await file.read()
-
-                # Validate file size
-                if len(content) > settings.MAX_UPLOAD_SIZE:
-                    errors.append(f"{file.filename}: File too large ({len(content)} bytes)")
-                    logger.warning(f"Skipping {file.filename}: too large {len(content)} bytes")
+                    await file.close()
                     continue
 
                 # Generate unique filename
                 ext = os.path.splitext(file.filename)[1]
                 unique_filename = f"{uuid.uuid4()}{ext}"
 
-                # Save file to GCS or local storage
+                # Stream file to storage (memory efficient)
                 if use_gcs():
                     storage_path = f"{gcs_prefix}/{unique_filename}"
                     blob = bucket.blob(storage_path)
-                    blob.upload_from_string(content, content_type=file.content_type)
-                else:
-                    storage_path = os.path.join(dataset_dir, unique_filename)
-                    with open(storage_path, "wb") as f:
-                        f.write(content)
 
-                # Create database record
+                    # Stream upload to GCS - doesn't load entire file into memory
+                    blob.upload_from_file(
+                        file.file,
+                        content_type=file.content_type,
+                        size=None,  # Unknown size, will stream
+                        timeout=120  # 2 minute timeout per file
+                    )
+                    file_size = blob.size
+
+                    # Validate size after upload
+                    if file_size > settings.MAX_UPLOAD_SIZE:
+                        blob.delete()  # Remove oversized file
+                        errors.append(f"{file.filename}: File too large ({file_size} bytes)")
+                        logger.warning(f"Deleted oversized file {file.filename}: {file_size} bytes")
+                        await file.close()
+                        continue
+                else:
+                    # Local storage - stream in chunks
+                    storage_path = os.path.join(dataset_dir, unique_filename)
+
+                    with open(storage_path, "wb") as f:
+                        while chunk := await file.read(1024 * 1024):  # 1MB chunks
+                            file_size += len(chunk)
+
+                            # Check size limit while streaming
+                            if file_size > settings.MAX_UPLOAD_SIZE:
+                                f.close()
+                                os.remove(storage_path)  # Remove partial file
+                                errors.append(f"{file.filename}: File too large ({file_size} bytes)")
+                                logger.warning(f"Stopped upload {file.filename}: exceeded size limit")
+                                await file.close()
+                                break
+
+                            f.write(chunk)
+                    else:
+                        # File completed successfully (no break)
+                        # Create database record
+                        image = Image(
+                            dataset_id=dataset_id,
+                            filename=file.filename,
+                            storage_path=storage_path,
+                            file_size=file_size,
+                            uploaded_by_id=current_user.id
+                        )
+                        db.add(image)
+                        uploaded_images.append(image)
+                        logger.info(f"Successfully uploaded {file.filename} ({file_size} bytes)")
+                        await file.close()
+                        continue
+
+                    # If we get here, file was too large (break was hit)
+                    await file.close()
+                    continue
+
+                # Create database record for GCS upload
                 image = Image(
                     dataset_id=dataset_id,
                     filename=file.filename,
                     storage_path=storage_path,
-                    file_size=len(content),
+                    file_size=file_size,
                     uploaded_by_id=current_user.id
                 )
                 db.add(image)
                 uploaded_images.append(image)
-                logger.info(f"Successfully queued {file.filename} for upload")
+                logger.info(f"Successfully uploaded {file.filename} ({file_size} bytes)")
 
             except Exception as e:
                 logger.error(f"Failed to upload {file.filename}: {str(e)}", exc_info=True)
                 errors.append(f"{file.filename}: {str(e)}")
-                continue
+            finally:
+                await file.close()
 
         # Commit all successful uploads
         if uploaded_images:
@@ -406,6 +449,66 @@ async def list_images(
     ]
 
 
+@router.get("/{project_id}/datasets/{dataset_id}/images/{image_id}/url")
+async def get_image_url(
+    project_id: str,
+    dataset_id: str,
+    image_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get signed URL for image (for cloud) or proxy URL (for local)"""
+    from datetime import timedelta
+
+    image = db.query(Image).filter(
+        Image.id == image_id,
+        Image.dataset_id == dataset_id
+    ).first()
+
+    if not image:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found"
+        )
+
+    # Verify project belongs to user
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.created_by_id == current_user.id
+    ).first()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found"
+        )
+
+    # Return signed URL for GCS, or proxy URL for local storage
+    if use_gcs():
+        bucket = get_gcs_bucket()
+        blob = bucket.blob(image.storage_path)
+
+        if not blob.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Image file not found"
+            )
+
+        # Generate signed URL valid for 1 hour
+        signed_url = blob.generate_signed_url(
+            version="v4",
+            expiration=timedelta(hours=1),
+            method="GET"
+        )
+        return {"url": signed_url, "type": "signed"}
+    else:
+        # Local development - use proxy endpoint
+        return {
+            "url": f"/api/v1/projects/{project_id}/datasets/{dataset_id}/images/{image_id}/file",
+            "type": "proxy"
+        }
+
+
 @router.get("/{project_id}/datasets/{dataset_id}/images/{image_id}/file")
 async def get_image_file(
     project_id: str,
@@ -414,7 +517,7 @@ async def get_image_file(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get image file"""
+    """Get image file (proxy endpoint for local storage or fallback)"""
 
     image = db.query(Image).filter(
         Image.id == image_id,
@@ -448,7 +551,16 @@ async def get_image_file(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Image file not found"
             )
-        content = blob.download_as_bytes()
+        # Download with timeout and serve
+        try:
+            content = blob.download_as_bytes(timeout=30)
+        except Exception as e:
+            logger.error(f"GCS download failed for {image.storage_path}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve image from storage"
+            )
+
         # Determine content type from filename
         ext = os.path.splitext(image.filename)[1].lower()
         content_type = {
@@ -458,7 +570,14 @@ async def get_image_file(
             '.gif': 'image/gif',
             '.webp': 'image/webp'
         }.get(ext, 'application/octet-stream')
-        return Response(content=content, media_type=content_type)
+
+        return Response(
+            content=content,
+            media_type=content_type,
+            headers={
+                "Cache-Control": "public, max-age=3600",  # Cache for 1 hour
+            }
+        )
     else:
         if not os.path.exists(image.storage_path):
             raise HTTPException(
