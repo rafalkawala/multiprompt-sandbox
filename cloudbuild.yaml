@@ -104,7 +104,7 @@ steps:
   # Build backend image (parallel: starts after tests pass)
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', '${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA', '-f', 'backend/Dockerfile', 'backend']
-    waitFor: ['test-backend']
+    waitFor: ['-']
     id: 'build-backend'
 
   # Build frontend image (parallel: starts immediately, independent of backend tests)
@@ -205,3 +205,4 @@ images:
 
 options:
   logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'

@@ -1,13 +1,16 @@
 <div class="home-container">
   <!-- Page Header -->
   <div class="page-header">
-    <h1>MLLM Benchmarking Platform</h1>
-    <p>Achieve 95-98% accuracy with systematic multimodal LLM experimentation</p>
+    <div class="header-content">
+      <h1>MLLM Benchmarking Platform</h1>
+      <p>Achieve 95-98% accuracy with systematic multimodal LLM experimentation</p>
+    </div>
+    <mat-icon class="header-icon" aria-hidden="true">science</mat-icon>
   </div>
 
   <!-- Quick Stats -->
   <div class="stats-grid">
-    <mat-card *ngFor="let stat of stats" class="stat-card">
+    <mat-card *ngFor="let stat of stats" class="stat-card clickable" [routerLink]="stat.route">
       <mat-card-content>
         <div class="stat-content">
           <mat-icon [style.color]="'#1967d2'">{{ stat.icon }}</mat-icon>

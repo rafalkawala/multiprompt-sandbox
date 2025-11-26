@@ -64,10 +64,10 @@ export class HomeComponent implements OnInit {
           : 0;
 
         this.stats = [
-          { label: 'Projects', value: projects.length.toString(), icon: 'folder' },
-          { label: 'Datasets', value: totalDatasets.toString(), icon: 'cloud_upload' },
-          { label: 'Evaluations', value: evaluations.length.toString(), icon: 'science' },
-          { label: 'Avg Accuracy', value: avgAccuracy > 0 ? `${avgAccuracy.toFixed(1)}%` : '--%', icon: 'analytics' }
+          { label: 'Projects', value: projects.length.toString(), icon: 'folder', route: '/projects' },
+          { label: 'Datasets', value: totalDatasets.toString(), icon: 'cloud_upload', route: '/projects' },
+          { label: 'Evaluations', value: evaluations.length.toString(), icon: 'science', route: '/evaluations' },
+          { label: 'Avg Accuracy', value: avgAccuracy > 0 ? `${avgAccuracy.toFixed(1)}%` : '--%', icon: 'analytics', route: '/evaluations' }
         ];
       },
       error: (err) => {
@@ -136,9 +136,9 @@ export class HomeComponent implements OnInit {
   ];
 
   stats = [
-    { label: 'Projects', value: '0', icon: 'folder' },
-    { label: 'Datasets', value: '0', icon: 'cloud_upload' },
-    { label: 'Experiments', value: '0', icon: 'science' },
-    { label: 'Avg Accuracy', value: '--%', icon: 'analytics' }
+    { label: 'Projects', value: '0', icon: 'folder', route: '/projects' },
+    { label: 'Datasets', value: '0', icon: 'cloud_upload', route: '/projects' },
+    { label: 'Experiments', value: '0', icon: 'science', route: '/evaluations' },
+    { label: 'Avg Accuracy', value: '--%', icon: 'analytics', route: '/evaluations' }
   ];
 }
