@@ -158,9 +158,7 @@ steps:
         echo "CORS_VALUE (for initial deploy): '$CORS_VALUE'"
 
         # Create a temporary YAML file for initial deployment environment variables
-        cat > deploy_env_vars.yaml <<'ENVEOF'
-ENVIRONMENT: "production"
-ENVEOF
+        echo 'ENVIRONMENT: "production"' > deploy_env_vars.yaml
         echo "DB_HOST: \"$$DB_HOST\"" >> deploy_env_vars.yaml
         echo "DB_PORT: \"5432\"" >> deploy_env_vars.yaml
         echo "DB_USER: \"${_DB_USER}\"" >> deploy_env_vars.yaml
