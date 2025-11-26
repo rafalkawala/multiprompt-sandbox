@@ -132,9 +132,9 @@ steps:
     args:
       - '-c'
       - |
-        DB_HOST=$$(cat /workspace/db_host.txt)
-        FRONTEND_URL=$$(cat /workspace/frontend_url.txt)
-        BACKEND_URL=$$(cat /workspace/backend_url.txt)
+        DB_HOST=$$(cat /workspace/db_host.txt | tr -d '\n\r')
+        FRONTEND_URL=$$(cat /workspace/frontend_url.txt | tr -d '\n\r')
+        BACKEND_URL=$$(cat /workspace/backend_url.txt | tr -d '\n\r')
 
         # Use placeholder if URLs don't exist yet (first deploy)
         if [ -z "$$FRONTEND_URL" ]; then
@@ -144,6 +144,36 @@ steps:
           BACKEND_URL="https://multiprompt-backend-PLACEHOLDER.a.run.app"
         fi
 
+        # Cloud Run services have two URL formats - allow both for CORS
+        PROJECT_NUMBER=$$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)' | tr -d '\n\r')
+        FRONTEND_URL_ALT="https://multiprompt-frontend-$${PROJECT_NUMBER}.${_REGION}.run.app"
+        CORS_VALUE="$${FRONTEND_URL},$${FRONTEND_URL_ALT}"
+
+        echo "--- DEBUG: deploy-backend env vars ---"
+        echo "DB_HOST: '$DB_HOST'"
+        echo "FRONTEND_URL: '$FRONTEND_URL'"
+        echo "BACKEND_URL: '$BACKEND_URL'"
+        echo "PROJECT_NUMBER: '$PROJECT_NUMBER'"
+        echo "FRONTEND_URL_ALT: '$FRONTEND_URL_ALT'"
+        echo "CORS_VALUE (for initial deploy): '$CORS_VALUE'"
+
+        # Create a temporary YAML file for initial deployment environment variables
+        cat > deploy_env_vars.yaml <<EOF
+ENVIRONMENT: "production"
+DB_HOST: "$DB_HOST"
+DB_PORT: "5432"
+DB_USER: "$_DB_USER"
+DB_NAME: "$_DB_NAME"
+GCP_PROJECT_ID: "$PROJECT_ID"
+FRONTEND_URL: "$FRONTEND_URL"
+GOOGLE_REDIRECT_URI: "$BACKEND_URL/api/v1/auth/google/callback"
+CORS_ALLOWED_ORIGINS: "$CORS_VALUE"
+GCS_BUCKET_NAME: "$_GCS_BUCKET"
+EOF
+        echo "--- DEBUG: deploy_env_vars.yaml content ---"
+        cat deploy_env_vars.yaml
+        echo "--- END DEBUG ---"
+
         gcloud run deploy multiprompt-backend \
           --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA \
           --region=${_REGION} \
@@ -152,33 +182,13 @@ steps:
           --service-account=multiprompt-backend-sa@$PROJECT_ID.iam.gserviceaccount.com \
           --vpc-connector=${_VPC_CONNECTOR} \
           --vpc-egress=private-ranges-only \
-          --set-env-vars="ENVIRONMENT=production,DB_HOST=$$DB_HOST,DB_PORT=5432,DB_USER=${_DB_USER},DB_NAME=${_DB_NAME},GCP_PROJECT_ID=$PROJECT_ID,FRONTEND_URL=$$FRONTEND_URL,GOOGLE_REDIRECT_URI=$$BACKEND_URL/api/v1/auth/google/callback,CORS_ALLOWED_ORIGINS=$$FRONTEND_URL,GCS_BUCKET_NAME=${_GCS_BUCKET}" \
+          --env-vars-file=deploy_env_vars.yaml \
           --set-secrets=DB_PASSWORD=mllm_sandbox_user-password:latest,SECRET_KEY=multiprompt-secret-key:latest,GOOGLE_CLIENT_ID=google-client-id:latest,GOOGLE_CLIENT_SECRET=google-client-secret:latest,GEMINI_API_KEY=multiprompt-gemini-api-key:latest,ADMIN_EMAILS=multiprompt-admin-emails:latest,ALLOWED_EMAIL_DOMAINS=multiprompt-allowed-domain:latest \
           --memory=2Gi \
           --cpu=2 \
           --timeout=600 \
           --min-instances=0 \
           --max-instances=10
-
-        # Update CORS to include both URL formats
-        # Cloud Run services have two URL formats:
-        # Format 1: https://SERVICE-HASH-REGION.a.run.app
-        # Format 2: https://SERVICE-PROJECT_NUMBER.REGION.run.app
-        PROJECT_NUMBER=$$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
-        FRONTEND_URL_ALT="https://multiprompt-frontend-$${PROJECT_NUMBER}.${_REGION}.run.app"
-        CORS_VALUE="$$FRONTEND_URL,$$FRONTEND_URL_ALT"
-
-        echo "Setting CORS to allow both frontend URLs:"
-        echo "  - $$FRONTEND_URL"
-        echo "  - $$FRONTEND_URL_ALT"
-
-        # Set CORS using --set-env-vars with ^ delimiter to handle commas in value
-        # Use ^:^ prefix to tell gcloud to use ^ as delimiter instead of comma
-        gcloud run services update multiprompt-backend \
-          --region=${_REGION} \
-          --set-env-vars "^:^CORS_ALLOWED_ORIGINS=$$CORS_VALUE"
-    waitFor: ['get-db-host', 'get-urls', 'push-backend']
-    id: 'deploy-backend'
 
   # Deploy frontend to Cloud Run (parallel: runs after frontend push)
   - name: 'gcr.io/cloud-builders/gcloud'
