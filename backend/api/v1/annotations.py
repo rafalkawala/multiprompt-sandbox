@@ -283,7 +283,7 @@ def extract_annotation_value(annotation: Annotation, question_type: str) -> str:
         return str(value)
 
 
-@router.get("/{project_id}/datasets/{dataset_id}/annotations/export")
+@router.get("/projects/{project_id}/datasets/{dataset_id}/annotations/export")
 async def export_annotations(
     project_id: str,
     dataset_id: str,
@@ -346,7 +346,7 @@ async def export_annotations(
     )
 
 
-@router.get("/{project_id}/datasets/{dataset_id}/annotations/template")
+@router.get("/projects/{project_id}/datasets/{dataset_id}/annotations/template")
 async def download_template(
     project_id: str,
     dataset_id: str,
@@ -445,7 +445,7 @@ async def download_template(
     )
 
 
-@router.post("/{project_id}/datasets/{dataset_id}/annotations/import/preview")
+@router.post("/projects/{project_id}/datasets/{dataset_id}/annotations/import/preview")
 async def preview_import(
     project_id: str,
     dataset_id: str,
@@ -489,7 +489,7 @@ async def preview_import(
         raise HTTPException(status_code=500, detail=f"Failed to process CSV: {str(e)}")
 
 
-@router.post("/{project_id}/datasets/{dataset_id}/annotations/import/confirm")
+@router.post("/projects/{project_id}/datasets/{dataset_id}/annotations/import/confirm")
 async def confirm_import(
     project_id: str,
     dataset_id: str,
