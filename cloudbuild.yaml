@@ -150,12 +150,12 @@ steps:
         CORS_VALUE="$${FRONTEND_URL},$${FRONTEND_URL_ALT}"
 
         echo "--- DEBUG: deploy-backend env vars ---"
-        echo "DB_HOST: '$DB_HOST'"
-        echo "FRONTEND_URL: '$FRONTEND_URL'"
-        echo "BACKEND_URL: '$BACKEND_URL'"
-        echo "PROJECT_NUMBER: '$PROJECT_NUMBER'"
-        echo "FRONTEND_URL_ALT: '$FRONTEND_URL_ALT'"
-        echo "CORS_VALUE (for initial deploy): '$CORS_VALUE'"
+        echo "DB_HOST: '$$DB_HOST'"
+        echo "FRONTEND_URL: '$$FRONTEND_URL'"
+        echo "BACKEND_URL: '$$BACKEND_URL'"
+        echo "PROJECT_NUMBER: '$$PROJECT_NUMBER'"
+        echo "FRONTEND_URL_ALT: '$$FRONTEND_URL_ALT'"
+        echo "CORS_VALUE (for initial deploy): '$$CORS_VALUE'"
 
         # Create a temporary YAML file for initial deployment environment variables
         echo 'ENVIRONMENT: "production"' > deploy_env_vars.yaml
