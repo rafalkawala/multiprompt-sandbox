@@ -221,14 +221,9 @@ steps:
         echo "Frontend Alt: $$FRONTEND_URL_ALT (alternative)"
 
         # Create env vars file to avoid escaping issues
-        cat > /workspace/final-urls-env.yaml << 'ENVEOF'
-FRONTEND_URL=FRONTEND_URL_PLACEHOLDER
-GOOGLE_REDIRECT_URI=REDIRECT_URI_PLACEHOLDER
-CORS_ALLOWED_ORIGINS=CORS_PLACEHOLDER
-ENVEOF
-        sed -i "s|FRONTEND_URL_PLACEHOLDER|$$FRONTEND_URL|g" /workspace/final-urls-env.yaml
-        sed -i "s|REDIRECT_URI_PLACEHOLDER|$$BACKEND_URL/api/v1/auth/google/callback|g" /workspace/final-urls-env.yaml
-        sed -i "s|CORS_PLACEHOLDER|$$CORS_VALUE|g" /workspace/final-urls-env.yaml
+        echo "FRONTEND_URL=$$FRONTEND_URL" > /workspace/final-urls-env.yaml
+        echo "GOOGLE_REDIRECT_URI=$$BACKEND_URL/api/v1/auth/google/callback" >> /workspace/final-urls-env.yaml
+        echo "CORS_ALLOWED_ORIGINS=$$CORS_VALUE" >> /workspace/final-urls-env.yaml
 
         gcloud run services update multiprompt-backend \
           --region=${_REGION} \
