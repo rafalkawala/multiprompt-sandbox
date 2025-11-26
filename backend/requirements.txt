@@ -35,6 +35,7 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 tenacity==8.2.3
 pyyaml==6.0.1
+Pillow==10.4.0
 
 # OAuth
 authlib==1.6.0

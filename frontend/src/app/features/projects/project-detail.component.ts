@@ -534,7 +534,8 @@ export class ProjectDetailComponent implements OnInit {
   }
 
   getImageUrl(datasetId: string, imageId: string) {
-    return this.projectsService.getImageUrl(this.projectId, datasetId, imageId);
+    // Use thumbnail URL for fast loading without expiry
+    return this.projectsService.getImageThumbnailUrl(this.projectId, datasetId, imageId);
   }
 
   formatQuestionType(type: string): string {

@@ -429,17 +429,8 @@ export class AnnotationComponent implements OnInit {
     const img = this.currentImage();
     if (!img) return;
 
-    // Load signed URL for image
-    this.projectsService.getImageSignedUrl(this.projectId, this.datasetId, img.id).subscribe({
-      next: (data) => {
-        this.imageUrl.set(data.url);
-      },
-      error: (err) => {
-        console.error('Failed to get image URL:', err);
-        // Fallback to proxy URL
-        this.imageUrl.set(this.projectsService.getImageUrl(this.projectId, this.datasetId, img.id));
-      }
-    });
+    // Use thumbnail URL (no expiry, stored in database)
+    this.imageUrl.set(this.projectsService.getImageThumbnailUrl(this.projectId, this.datasetId, img.id));
 
     // Load annotation
     this.evaluationsService.getAnnotation(this.projectId, this.datasetId, img.id).subscribe({

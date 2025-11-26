@@ -189,4 +189,9 @@ export class ProjectsService {
       `${this.API_URL}/projects/${projectId}/datasets/${datasetId}/images/${imageId}/url`
     );
   }
+
+  // Get thumbnail URL (256x256 JPEG from database, no expiry)
+  getImageThumbnailUrl(projectId: string, datasetId: string, imageId: string) {
+    return `${this.API_URL}/projects/${projectId}/datasets/${datasetId}/images/${imageId}/thumbnail`;
+  }
 }

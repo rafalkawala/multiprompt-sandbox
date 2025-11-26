@@ -23,6 +23,9 @@ from api.v1.auth import get_current_user
 from services.storage_service import get_storage_provider
 from core.interfaces.storage import IStorageProvider
 
+# Import Image Utilities
+from core.image_utils import generate_thumbnail
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -252,15 +255,30 @@ async def upload_images(
                 unique_filename = f"{uuid.uuid4()}{ext}"
                 storage_path = f"{storage_prefix}/{unique_filename}"
 
+                # Read file bytes for thumbnail generation
+                file_bytes = await file.read()
+
+                # Generate thumbnail
+                try:
+                    thumbnail_bytes = generate_thumbnail(file_bytes)
+                    logger.info(f"Generated thumbnail for {file.filename}: {len(thumbnail_bytes)} bytes")
+                except Exception as thumb_error:
+                    logger.warning(f"Failed to generate thumbnail for {file.filename}: {str(thumb_error)}")
+                    thumbnail_bytes = None
+
+                # Reset file pointer for storage upload
+                await file.seek(0)
+
                 # Upload using storage provider
                 uploaded_path, file_size = await storage.upload(file, storage_path)
 
-                # Create database record
+                # Create database record with thumbnail
                 image = Image(
                     dataset_id=dataset_id,
                     filename=file.filename,
                     storage_path=uploaded_path,
                     file_size=file_size,
+                    thumbnail_data=thumbnail_bytes,
                     uploaded_by_id=current_user.id
                 )
                 db.add(image)
@@ -491,6 +509,57 @@ async def get_image_file(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve image from storage"
         )
+
+
+@router.get("/{project_id}/datasets/{dataset_id}/images/{image_id}/thumbnail")
+async def get_image_thumbnail(
+    project_id: str,
+    dataset_id: str,
+    image_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get image thumbnail (256x256 JPEG stored in database)"""
+
+    image = db.query(Image).filter(
+        Image.id == image_id,
+        Image.dataset_id == dataset_id
+    ).first()
+
+    if not image:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found"
+        )
+
+    # Verify project belongs to user
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.created_by_id == current_user.id
+    ).first()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found"
+        )
+
+    # Check if thumbnail exists
+    if not image.thumbnail_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Thumbnail not available for this image"
+        )
+
+    # Return thumbnail with cache headers
+    return Response(
+        content=image.thumbnail_data,
+        media_type="image/jpeg",
+        headers={
+            "Cache-Control": "public, max-age=86400",  # Cache for 24 hours
+            "Content-Length": str(len(image.thumbnail_data))
+        }
+    )
 
 
 @router.delete("/{project_id}/datasets/{dataset_id}/images/{image_id}")
