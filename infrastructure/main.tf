@@ -120,6 +120,13 @@ resource "google_project_iam_member" "cloudsql_client" {
   member  = "serviceAccount:${google_service_account.backend_sa.email}"
 }
 
+# Allow Cloud Build (default compute SA) to impersonate the backend service account
+resource "google_service_account_iam_member" "cloud_build_impersonate" {
+  service_account_id = google_service_account.backend_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+}
+
 # --- Cloud Storage (GCS) for image uploads ---
 
 resource "google_storage_bucket" "uploads" {
