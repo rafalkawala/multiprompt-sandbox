@@ -236,17 +236,11 @@ steps:
         echo "Constructed FRONTEND_URL_ALT: '$${FRONTEND_URL_ALT}'"
         echo "Final CORS_VALUE: '$${CORS_VALUE}'"
 
-        # Create a temporary YAML file for environment variables
-        echo "FRONTEND_URL: \"$$FRONTEND_URL\"" > env_vars.yaml
-        echo "GOOGLE_REDIRECT_URI: \"$$BACKEND_URL/api/v1/auth/google/callback\"" >> env_vars.yaml
-        echo "CORS_ALLOWED_ORIGINS: \"$$CORS_VALUE\"" >> env_vars.yaml
-        echo "--- DEBUG: env_vars.yaml content ---"
-        cat env_vars.yaml
-        echo "--- END DEBUG ---"
-
+        # Use --update-env-vars with ^:^ delimiter prefix to handle commas in CORS value
+        # The ^:^ prefix changes delimiter from comma to colon, allowing commas in values
         gcloud run services update multiprompt-backend \
           --region=${_REGION} \
-          --env-vars-file=env_vars.yaml
+          --update-env-vars="^:^FRONTEND_URL=$${FRONTEND_URL}:GOOGLE_REDIRECT_URI=$${BACKEND_URL}/api/v1/auth/google/callback:CORS_ALLOWED_ORIGINS=$${CORS_VALUE}"
 
     waitFor: ['deploy-backend', 'deploy-frontend']
     id: 'update-urls'
