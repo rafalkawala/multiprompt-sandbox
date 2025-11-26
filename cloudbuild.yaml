@@ -174,12 +174,12 @@ steps:
 
         # Use env-vars-file to avoid escaping issues with commas
         cat > /workspace/cors-env.yaml <<EOF
-        CORS_ALLOWED_ORIGINS: "$$CORS_VALUE"
-        EOF
+CORS_ALLOWED_ORIGINS=$$CORS_VALUE
+EOF
 
         gcloud run services update multiprompt-backend \
           --region=${_REGION} \
-          --update-env-vars=/workspace/cors-env.yaml
+          --env-vars-file=/workspace/cors-env.yaml
     waitFor: ['get-db-host', 'get-urls', 'push-backend']
     id: 'deploy-backend'
 
@@ -224,14 +224,14 @@ steps:
 
         # Create env vars file to avoid escaping issues
         cat > /workspace/final-urls-env.yaml <<EOF
-        FRONTEND_URL: "$$FRONTEND_URL"
-        GOOGLE_REDIRECT_URI: "$$BACKEND_URL/api/v1/auth/google/callback"
-        CORS_ALLOWED_ORIGINS: "$$CORS_VALUE"
-        EOF
+FRONTEND_URL=$$FRONTEND_URL
+GOOGLE_REDIRECT_URI=$$BACKEND_URL/api/v1/auth/google/callback
+CORS_ALLOWED_ORIGINS=$$CORS_VALUE
+EOF
 
         gcloud run services update multiprompt-backend \
           --region=${_REGION} \
-          --update-env-vars=/workspace/final-urls-env.yaml
+          --env-vars-file=/workspace/final-urls-env.yaml
     waitFor: ['deploy-backend', 'deploy-frontend']
     id: 'update-urls'
 
