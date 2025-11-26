@@ -160,20 +160,26 @@ steps:
           --min-instances=0 \
           --max-instances=10
 
-        # Update CORS to include both URL formats (can't include comma in --set-env-vars)
+        # Update CORS to include both URL formats
         # Cloud Run services have two URL formats:
         # Format 1: https://SERVICE-HASH-REGION.a.run.app
         # Format 2: https://SERVICE-PROJECT_NUMBER.REGION.run.app
         PROJECT_NUMBER=$$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
         FRONTEND_URL_ALT="https://multiprompt-frontend-$${PROJECT_NUMBER}.${_REGION}.run.app"
+        CORS_VALUE="$$FRONTEND_URL,$$FRONTEND_URL_ALT"
 
         echo "Setting CORS to allow both frontend URLs:"
         echo "  - $$FRONTEND_URL"
         echo "  - $$FRONTEND_URL_ALT"
 
+        # Use env-vars-file to avoid escaping issues with commas
+        cat > /workspace/cors-env.yaml <<EOF
+        CORS_ALLOWED_ORIGINS: "$$CORS_VALUE"
+        EOF
+
         gcloud run services update multiprompt-backend \
           --region=${_REGION} \
-          --update-env-vars=CORS_ALLOWED_ORIGINS="$$FRONTEND_URL,$$FRONTEND_URL_ALT"
+          --update-env-vars=/workspace/cors-env.yaml
     waitFor: ['get-db-host', 'get-urls', 'push-backend']
     id: 'deploy-backend'
 
@@ -209,15 +215,23 @@ steps:
         # Cloud Run services have two URL formats - allow both for CORS
         PROJECT_NUMBER=$$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
         FRONTEND_URL_ALT="https://multiprompt-frontend-$${PROJECT_NUMBER}.${_REGION}.run.app"
+        CORS_VALUE="$$FRONTEND_URL,$$FRONTEND_URL_ALT"
 
         echo "Updating backend with final URLs..."
         echo "Backend: $$BACKEND_URL"
         echo "Frontend: $$FRONTEND_URL (primary)"
         echo "Frontend Alt: $$FRONTEND_URL_ALT (alternative)"
 
+        # Create env vars file to avoid escaping issues
+        cat > /workspace/final-urls-env.yaml <<EOF
+        FRONTEND_URL: "$$FRONTEND_URL"
+        GOOGLE_REDIRECT_URI: "$$BACKEND_URL/api/v1/auth/google/callback"
+        CORS_ALLOWED_ORIGINS: "$$CORS_VALUE"
+        EOF
+
         gcloud run services update multiprompt-backend \
           --region=${_REGION} \
-          --update-env-vars=FRONTEND_URL="$$FRONTEND_URL",GOOGLE_REDIRECT_URI="$$BACKEND_URL/api/v1/auth/google/callback",CORS_ALLOWED_ORIGINS="$$FRONTEND_URL,$$FRONTEND_URL_ALT"
+          --update-env-vars=/workspace/final-urls-env.yaml
     waitFor: ['deploy-backend', 'deploy-frontend']
     id: 'update-urls'
 
