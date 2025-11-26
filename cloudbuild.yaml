@@ -144,6 +144,13 @@ steps:
           BACKEND_URL="https://multiprompt-backend-PLACEHOLDER.a.run.app"
         fi
 
+        # Cloud Run services have two URL formats - allow both for CORS
+        # Format 1: https://SERVICE-HASH-REGION.a.run.app
+        # Format 2: https://SERVICE-PROJECT_NUMBER.REGION.run.app
+        PROJECT_NUMBER=$$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+        FRONTEND_URL_ALT="https://multiprompt-frontend-$${PROJECT_NUMBER}.${_REGION}.run.app"
+        CORS_ORIGINS="$$FRONTEND_URL,$$FRONTEND_URL_ALT"
+
         gcloud run deploy multiprompt-backend \
           --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA \
           --region=${_REGION} \
@@ -152,7 +159,7 @@ steps:
           --service-account=multiprompt-backend-sa@$PROJECT_ID.iam.gserviceaccount.com \
           --vpc-connector=${_VPC_CONNECTOR} \
           --vpc-egress=private-ranges-only \
-          --set-env-vars="ENVIRONMENT=production,DB_HOST=$$DB_HOST,DB_PORT=5432,DB_USER=${_DB_USER},DB_NAME=${_DB_NAME},GCP_PROJECT_ID=$PROJECT_ID,FRONTEND_URL=$$FRONTEND_URL,GOOGLE_REDIRECT_URI=$$BACKEND_URL/api/v1/auth/google/callback,CORS_ALLOWED_ORIGINS=$$FRONTEND_URL,GCS_BUCKET_NAME=${_GCS_BUCKET}" \
+          --set-env-vars="ENVIRONMENT=production,DB_HOST=$$DB_HOST,DB_PORT=5432,DB_USER=${_DB_USER},DB_NAME=${_DB_NAME},GCP_PROJECT_ID=$PROJECT_ID,FRONTEND_URL=$$FRONTEND_URL,GOOGLE_REDIRECT_URI=$$BACKEND_URL/api/v1/auth/google/callback,CORS_ALLOWED_ORIGINS=$$CORS_ORIGINS,GCS_BUCKET_NAME=${_GCS_BUCKET}" \
           --set-secrets=DB_PASSWORD=mllm_sandbox_user-password:latest,SECRET_KEY=multiprompt-secret-key:latest,GOOGLE_CLIENT_ID=google-client-id:latest,GOOGLE_CLIENT_SECRET=google-client-secret:latest,GEMINI_API_KEY=multiprompt-gemini-api-key:latest,ADMIN_EMAILS=multiprompt-admin-emails:latest,ALLOWED_EMAIL_DOMAINS=multiprompt-allowed-domain:latest \
           --memory=2Gi \
           --cpu=2 \
@@ -191,13 +198,20 @@ steps:
         FRONTEND_URL=$$(gcloud run services describe multiprompt-frontend \
           --region=${_REGION} --format='value(status.url)' --project=$PROJECT_ID)
 
+        # Cloud Run services have two URL formats - allow both for CORS
+        PROJECT_NUMBER=$$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+        FRONTEND_URL_ALT="https://multiprompt-frontend-$${PROJECT_NUMBER}.${_REGION}.run.app"
+        CORS_ORIGINS="$$FRONTEND_URL,$$FRONTEND_URL_ALT"
+
         echo "Updating backend with final URLs..."
         echo "Backend: $$BACKEND_URL"
-        echo "Frontend: $$FRONTEND_URL"
+        echo "Frontend: $$FRONTEND_URL (primary)"
+        echo "Frontend Alt: $$FRONTEND_URL_ALT (alternative)"
+        echo "CORS Origins: $$CORS_ORIGINS"
 
         gcloud run services update multiprompt-backend \
           --region=${_REGION} \
-          --update-env-vars="FRONTEND_URL=$$FRONTEND_URL,GOOGLE_REDIRECT_URI=$$BACKEND_URL/api/v1/auth/google/callback,CORS_ALLOWED_ORIGINS=$$FRONTEND_URL"
+          --update-env-vars="FRONTEND_URL=$$FRONTEND_URL,GOOGLE_REDIRECT_URI=$$BACKEND_URL/api/v1/auth/google/callback,CORS_ALLOWED_ORIGINS=$$CORS_ORIGINS"
     waitFor: ['deploy-backend', 'deploy-frontend']
     id: 'update-urls'
 
