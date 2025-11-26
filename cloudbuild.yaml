@@ -188,21 +188,7 @@ EOF
         cat deploy_secrets.yaml
         echo "--- END DEBUG ---"
 
-        gcloud run deploy multiprompt-backend \
-          --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA \
-          --region=${_REGION} \
-          --platform=managed \
-          --allow-unauthenticated \
-          --service-account=multiprompt-backend-sa@$PROJECT_ID.iam.gserviceaccount.com \
-          --vpc-connector=${_VPC_CONNECTOR} \
-          --vpc-egress=private-ranges-only \
-          --env-vars-file=deploy_env_vars.yaml \
-          --set-secrets-file=deploy_secrets.yaml \
-          --memory=2Gi \
-          --cpu=2 \
-          --timeout=600 \
-          --min-instances=0 \
-          --max-instances=10
+        gcloud run deploy multiprompt-backend --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA --region=${_REGION} --platform=managed --allow-unauthenticated --service-account=multiprompt-backend-sa@$PROJECT_ID.iam.gserviceaccount.com --vpc-connector=${_VPC_CONNECTOR} --vpc-egress=private-ranges-only --env-vars-file=deploy_env_vars.yaml --set-secrets-file=deploy_secrets.yaml --memory=2Gi --cpu=2 --timeout=600 --min-instances=0 --max-instances=10
 
   # Deploy frontend to Cloud Run (parallel: runs after frontend push)
   - name: 'gcr.io/cloud-builders/gcloud'
