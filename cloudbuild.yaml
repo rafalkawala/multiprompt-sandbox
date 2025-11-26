@@ -174,6 +174,20 @@ EOF
         cat deploy_env_vars.yaml
         echo "--- END DEBUG ---"
 
+        # Create a temporary YAML file for initial deployment secrets
+        cat > deploy_secrets.yaml <<EOF
+DB_PASSWORD: "mllm_sandbox_user-password:latest"
+SECRET_KEY: "multiprompt-secret-key:latest"
+GOOGLE_CLIENT_ID: "google-client-id:latest"
+GOOGLE_CLIENT_SECRET: "google-client-secret:latest"
+GEMINI_API_KEY: "multiprompt-gemini-api-key:latest"
+ADMIN_EMAILS: "multiprompt-admin-emails:latest"
+ALLOWED_EMAIL_DOMAINS: "multiprompt-allowed-domain:latest"
+EOF
+        echo "--- DEBUG: deploy_secrets.yaml content ---"
+        cat deploy_secrets.yaml
+        echo "--- END DEBUG ---"
+
         gcloud run deploy multiprompt-backend \
           --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA \
           --region=${_REGION} \
@@ -183,7 +197,7 @@ EOF
           --vpc-connector=${_VPC_CONNECTOR} \
           --vpc-egress=private-ranges-only \
           --env-vars-file=deploy_env_vars.yaml \
-          --set-secrets=DB_PASSWORD=mllm_sandbox_user-password:latest,SECRET_KEY=multiprompt-secret-key:latest,GOOGLE_CLIENT_ID=google-client-id:latest,GOOGLE_CLIENT_SECRET=google-client-secret:latest,GEMINI_API_KEY=multiprompt-gemini-api-key:latest,ADMIN_EMAILS=multiprompt-admin-emails:latest,ALLOWED_EMAIL_DOMAINS=multiprompt-allowed-domain:latest \
+          --set-secrets-file=deploy_secrets.yaml \
           --memory=2Gi \
           --cpu=2 \
           --timeout=600 \
