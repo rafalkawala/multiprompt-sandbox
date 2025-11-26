@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional, Tuple
 from datetime import datetime
+from io import BytesIO
 import logging
 import os
 import uuid
@@ -255,8 +256,9 @@ async def upload_images(
                 unique_filename = f"{uuid.uuid4()}{ext}"
                 storage_path = f"{storage_prefix}/{unique_filename}"
 
-                # Read file bytes for thumbnail generation
+                # Read file bytes once for both thumbnail and storage
                 file_bytes = await file.read()
+                file_size = len(file_bytes)
 
                 # Generate thumbnail
                 try:
@@ -266,11 +268,11 @@ async def upload_images(
                     logger.warning(f"Failed to generate thumbnail for {file.filename}: {str(thumb_error)}")
                     thumbnail_bytes = None
 
-                # Reset file pointer for storage upload
-                await file.seek(0)
+                # Create BytesIO object for storage upload (avoids file seek issues)
+                file_obj = BytesIO(file_bytes)
 
                 # Upload using storage provider
-                uploaded_path, file_size = await storage.upload(file, storage_path)
+                uploaded_path, _ = await storage.upload(file_obj, storage_path)
 
                 # Create database record with thumbnail
                 image = Image(
