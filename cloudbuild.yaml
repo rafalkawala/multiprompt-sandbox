@@ -144,18 +144,10 @@ steps:
           BACKEND_URL="https://multiprompt-backend-PLACEHOLDER.a.run.app"
         fi
 
-        # Cloud Run services have two URL formats - allow both for CORS
-        PROJECT_NUMBER=$$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)' | tr -d '\n\r')
-        FRONTEND_URL_ALT="https://multiprompt-frontend-$${PROJECT_NUMBER}.${_REGION}.run.app"
-        CORS_VALUE="$${FRONTEND_URL},$${FRONTEND_URL_ALT}"
-
         echo "--- DEBUG: deploy-backend env vars ---"
         echo "DB_HOST: '$$DB_HOST'"
         echo "FRONTEND_URL: '$$FRONTEND_URL'"
         echo "BACKEND_URL: '$$BACKEND_URL'"
-        echo "PROJECT_NUMBER: '$$PROJECT_NUMBER'"
-        echo "FRONTEND_URL_ALT: '$$FRONTEND_URL_ALT'"
-        echo "CORS_VALUE (for initial deploy): '$$CORS_VALUE'"
 
         # Create a temporary YAML file for initial deployment environment variables
         echo 'ENVIRONMENT: "production"' > deploy_env_vars.yaml
@@ -166,7 +158,7 @@ steps:
         echo "GCP_PROJECT_ID: \"$PROJECT_ID\"" >> deploy_env_vars.yaml
         echo "FRONTEND_URL: \"$$FRONTEND_URL\"" >> deploy_env_vars.yaml
         echo "GOOGLE_REDIRECT_URI: \"$$BACKEND_URL/api/v1/auth/google/callback\"" >> deploy_env_vars.yaml
-        echo "CORS_ALLOWED_ORIGINS: \"$$CORS_VALUE\"" >> deploy_env_vars.yaml
+        echo "CORS_ALLOWED_ORIGINS: \"$$FRONTEND_URL\"" >> deploy_env_vars.yaml
         echo "GCS_BUCKET_NAME: \"${_GCS_BUCKET}\"" >> deploy_env_vars.yaml
         echo "--- DEBUG: deploy_env_vars.yaml content ---"
         cat deploy_env_vars.yaml
@@ -224,30 +216,22 @@ steps:
         FRONTEND_URL=$$(gcloud run services describe multiprompt-frontend \
           --region=${_REGION} --format='value(status.url)' --project=$PROJECT_ID | tr -d '\n\r')
 
-        # Cloud Run services have two URL formats - allow both for CORS
-        PROJECT_NUMBER=$$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)' | tr -d '\n\r')
-        FRONTEND_URL_ALT="https://multiprompt-frontend-$${PROJECT_NUMBER}.${_REGION}.run.app"
-        CORS_VALUE="$${FRONTEND_URL},$${FRONTEND_URL_ALT}"
-
         echo "--- DEBUG: update-urls step ---"
-        echo "Raw FRONTEND_URL: '$${FRONTEND_URL}'"
-        echo "Raw BACKEND_URL: '$${BACKEND_URL}'"
-        echo "Raw PROJECT_NUMBER: '$${PROJECT_NUMBER}'"
-        echo "Constructed FRONTEND_URL_ALT: '$${FRONTEND_URL_ALT}'"
-        echo "Final CORS_VALUE: '$${CORS_VALUE}'"
+        echo "FRONTEND_URL: '$${FRONTEND_URL}'"
+        echo "BACKEND_URL: '$${BACKEND_URL}'"
 
-        # Quote each KEY=VALUE pair to prevent gcloud from misinterpreting special characters
+        # Update environment variables with actual deployed URLs
         gcloud run services update multiprompt-backend \
           --region=${_REGION} \
           --update-env-vars "FRONTEND_URL=$${FRONTEND_URL}"
-          
+
         gcloud run services update multiprompt-backend \
           --region=${_REGION} \
           --update-env-vars "GOOGLE_REDIRECT_URI=$${BACKEND_URL}/api/v1/auth/google/callback"
-          
-#        gcloud run services update multiprompt-backend \
-#          --region=${_REGION} \        
-#          --update-env-vars "CORS_ALLOWED_ORIGINS=$${CORS_VALUE}"
+
+        gcloud run services update multiprompt-backend \
+          --region=${_REGION} \
+          --update-env-vars "CORS_ALLOWED_ORIGINS=$${FRONTEND_URL}"
 
     waitFor: ['deploy-backend', 'deploy-frontend']
     id: 'update-urls'
