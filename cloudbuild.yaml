@@ -203,26 +203,24 @@ steps:
     args:
       - '-c'
       - |
-        # Get actual URLs after deployment
         BACKEND_URL=$$(gcloud run services describe multiprompt-backend \
-          --region=${_REGION} --format='value(status.url)' --project=$PROJECT_ID)
+          --region=${_REGION} --format='value(status.url)' --project=$PROJECT_ID | tr -d '\n\r')
         FRONTEND_URL=$$(gcloud run services describe multiprompt-frontend \
-          --region=${_REGION} --format='value(status.url)' --project=$PROJECT_ID)
+          --region=${_REGION} --format='value(status.url)' --project=$PROJECT_ID | tr -d '\n\r')
 
         # Cloud Run services have two URL formats - allow both for CORS
-        PROJECT_NUMBER=$$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+        PROJECT_NUMBER=$$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)' | tr -d '\n\r')
         FRONTEND_URL_ALT="https://multiprompt-frontend-$${PROJECT_NUMBER}.${_REGION}.run.app"
-        CORS_VALUE="$$FRONTEND_URL,$$FRONTEND_URL_ALT"
+        CORS_VALUE="$${FRONTEND_URL},$${FRONTEND_URL_ALT}"
 
         echo "Updating backend with final URLs..."
         echo "Backend: $$BACKEND_URL"
         echo "Frontend: $$FRONTEND_URL (primary)"
         echo "Frontend Alt: $$FRONTEND_URL_ALT (alternative)"
 
-        # Update URLs - use ^:^ prefix for CORS value that contains commas
         gcloud run services update multiprompt-backend \
           --region=${_REGION} \
-          --set-env-vars "FRONTEND_URL=$$FRONTEND_URL,GOOGLE_REDIRECT_URI=$$BACKEND_URL/api/v1/auth/google/callback,^:^CORS_ALLOWED_ORIGINS=$$CORS_VALUE"
+          --set-env-vars "FRONTEND_URL=$$FRONTEND_URL,GOOGLE_REDIRECT_URI=$$BACKEND_URL/api/v1/auth/google/callback,CORS_ALLOWED_ORIGINS=$$CORS_VALUE"
     waitFor: ['deploy-backend', 'deploy-frontend']
     id: 'update-urls'
 
