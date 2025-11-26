@@ -1,42 +1,44 @@
-├── .env.example - Environment variable example.
-├── .gemini-ignore - Gemini tool ignore rules.
-├── .gitignore - Git ignore rules.
-├── CLAUDE.md - Markdown documentation.
-├── GEMINI-auth-flow.md - Markdown documentation.
-├── GEMINI-code-modularity.md - Markdown documentation.
-├── GEMINI-libs-reco.md - Markdown documentation.
-├── GEMINI-recos.md - Markdown documentation.
-├── PROJECT_STATE.md - Markdown documentation.
-├── README.md - Markdown documentation.
-├── cloudbuild.yaml - Google Cloud Build configuration.
-├── docker-compose.yaml - Docker Compose configuration.
+├── .env.example - Provides an example configuration for environment variables used across the project.
+├── .gemini-ignore - Specifies files and directories to be ignored by the Gemini tool.
+├── .gitignore - Specifies intentionally untracked files that Git should ignore.
+├── CLAUDE.md - Provides development setup instructions, particularly for a 'Claude' context, including environment activation and common commands.
+├── GEMINI-auth-flow.md - This file does not exist in the repository.
+├── GEMINI-code-modularity.md - This file does not exist in the repository.
+├── GEMINI-libs-reco.md - This file does not exist in the repository.
+├── GEMINI-recos.md - This file does not exist in the repository.
+├── PROJECT_STATE.md - A detailed internal document that serves as a single source of truth for the project's current technical status, including working features, known issues, and future implementation plans.
+├── README.md - The main public-facing document for the project, outlining its purpose as an MLLM benchmarking platform, its architecture, features, and instructions for setup and development.
+├── cloudbuild.yaml - This file defines the continuous integration and deployment (CI/CD) pipeline for the application using Google Cloud Build.
+├── docker-compose.yaml - Configures the multi-container Docker application environment for local development.
 ├── findings.md - Markdown documentation.
 ├── .claude/
-│   └── settings.local.json - Local settings configuration.
+│   └── settings.local.json - Local settings configuration for Claude, storing environment-specific variables or preferences.
 ├── .github/
 │   ├── ISSUE_TEMPLATE/
-│   │   ├── bug_report.md - Markdown documentation.
-│   │   ├── epic.md - Markdown documentation.
-│   │   └── feature_request.md - Markdown documentation.
+│   │   ├── bug_report.md - A standard GitHub issue template for users to report bugs in a structured format.
+│   │   ├── epic.md - A GitHub issue template for defining and tracking large-scale features or initiatives, known as epics.
+│   │   └── feature_request.md - A GitHub issue template for users to request new features, structured around user stories and acceptance criteria.
 │   └── workflows/
 │       └── ci-cd.yaml - YAML configuration file.
 ├── backend/
-│   ├── .env.example - Environment variable example.
-│   ├── Dockerfile - Docker build instructions.
+│   ├── .env.example - Provides an example configuration for backend-specific environment variables.
+│   ├── Dockerfile - Defines the Docker image for the backend application.
 │   ├── __init__.py - Python package initialization.
 │   ├── alembic.ini - Configuration INI file.
 │   ├── environment.yml - Conda environment configuration.
-│   ├── main.py - Python main application entry point.
+│   ├── main.py - The primary entry point for the FastAPI backend application.
 │   ├── pytest.ini - Configuration INI file.
 │   ├── requirements.txt - Python dependency list.
 │   ├── alembic/
 │   │   ├── README - Project README.
-│   │   ├── env.py - Python source code.
-│   │   ├── script.py.mako - Generic file.
+│   │   ├── env.py - This is the main configuration file for Alembic, a database migration tool, which sets up the connection to the database and specifies the models for migration generation.
+│   │   ├── script.py.mako - This is a Mako template file used by Alembic to generate new migration scripts.
 │   │   └── versions/
-│   │       ├── 29312a5c2041_add_user_role_and_is_active.py - Python source code.
-│   │       ├── 356c6b671d5e_initial_migration.py - Python source code.
-│   │       └── 40f830e2ff94_add_evaluation_tables.py - Python source code.
+│   │       ├── 29312a5c2041_add_user_role_and_is_active.py - This is an auto-generated database migration script that adds user role and status columns to the user table.
+│   │       ├── 356c6b671d5e_initial_migration.py - This is the first auto-generated database migration script that sets up the initial database schema.
+│   │       ├── 40f830e2ff94_add_evaluation_tables.py - This is an auto-generated database migration script that adds tables related to evaluations to the database.
+│   │       ├── 547765d3dbe9_add_system_message_and_question_text_to_.py - This is an auto-generated database migration script that adds columns for system messages and question text to a table.
+│   │       ├── f9a2c1b8d3e5_add_concurrency_to_model_configs.py - This is an auto-generated database migration script that adds a concurrency limit to the model configurations table.
 │   ├── api/
 │   │   ├── __init__.py - Python package initialization.
 │   │   └── v1/
@@ -45,9 +47,9 @@
 │   │       ├── annotations.py - Python API endpoint.
 │   │       ├── auth.py - Python API endpoint.
 │   │       ├── datasets.py - Python API endpoint.
-│   │       ├── evaluations.py - Python API endpoint.
+│   │       ├── evaluations.py - Defines API endpoints for managing model evaluations.
 │   │       ├── images.py - Python API endpoint.
-│   │       ├── model_configs.py - Python API endpoint.
+│   │       ├── model_configs.py - Defines API endpoints for configuring and managing models.
 │   │       ├── projects.py - Python API endpoint.
 │   │       └── users.py - Python API endpoint.
 │   ├── config/
@@ -55,8 +57,8 @@
 │   ├── core/
 │   │   ├── __init__.py - Python package initialization.
 │   │   ├── config.py - Python configuration file.
-│   │   ├── database.py - Python source code.
-│   │   └── prompt_config.py - Python configuration file.
+│   │   ├── database.py - This file contains the core database connection logic, including setting up the SQLAlchemy engine and session management for the FastAPI application.
+│   │   └── prompt_config.py - This file manages the loading and configuration of prompts used in the application, possibly from a YAML file or other configuration source.
 │   ├── models/
 │   │   ├── __init__.py - Python package initialization.
 │   │   ├── evaluation.py - Python data model definition.
@@ -99,15 +101,15 @@
 │           └── a22334a4-a775-4b05-b640-607c7d262f14/
 │               └── ed1bee5d-082c-4394-aa4a-8aced1a8b0f5.jpeg - Image file.
 ├── docs/
-│   ├── GCP_SETUP.md - Markdown documentation.
-│   ├── api.md - Markdown documentation.
-│   ├── architecture.md - Markdown documentation.
-│   ├── deployment.md - Markdown documentation.
-│   ├── github-setup.md - Markdown documentation.
-│   └── issues-summary.md - Markdown documentation.
+│   ├── GCP_SETUP.md - This document details the steps required to set up a Google Cloud Platform project with the necessary services and permissions for this application.
+│   ├── api.md - This document provides detailed documentation for the project's API endpoints, including request/response formats and authentication requirements.
+│   ├── architecture.md - This document contains a detailed overview of the system's architecture, including component diagrams and data flow descriptions.
+│   ├── deployment.md - This guide provides step-by-step instructions for deploying the application to production environments like Google Cloud Run.
+│   ├── github-setup.md - This document outlines the recommended practices for setting up and using the GitHub repository for this project, including branching strategies and pull request workflows.
+│   └── issues-summary.md - This file contains a summary of planned work, formatted to be easily converted into GitHub issues to populate a project board.
 ├── frontend/
 │   ├── Dockerfile - Docker build instructions.
-│   ├── angular.json - Angular CLI configuration.
+│   ├── angular.json - This file configures the Angular frontend application, defining project structure, build options, and development server settings.
 │   ├── karma.conf.js - Karma test runner configuration.
 │   ├── nginx.conf - Nginx web server configuration.
 │   ├── package-lock.json - Node.js package lock file.
@@ -122,59 +124,59 @@
 │       ├── styles.scss - SCSS stylesheet.
 │       ├── theme.scss - SCSS stylesheet.
 │       ├── app/
-│       │   ├── app.component.html - Angular component template.
-│       │   ├── app.component.scss - SCSS stylesheet.
+│       │   ├── app.component.html - The HTML template for the root Angular application component.
+│       │   ├── app.component.scss - SCSS styles specific to the root Angular application component.
 │       │   ├── app.component.spec.ts - Angular component/service test.
-│       │   ├── app.component.ts - Angular component logic.
-│       │   ├── app.config.ts - Angular configuration file.
-│       │   ├── app.routes.ts - Angular routing module.
+│       │   ├── app.component.ts - The TypeScript logic for the root Angular application component.
+│       │   ├── app.config.ts - Provides application-wide configuration for Angular's standalone APIs.
+│       │   ├── app.routes.ts - Defines the application's routing configuration.
 │       │   ├── core/
 │       │   │   ├── guards/
-│       │   │   │   └── auth.guard.ts - Angular route guard.
+│       │   │   │   └── auth.guard.ts - An Angular route guard that protects routes based on authentication status.
 │       │   │   ├── interceptors/
-│       │   │   │   └── auth.interceptor.ts - Angular HTTP interceptor.
+│       │   │   │   └── auth.interceptor.ts - An Angular HTTP interceptor for adding authentication tokens to requests.
 │       │   │   └── services/
-│       │   │       ├── admin.service.ts - Angular service.
-│       │   │       ├── auth.service.ts - Angular service.
-│       │   │       ├── evaluations.service.ts - Angular service.
-│       │   │       └── projects.service.ts - Angular service.
+│       │   │       ├── admin.service.ts - An Angular service for interacting with backend administrative endpoints.
+│       │   │       ├── auth.service.ts - An Angular service for managing user authentication state and interactions.
+│       │   │       ├── evaluations.service.ts - An Angular service for interacting with backend evaluation-related endpoints.
+│       │   │       └── projects.service.ts - An Angular service for interacting with backend project-related endpoints.
 │       │   └── features/
 │       │       ├── admin/
 │       │       │   └── users/
-│       │       │       └── users.component.ts - Angular component logic.
+│       │       │       └── users.component.ts - The TypeScript logic for the user management component in the admin panel.
 │       │       ├── annotations/
-│       │       │   ├── annotation.component.ts - Angular component logic.
-│       │       │   └── annotations-list.component.ts - Angular component logic.
+│       │       │   ├── annotation.component.ts - The TypeScript logic for a single annotation display or editing component.
+│       │       │   └── annotations-list.component.ts - The TypeScript logic for displaying a list of annotations.
 │       │       ├── auth/
 │       │       │   ├── callback/
-│       │       │   │   └── callback.component.ts - Angular component logic.
+│       │       │   │   └── callback.component.ts - The TypeScript logic for handling authentication callbacks (e.g., from an OAuth provider).
 │       │       │   └── login/
-│       │       │       └── login.component.ts - Angular component logic.
+│       │       │       └── login.component.ts - The TypeScript logic for the user login component.
 │       │       ├── evaluations/
-│       │       │   └── evaluations.component.ts - Angular component logic.
+│       │       │   └── evaluations.component.ts - This file contains the TypeScript logic for displaying and managing evaluations.
 │       │       ├── home/
-│       │       │   ├── home.component.html - Angular component template.
-│       │       │   ├── home.component.scss - SCSS stylesheet.
-│       │       │   └── home.component.ts - Angular component logic.
+│       │       │   ├── home.component.html - This file defines the HTML structure for the home page component, laying out the user interface.
+│       │       │   ├── home.component.scss - This file contains the SCSS styles for the home page component of the frontend application.
+│       │       │   └── home.component.ts - This file contains the TypeScript logic for the home page component, handling user interactions and data display.
 │       │       ├── models/
-│       │       │   └── models.component.ts - Angular component logic.
+│       │       │   └── models.component.ts - The TypeScript logic for displaying and managing models.
 │       │       └── projects/
-│       │           ├── project-detail.component.ts - Angular component logic.
-│       │           └── projects.component.ts - Angular component logic.
+│       │           ├── project-detail.component.ts - The TypeScript logic for displaying details of a specific project.
+│       │           └── projects.component.ts - The TypeScript logic for displaying a list of projects.
 │       └── environments/
-│           ├── environment.prod.ts - Angular environment configuration.
-│           └── environment.ts - Angular environment configuration.
+│           ├── environment.prod.ts - Defines production-specific environment variables and settings for the Angular application.
+│           └── environment.ts - Defines development-specific environment variables and settings for the Angular application.
 ├── infrastructure/
-│   ├── cloudrun.tf - Terraform infrastructure as code.
-│   ├── main.tf - Terraform infrastructure as code.
-│   ├── networking.tf - Terraform infrastructure as code.
-│   ├── outputs.tf - Terraform infrastructure as code.
-│   └── variables.tf - Terraform infrastructure as code.
+│   ├── cloudrun.tf - Defines Google Cloud Run service configurations using Terraform.
+│   ├── main.tf - The main Terraform configuration file, orchestrating various cloud resources.
+│   ├── networking.tf - Defines networking resources and configurations within Google Cloud using Terraform.
+│   ├── outputs.tf - Specifies the output values from the Terraform deployment.
+│   └── variables.tf - Declares variables used in the Terraform configurations.
 └── scripts/
-    ├── deploy-gcp.sh - Shell script.
-    ├── setup.sh - Shell script.
+    ├── deploy-gcp.sh - A shell script to automate the deployment process to Google Cloud Platform.
+    ├── setup.sh - A shell script for initial project setup and dependency installation.
     ├── ci/
-    │   ├── create-issues.bat - Shell script.
-    │   └── create-issues.sh - Shell script.
+    │   ├── create-issues.bat - A Windows batch script for creating GitHub issues, typically used in CI.
+    │   └── create-issues.sh - A shell script for creating GitHub issues, typically used in CI.
     └── deploy/
-        └── build-and-push.sh - Shell script.
+        └── build-and-push.sh - A shell script to build Docker images and push them to a container registry.

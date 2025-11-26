@@ -15,6 +15,8 @@ Before running any `pip install` commands, ensure this environment is activated.
 - `infrastructure/` - Terraform/GCP configurations
 - `docs/` - Project documentation
 
+Files & folder structure is described in a project root file: folder_structure_with_descriptions.md
+
 ## Common Commands
 ### Backend Development
 ```bash

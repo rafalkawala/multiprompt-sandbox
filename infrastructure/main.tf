@@ -99,6 +99,27 @@ resource "google_sql_user" "db_user" {
   password = random_password.db_password.result
 }
 
+# --- Service Account for Backend ---
+
+resource "google_service_account" "backend_sa" {
+  account_id   = "multiprompt-backend-sa"
+  display_name = "MultiPrompt Backend Service Account"
+}
+
+# Grant Vertex AI User role for Gemini API access
+resource "google_project_iam_member" "vertex_ai_user" {
+  project = google_project.project.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.backend_sa.email}"
+}
+
+# Grant Cloud SQL Client role for database access
+resource "google_project_iam_member" "cloudsql_client" {
+  project = google_project.project.project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.backend_sa.email}"
+}
+
 # --- Cloud Storage (GCS) for image uploads ---
 
 resource "google_storage_bucket" "uploads" {
@@ -131,11 +152,11 @@ resource "google_storage_bucket" "uploads" {
   depends_on = [google_project_service.project_services]
 }
 
-# Allow Cloud Run service account to read/write to the bucket
+# Allow Backend Service Account to read/write to the bucket
 resource "google_storage_bucket_iam_member" "uploads_object_admin" {
   bucket = google_storage_bucket.uploads.name
   role   = "roles/storage.objectAdmin"
-  member = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+  member = "serviceAccount:${google_service_account.backend_sa.email}"
 }
 
 # --- Secret for allowed email domain ---
@@ -155,5 +176,5 @@ resource "google_secret_manager_secret_iam_member" "allowed_domain_accessor" {
   project   = google_secret_manager_secret.allowed_domain.project
   secret_id = google_secret_manager_secret.allowed_domain.secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+  member    = "serviceAccount:${google_service_account.backend_sa.email}"
 }

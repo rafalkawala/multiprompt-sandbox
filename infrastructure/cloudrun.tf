@@ -6,11 +6,10 @@ data "google_project" "project" {
   project_id = var.gcp_project_id
 }
 
-# Allow the default compute service account to access secrets
-# Cloud Run services use this by default
+# Allow the backend service account to access secrets
 resource "google_secret_manager_secret_iam_member" "backend_secret_accessor" {
   project   = google_secret_manager_secret.db_password_secret.project
   secret_id = google_secret_manager_secret.db_password_secret.secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+  member    = "serviceAccount:${google_service_account.backend_sa.email}"
 }

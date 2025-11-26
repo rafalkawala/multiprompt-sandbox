@@ -148,6 +148,7 @@ steps:
           --region=${_REGION} \
           --platform=managed \
           --allow-unauthenticated \
+          --service-account=multiprompt-backend-sa@$PROJECT_ID.iam.gserviceaccount.com \
           --vpc-connector=${_VPC_CONNECTOR} \
           --vpc-egress=private-ranges-only \
           --set-env-vars="ENVIRONMENT=production,DB_HOST=$$DB_HOST,DB_PORT=5432,DB_USER=${_DB_USER},DB_NAME=${_DB_NAME},GCP_PROJECT_ID=$PROJECT_ID,FRONTEND_URL=$$FRONTEND_URL,GOOGLE_REDIRECT_URI=$$BACKEND_URL/api/v1/auth/google/callback,CORS_ALLOWED_ORIGINS=$$FRONTEND_URL,GCS_BUCKET_NAME=${_GCS_BUCKET}" \

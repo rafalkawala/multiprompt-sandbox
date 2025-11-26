@@ -17,3 +17,8 @@ output "uploads_bucket_url" {
   description = "The URL of the GCS bucket for uploads."
   value       = google_storage_bucket.uploads.url
 }
+
+output "backend_service_account_email" {
+  description = "The email of the service account for the backend Cloud Run service."
+  value       = google_service_account.backend_sa.email
+}
