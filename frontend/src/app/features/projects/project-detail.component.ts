@@ -13,7 +13,9 @@ import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { ProjectsService, Project, DatasetDetail, ImageItem } from '../../core/services/projects.service';
+import { EvaluationsService } from '../../core/services/evaluations.service';
 
 @Component({
   selector: 'app-project-detail',
@@ -32,7 +34,8 @@ import { ProjectsService, Project, DatasetDetail, ImageItem } from '../../core/s
     MatInputModule,
     MatFormFieldModule,
     MatExpansionModule,
-    MatProgressBarModule
+    MatProgressBarModule,
+    MatDialogModule
   ],
   template: `
     <div class="project-detail-container">
@@ -150,6 +153,18 @@ import { ProjectsService, Project, DatasetDetail, ImageItem } from '../../core/s
                 <button mat-button (click)="loadImages(dataset.id)" [disabled]="loadingImages[dataset.id]">
                   <mat-icon>refresh</mat-icon>
                   Refresh
+                </button>
+                <button mat-button (click)="exportAnnotations(dataset.id)">
+                  <mat-icon>download</mat-icon>
+                  Export CSV
+                </button>
+                <button mat-button (click)="downloadTemplate(dataset.id)">
+                  <mat-icon>description</mat-icon>
+                  Template
+                </button>
+                <button mat-button (click)="importAnnotations(dataset.id)">
+                  <mat-icon>publish</mat-icon>
+                  Import CSV
                 </button>
                 <button mat-button color="warn" (click)="deleteDataset(dataset)">
                   <mat-icon>delete</mat-icon>
@@ -334,6 +349,8 @@ export class ProjectDetailComponent implements OnInit {
     private route: ActivatedRoute,
     private router: Router,
     private projectsService: ProjectsService,
+    private evaluationsService: EvaluationsService,
+    private dialog: MatDialog,
     private snackBar: MatSnackBar
   ) {}
 
@@ -546,5 +563,62 @@ export class ProjectDetailComponent implements OnInit {
       'count': 'Count'
     };
     return types[type] || type;
+  }
+
+  // Import/Export handlers
+  exportAnnotations(datasetId: string) {
+    this.evaluationsService.exportAnnotations(this.projectId, datasetId);
+    this.snackBar.open('Downloading annotations...', 'Close', { duration: 2000 });
+  }
+
+  downloadTemplate(datasetId: string) {
+    this.evaluationsService.downloadTemplate(this.projectId, datasetId);
+    this.snackBar.open('Downloading template...', 'Close', { duration: 2000 });
+  }
+
+  importAnnotations(datasetId: string) {
+    // Create a file input element
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.csv';
+
+    fileInput.onchange = async (event: any) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      try {
+        // Preview import
+        const preview = await this.evaluationsService.previewImport(this.projectId, datasetId, file).toPromise();
+
+        if (!preview) return;
+
+        // Show preview results
+        const message = preview.errors > 0
+          ? `Found ${preview.errors} errors. Cannot import.`
+          : `Ready to import: ${preview.valid} valid annotations (${preview.create} new, ${preview.update} updates, ${preview.skip} skipped)`;
+
+        const action = preview.errors > 0 ? 'OK' : 'Import';
+
+        const snackBarRef = this.snackBar.open(message, action, {
+          duration: preview.errors > 0 ? 5000 : 0
+        });
+
+        if (preview.errors === 0) {
+          snackBarRef.onAction().subscribe(async () => {
+            try {
+              const result = await this.evaluationsService.confirmImport(this.projectId, datasetId, file).toPromise();
+              this.snackBar.open(`Import complete! ${result?.total || 0} annotations imported.`, 'Close', { duration: 3000 });
+              this.loadProject(); // Refresh project data
+            } catch (error: any) {
+              this.snackBar.open(`Import failed: ${error.error?.detail || error.message}`, 'Close', { duration: 5000 });
+            }
+          });
+        }
+      } catch (error: any) {
+        this.snackBar.open(`Validation failed: ${error.error?.detail || error.message}`, 'Close', { duration: 5000 });
+      }
+    };
+
+    fileInput.click();
   }
 }

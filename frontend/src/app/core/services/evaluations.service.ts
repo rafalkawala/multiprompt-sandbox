@@ -184,4 +184,43 @@ export class EvaluationsService {
   deleteAnnotation(projectId: string, datasetId: string, imageId: string) {
     return this.http.delete(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/images/${imageId}/annotation`);
   }
+
+  // Import/Export methods
+  exportAnnotations(projectId: string, datasetId: string): void {
+    // Trigger download by navigating to export endpoint
+    const url = `${this.API_URL}/projects/${projectId}/datasets/${datasetId}/annotations/export`;
+    window.open(url, '_blank');
+  }
+
+  downloadTemplate(projectId: string, datasetId: string): void {
+    // Trigger download of sample template
+    const url = `${this.API_URL}/projects/${projectId}/datasets/${datasetId}/annotations/template`;
+    window.open(url, '_blank');
+  }
+
+  previewImport(projectId: string, datasetId: string, file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<{
+      total_rows: number,
+      valid: number,
+      errors: number,
+      warnings: number,
+      create: number,
+      update: number,
+      skip: number,
+      results: any[]
+    }>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/annotations/import/preview`, formData);
+  }
+
+  confirmImport(projectId: string, datasetId: string, file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<{
+      created: number,
+      updated: number,
+      skipped: number,
+      total: number
+    }>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/annotations/import/confirm`, formData);
+  }
 }
