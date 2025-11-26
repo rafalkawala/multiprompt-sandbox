@@ -429,8 +429,8 @@ export class AnnotationComponent implements OnInit {
     const img = this.currentImage();
     if (!img) return;
 
-    // Use thumbnail URL (no expiry, stored in database)
-    this.imageUrl.set(this.projectsService.getImageThumbnailUrl(this.projectId, this.datasetId, img.id));
+    // Use full image for annotation (via proxy, no expiry with JWT auth)
+    this.imageUrl.set(this.projectsService.getImageUrl(this.projectId, this.datasetId, img.id));
 
     // Load annotation
     this.evaluationsService.getAnnotation(this.projectId, this.datasetId, img.id).subscribe({
