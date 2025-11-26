@@ -172,19 +172,27 @@ steps:
         cat deploy_env_vars.yaml
         echo "--- END DEBUG ---"
 
-        # Create a temporary YAML file for initial deployment secrets
-        echo 'DB_PASSWORD: "mllm_sandbox_user-password:latest"' > deploy_secrets.yaml
-        echo 'SECRET_KEY: "multiprompt-secret-key:latest"' >> deploy_secrets.yaml
-        echo 'GOOGLE_CLIENT_ID: "google-client-id:latest"' >> deploy_secrets.yaml
-        echo 'GOOGLE_CLIENT_SECRET: "google-client-secret:latest"' >> deploy_secrets.yaml
-        echo 'GEMINI_API_KEY: "multiprompt-gemini-api-key:latest"' >> deploy_secrets.yaml
-        echo 'ADMIN_EMAILS: "multiprompt-admin-emails:latest"' >> deploy_secrets.yaml
-        echo 'ALLOWED_EMAIL_DOMAINS: "multiprompt-allowed-domain:latest"' >> deploy_secrets.yaml
-        echo "--- DEBUG: deploy_secrets.yaml content ---"
-        cat deploy_secrets.yaml
-        echo "--- END DEBUG ---"
-
-        gcloud run deploy multiprompt-backend --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA --region=${_REGION} --platform=managed --allow-unauthenticated --service-account=multiprompt-backend-sa@$PROJECT_ID.iam.gserviceaccount.com --vpc-connector=${_VPC_CONNECTOR} --vpc-egress=private-ranges-only --env-vars-file=deploy_env_vars.yaml --set-secrets-file=deploy_secrets.yaml --memory=2Gi --cpu=2 --timeout=600 --min-instances=0 --max-instances=10
+        gcloud run deploy multiprompt-backend \
+          --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA \
+          --region=${_REGION} \
+          --platform=managed \
+          --allow-unauthenticated \
+          --service-account=multiprompt-backend-sa@$PROJECT_ID.iam.gserviceaccount.com \
+          --vpc-connector=${_VPC_CONNECTOR} \
+          --vpc-egress=private-ranges-only \
+          --env-vars-file=deploy_env_vars.yaml \
+          --set-secrets=DB_PASSWORD=mllm_sandbox_user-password:latest \
+          --set-secrets=SECRET_KEY=multiprompt-secret-key:latest \
+          --set-secrets=GOOGLE_CLIENT_ID=google-client-id:latest \
+          --set-secrets=GOOGLE_CLIENT_SECRET=google-client-secret:latest \
+          --set-secrets=GEMINI_API_KEY=multiprompt-gemini-api-key:latest \
+          --set-secrets=ADMIN_EMAILS=multiprompt-admin-emails:latest \
+          --set-secrets=ALLOWED_EMAIL_DOMAINS=multiprompt-allowed-domain:latest \
+          --memory=2Gi \
+          --cpu=2 \
+          --timeout=600 \
+          --min-instances=0 \
+          --max-instances=10
     waitFor: ['push-backend', 'get-db-host', 'get-urls']
     id: 'deploy-backend'
 
