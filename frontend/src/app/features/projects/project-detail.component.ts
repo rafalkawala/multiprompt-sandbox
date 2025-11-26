@@ -97,7 +97,7 @@ import { EvaluationsService } from '../../core/services/evaluations.service';
           @for (dataset of datasets(); track dataset.id) {
             <mat-card class="dataset-card">
               <mat-card-header>
-                <mat-card-title>{{ dataset.name }}</mat-card-title>
+                <mat-card-title>Dataset: {{ dataset.name }}</mat-card-title>
                 <mat-card-subtitle>{{ dataset.image_count }} images</mat-card-subtitle>
               </mat-card-header>
               <mat-card-content>

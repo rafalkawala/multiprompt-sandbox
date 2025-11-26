@@ -24,6 +24,8 @@ class AnnotationImportService:
         self.project = project
         self.dataset = dataset
         self.db = db_session
+        # Track filename usage for handling duplicates
+        self._filename_usage_count = {}
 
     def normalize_binary(self, value: Any) -> Optional[bool]:
         """
@@ -113,6 +115,7 @@ class AnnotationImportService:
         Find image by ID or filename.
 
         Tries image_id first (safer), then falls back to filename match.
+        For duplicate filenames, matches in sorted order (by filename, then ID).
         """
         # Try by image_id
         image_id = row.get('image_id')
@@ -127,11 +130,28 @@ class AnnotationImportService:
         # Fall back to filename
         filename = row.get('image_filename')
         if filename and not pd.isna(filename):
-            image = self.db.query(Image).filter(
-                Image.filename == str(filename).strip(),
+            filename = str(filename).strip()
+
+            # Find all images with this filename, sorted by filename then ID
+            images = self.db.query(Image).filter(
+                Image.filename == filename,
                 Image.dataset_id == self.dataset.id
-            ).first()
-            return image
+            ).order_by(Image.filename, Image.id).all()
+
+            if not images:
+                return None
+
+            # Track how many times we've used this filename
+            usage_count = self._filename_usage_count.get(filename, 0)
+
+            # Return the next image in sorted order
+            if usage_count < len(images):
+                self._filename_usage_count[filename] = usage_count + 1
+                return images[usage_count]
+            else:
+                # All images with this filename have been used
+                # Return None to indicate no match (will show error)
+                return None
 
         return None
 
@@ -206,6 +226,9 @@ class AnnotationImportService:
         Returns:
             Dictionary with validation summary and detailed results
         """
+        # Reset filename usage tracking for this validation run
+        self._filename_usage_count = {}
+
         try:
             # Read CSV with pandas
             df = pd.read_csv(BytesIO(file_bytes))
