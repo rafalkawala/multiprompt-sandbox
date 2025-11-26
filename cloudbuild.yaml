@@ -241,9 +241,9 @@ steps:
           --region=${_REGION} \
           --update-env-vars "FRONTEND_URL=$${FRONTEND_URL}"
           
-#        gcloud run services update multiprompt-backend \
-#          --region=${_REGION} \
-#          --update-env-vars "GOOGLE_REDIRECT_URI=$${BACKEND_URL}/api/v1/auth/google/callback"
+        gcloud run services update multiprompt-backend \
+          --region=${_REGION} \
+          --update-env-vars "GOOGLE_REDIRECT_URI=$${BACKEND_URL}/api/v1/auth/google/callback"
           
 #        gcloud run services update multiprompt-backend \
 #          --region=${_REGION} \        
