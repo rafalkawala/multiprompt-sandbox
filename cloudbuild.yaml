@@ -18,6 +18,7 @@ steps:
         export PATH="/builder/home/.local/bin:$$PATH"
         cd backend
         uv pip install --system -r requirements.txt
+        uv pip install --system -r requirements-dev.txt
         python -m pytest tests/ -v --tb=short
     id: 'test-backend'
     env:

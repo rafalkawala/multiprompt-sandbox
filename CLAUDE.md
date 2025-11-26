@@ -60,3 +60,5 @@ The Terraform configuration includes:
 - All required APIs
 
 Important: for any database migration ALWAYS use Alembic
+
+Your terminal is running on Windows
