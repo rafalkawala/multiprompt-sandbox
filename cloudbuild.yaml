@@ -220,7 +220,9 @@ steps:
 
         gcloud run services update multiprompt-backend \
           --region=${_REGION} \
-          --set-env-vars "FRONTEND_URL=$$FRONTEND_URL,GOOGLE_REDIRECT_URI=$$BACKEND_URL/api/v1/auth/google/callback,CORS_ALLOWED_ORIGINS=$$CORS_VALUE"
+          --update-env-vars=FRONTEND_URL="$$FRONTEND_URL" \
+          --update-env-vars=GOOGLE_REDIRECT_URI="$$BACKEND_URL/api/v1/auth/google/callback" \
+          --update-env-vars=CORS_ALLOWED_ORIGINS="$$CORS_VALUE"
     waitFor: ['deploy-backend', 'deploy-frontend']
     id: 'update-urls'
 
