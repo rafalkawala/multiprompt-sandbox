@@ -31,6 +31,24 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Allowed image extensions (with leading dot)
+ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.JPG', '.JPEG', '.PNG', '.GIF', '.WEBP'}
+
+def is_valid_image_file(filename: str, content_type: str) -> bool:
+    """
+    Validate if file is a valid image by checking both MIME type and extension.
+
+    Falls back to extension check if MIME type is generic (application/octet-stream).
+    This handles cases where browser doesn't provide correct MIME type.
+    """
+    # Check MIME type if it's specific (not generic)
+    if content_type and content_type in settings.ALLOWED_IMAGE_TYPES:
+        return True
+
+    # Fallback: check file extension
+    _, ext = os.path.splitext(filename)
+    return ext in ALLOWED_IMAGE_EXTENSIONS
+
 
 def require_write_access(current_user: User = Depends(get_current_user)) -> User:
     """Require user to have write access (not a viewer)"""
@@ -244,8 +262,8 @@ async def upload_images(
     try:
         for file in files:
             try:
-                # Validate file type
-                if file.content_type not in settings.ALLOWED_IMAGE_TYPES:
+                # Validate file type (checks both MIME type and extension)
+                if not is_valid_image_file(file.filename, file.content_type):
                     errors.append(f"{file.filename}: Invalid file type")
                     logger.warning(f"Skipping {file.filename}: invalid type {file.content_type}")
                     await file.close()

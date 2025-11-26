@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from typing import Optional
 import logging
 import base64
+import os
 
 from core.config import settings
 from api.v1.auth import get_current_user
@@ -15,6 +16,24 @@ from services.llm_service import get_llm_service
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Allowed image extensions (with leading dot)
+ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.JPG', '.JPEG', '.PNG', '.GIF', '.WEBP'}
+
+def is_valid_image_file(filename: str, content_type: str) -> bool:
+    """
+    Validate if file is a valid image by checking both MIME type and extension.
+
+    Falls back to extension check if MIME type is generic (application/octet-stream).
+    This handles cases where browser doesn't provide correct MIME type.
+    """
+    # Check MIME type if it's specific (not generic)
+    if content_type and content_type in settings.ALLOWED_IMAGE_TYPES:
+        return True
+
+    # Fallback: check file extension
+    _, ext = os.path.splitext(filename)
+    return ext in ALLOWED_IMAGE_EXTENSIONS
 
 
 class ImageAnalysisResponse(BaseModel):
@@ -61,8 +80,8 @@ async def analyze_image(
         Image analysis result with description and labels
     """
     try:
-        # Validate file type
-        if file.content_type not in settings.ALLOWED_IMAGE_TYPES:
+        # Validate file type (checks both MIME type and extension)
+        if not is_valid_image_file(file.filename, file.content_type):
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid file type. Allowed types: {settings.ALLOWED_IMAGE_TYPES}"
