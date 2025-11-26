@@ -238,16 +238,16 @@ steps:
 
         # Quote each KEY=VALUE pair to prevent gcloud from misinterpreting special characters
         gcloud run services update multiprompt-backend \
-          --region=${_REGION}
-          
-        gcloud run services update multiprompt-backend \
+          --region=${_REGION} \
           --update-env-vars "FRONTEND_URL=$${FRONTEND_URL}"
           
-        gcloud run services update multiprompt-backend \
-          --update-env-vars "GOOGLE_REDIRECT_URI=$${BACKEND_URL}/api/v1/auth/google/callback"
+#        gcloud run services update multiprompt-backend \
+#          --region=${_REGION} \
+#          --update-env-vars "GOOGLE_REDIRECT_URI=$${BACKEND_URL}/api/v1/auth/google/callback"
           
-        gcloud run services update multiprompt-backend \
-          --update-env-vars "CORS_ALLOWED_ORIGINS=$${CORS_VALUE}"
+#        gcloud run services update multiprompt-backend \
+#          --region=${_REGION} \        
+#          --update-env-vars "CORS_ALLOWED_ORIGINS=$${CORS_VALUE}"
 
     waitFor: ['deploy-backend', 'deploy-frontend']
     id: 'update-urls'
