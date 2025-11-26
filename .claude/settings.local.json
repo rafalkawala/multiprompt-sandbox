@@ -43,7 +43,10 @@
       "Bash(gsutil iam:*)",
       "Bash(chmod:*)",
       "Bash(python -m py_compile:*)",
-      "Bash(timeout 10 docker logs:*)"
+      "Bash(timeout 10 docker logs:*)",
+      "Bash(bash:*)",
+      "Bash(docker build:*)",
+      "Bash(docker ps:*)"
     ],
     "deny": [],
     "ask": []
