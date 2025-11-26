@@ -15,18 +15,18 @@ import time
 import asyncio
 import threading
 
-from backend.core.database import SessionLocal
-from backend.core.prompt_config import get_system_prompt
-from backend.models.evaluation import ModelConfig, Evaluation, EvaluationResult
-from backend.models.project import Project, Dataset
-from backend.models.image import Image, Annotation
-from backend.models.user import User
-from backend.api.v1.auth import get_current_user
+from core.database import SessionLocal
+from core.prompt_config import get_system_prompt
+from models.evaluation import ModelConfig, Evaluation, EvaluationResult
+from models.project import Project, Dataset
+from models.image import Image, Annotation
+from models.user import User
+from api.v1.auth import get_current_user
 
 # Import Storage Service
-from backend.services.storage_service import get_storage_provider
+from services.storage_service import get_storage_provider
 # Import LLM Service
-from backend.services.llm_service import get_llm_service
+from services.llm_service import get_llm_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

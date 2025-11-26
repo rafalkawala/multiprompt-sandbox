@@ -4,8 +4,8 @@ from google.cloud import storage
 from datetime import timedelta
 import logging
 
-from backend.core.interfaces.storage import IStorageProvider
-from backend.core.config import settings
+from core.interfaces.storage import IStorageProvider
+from core.config import settings
 
 logger = logging.getLogger(__name__)
 

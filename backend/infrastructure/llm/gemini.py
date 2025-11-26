@@ -2,8 +2,8 @@ import time
 import os
 import httpx
 from typing import Tuple, Optional
-from backend.core.interfaces.llm import ILLMProvider
-from backend.core.http_client import HttpClient
+from core.interfaces.llm import ILLMProvider
+from core.http_client import HttpClient
 
 class GeminiProvider(ILLMProvider):
     async def generate_content(

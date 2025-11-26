@@ -54,13 +54,13 @@ export class HomeComponent implements OnInit {
         const projects = data.projects;
         const evaluations = data.evaluations;
 
-        // Count total datasets - for now just show project count (datasets not in list)
-        const totalDatasets = 0; // TODO: fetch dataset count
+        // Count total datasets
+        const totalDatasets = projects.reduce((sum, p) => sum + (p.dataset_count || 0), 0);
 
         // Calculate average accuracy from completed evaluations
         const completedEvals = evaluations.filter(e => e.status === 'completed' && e.accuracy != null);
         const avgAccuracy = completedEvals.length > 0
-          ? completedEvals.reduce((sum, e) => sum + (e.accuracy || 0), 0) / completedEvals.length
+          ? (completedEvals.reduce((sum, e) => sum + (e.accuracy || 0), 0) / completedEvals.length) * 100
           : 0;
 
         this.stats = [
@@ -88,36 +88,50 @@ export class HomeComponent implements OnInit {
       icon: 'label',
       title: 'Ground Truth Labeling',
       description: 'Fast human labeling interface with keyboard shortcuts. Support for multiple question types and annotation export.',
-      route: '/labeling',
+      route: '/annotations',
       color: '#34a853'
     },
     {
       icon: 'edit_note',
       title: 'Prompt Engineering',
       description: 'Design complex prompt chains with variables. Version control and test on sample images before benchmarking.',
-      route: '/prompts',
+      route: '/evaluations',
       color: '#fbbc04'
     },
     {
       icon: 'science',
       title: 'Multi-Model Benchmarking',
       description: 'Run experiments across Gemini Pro, Flash, and Claude. Batch processing with real-time progress tracking.',
-      route: '/experiments',
+      route: '/evaluations',
       color: '#ea4335'
     },
     {
       icon: 'analytics',
       title: 'Accuracy & Scoring',
       description: 'Automated accuracy calculation vs ground truth. Confusion matrices, precision, recall, and F1 scores.',
-      route: '/results',
+      route: '/evaluations',
       color: '#9334e6'
     },
     {
       icon: 'history',
       title: 'Experiment Repository',
       description: 'Persistent storage of all experiments. Compare results side-by-side and export reports in multiple formats.',
-      route: '/results',
+      route: '/evaluations',
       color: '#01ac8d'
+    },
+    {
+        icon: 'visibility',
+        title: 'Scheduled Watch-agents',
+        description: 'Agents that watch for new files to arrive, automatically label them, and send summary actions.',
+        route: '/agents',
+        color: '#ff6d00'
+    },
+    {
+        icon: 'cloud_done',
+        title: 'API Deployment',
+        description: 'Deploy your optimized prompts as an API to label images directly with known accuracy.',
+        route: '/deploy',
+        color: '#46bdc6'
     }
   ];
 

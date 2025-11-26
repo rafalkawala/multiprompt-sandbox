@@ -2,8 +2,8 @@ import os
 import shutil
 from typing import Union, BinaryIO, Tuple
 from fastapi import UploadFile, HTTPException
-from backend.core.interfaces.storage import IStorageProvider
-from backend.core.config import settings
+from core.interfaces.storage import IStorageProvider
+from core.config import settings
 
 class LocalStorageProvider(IStorageProvider):
     def __init__(self):

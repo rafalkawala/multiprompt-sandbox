@@ -1,8 +1,8 @@
 from functools import lru_cache
 from typing import Optional, Tuple
-from backend.infrastructure.llm.gemini import GeminiProvider
-from backend.infrastructure.llm.openai import OpenAIProvider
-from backend.infrastructure.llm.anthropic import AnthropicProvider
+from infrastructure.llm.gemini import GeminiProvider
+from infrastructure.llm.openai import OpenAIProvider
+from infrastructure.llm.anthropic import AnthropicProvider
 
 class LLMService:
     def __init__(self):

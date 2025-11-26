@@ -10,11 +10,11 @@ import httpx
 import logging
 import time
 
-from backend.core.database import SessionLocal
-from backend.models.evaluation import ModelConfig
-from backend.models.user import User
-from backend.api.v1.auth import get_current_user
-from backend.services.llm_service import get_llm_service
+from core.database import SessionLocal
+from models.evaluation import ModelConfig
+from models.user import User
+from api.v1.auth import get_current_user
+from services.llm_service import get_llm_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

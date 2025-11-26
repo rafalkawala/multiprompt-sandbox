@@ -12,16 +12,16 @@ import os
 import uuid
 import shutil
 
-from backend.core.database import SessionLocal
-from backend.core.config import settings
-from backend.models.project import Project, Dataset
-from backend.models.image import Image
-from backend.models.user import User
-from backend.api.v1.auth import get_current_user
+from core.database import SessionLocal
+from core.config import settings
+from models.project import Project, Dataset
+from models.image import Image
+from models.user import User
+from api.v1.auth import get_current_user
 
 # Import Storage Service
-from backend.services.storage_service import get_storage_provider
-from backend.core.interfaces.storage import IStorageProvider
+from services.storage_service import get_storage_provider
+from core.interfaces.storage import IStorageProvider
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ router = APIRouter()
 
 def require_write_access(current_user: User = Depends(get_current_user)) -> User:
     """Require user to have write access (not a viewer)"""
-    from backend.models.user import UserRole
+    from models.user import UserRole
     if current_user.role == UserRole.VIEWER.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

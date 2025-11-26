@@ -7,10 +7,10 @@ from typing import Optional
 import logging
 import base64
 
-from backend.core.config import settings
-from backend.api.v1.auth import get_current_user
-from backend.models.user import User
-from backend.services.llm_service import get_llm_service
+from core.config import settings
+from api.v1.auth import get_current_user
+from models.user import User
+from services.llm_service import get_llm_service
 
 logger = logging.getLogger(__name__)
 
