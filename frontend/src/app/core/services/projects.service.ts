@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpEvent, HttpEventType } from '@angular/common/http';
+import { HttpClient, HttpEvent, HttpEventType, HttpParams } from '@angular/common/http';
 import { Observable, from } from 'rxjs';
 import { mergeMap, map, catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
@@ -56,6 +56,7 @@ export interface ImageItem {
   filename: string;
   file_size: number;
   uploaded_at: string;
+  thumbnail_url?: string;
 }
 
 export interface DatasetDetail {
@@ -109,8 +110,13 @@ export class ProjectsService {
   }
 
   // Image methods
-  getImages(projectId: string, datasetId: string) {
-    return this.http.get<ImageItem[]>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/images`);
+  getImages(projectId: string, datasetId: string, skip: number = 0, limit: number = 50) {
+    const params = new HttpParams()
+      .set('skip', skip.toString())
+      .set('limit', limit.toString())
+      .set('include_thumbnails', 'true');
+
+    return this.http.get<ImageItem[]>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/images`, { params });
   }
 
   uploadImages(projectId: string, datasetId: string, files: File[]) {

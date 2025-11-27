@@ -1,7 +1,7 @@
 """
 Dataset and image management endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -12,6 +12,7 @@ import logging
 import os
 import uuid
 import shutil
+import base64
 
 from core.database import SessionLocal
 from core.config import settings
@@ -80,6 +81,7 @@ class ImageResponse(BaseModel):
     filename: str
     file_size: int
     uploaded_at: str
+    thumbnail_url: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -400,10 +402,13 @@ async def upload_images(
 async def list_images(
     project_id: str,
     dataset_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    include_thumbnails: bool = False,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """List all images in a dataset"""
+    """List images in a dataset with pagination and optional thumbnails"""
 
     dataset = db.query(Dataset).filter(
         Dataset.id == dataset_id,
@@ -428,15 +433,31 @@ async def list_images(
             detail="Project not found"
         )
 
-    return [
-        ImageResponse(
+    # Query images with pagination
+    query = db.query(Image).filter(Image.dataset_id == dataset_id)
+    
+    # Order by newest first
+    images = query.order_by(Image.uploaded_at.desc()).offset(skip).limit(limit).all()
+
+    results = []
+    for img in images:
+        thumbnail_url = None
+        if include_thumbnails and img.thumbnail_data:
+            try:
+                b64_data = base64.b64encode(img.thumbnail_data).decode('utf-8')
+                thumbnail_url = f"data:image/jpeg;base64,{b64_data}"
+            except Exception as e:
+                logger.error(f"Failed to encode thumbnail for image {img.id}: {e}")
+
+        results.append(ImageResponse(
             id=str(img.id),
             filename=img.filename,
             file_size=img.file_size,
-            uploaded_at=img.uploaded_at.isoformat()
-        )
-        for img in dataset.images
-    ]
+            uploaded_at=img.uploaded_at.isoformat(),
+            thumbnail_url=thumbnail_url
+        ))
+
+    return results
 
 
 @router.get("/{project_id}/datasets/{dataset_id}/images/{image_id}/url")

@@ -128,7 +128,7 @@ import { EvaluationsService } from '../../core/services/evaluations.service';
                   <div class="image-grid">
                     @for (image of datasetImages[dataset.id]; track image.id) {
                       <div class="image-item">
-                        <img [src]="getImageUrl(dataset.id, image.id)" [alt]="image.filename">
+                        <img [src]="getImageUrl(dataset.id, image)" [alt]="image.filename">
                         <div class="image-overlay">
                           <span class="image-name">{{ image.filename }}</span>
                           <button mat-icon-button color="warn" (click)="deleteImage(dataset.id, image.id)"
@@ -139,6 +139,22 @@ import { EvaluationsService } from '../../core/services/evaluations.service';
                       </div>
                     }
                   </div>
+                  
+                  <!-- Load More Button -->
+                  @if (hasMoreImages[dataset.id]) {
+                    <div class="load-more-container">
+                      <button mat-stroked-button color="primary" 
+                              (click)="loadMoreImages(dataset.id)" 
+                              [disabled]="loadingImages[dataset.id]">
+                        @if (loadingImages[dataset.id]) {
+                          <mat-icon><mat-spinner diameter="18"></mat-spinner></mat-icon>
+                        } @else {
+                          <mat-icon>expand_more</mat-icon>
+                        }
+                        Load More Images
+                      </button>
+                    </div>
+                  }
                 }
               </mat-card-content>
               <mat-card-actions>
@@ -150,7 +166,7 @@ import { EvaluationsService } from '../../core/services/evaluations.service';
                   <mat-icon>analytics</mat-icon>
                   Evaluate
                 </button>
-                <button mat-button (click)="loadImages(dataset.id)" [disabled]="loadingImages[dataset.id]">
+                <button mat-button (click)="refreshDataset(dataset.id)" [disabled]="loadingImages[dataset.id]">
                   <mat-icon>refresh</mat-icon>
                   Refresh
                 </button>
@@ -177,7 +193,8 @@ import { EvaluationsService } from '../../core/services/evaluations.service';
       }
     </div>
   `,
-  styles: [`
+  styles: [
+    `
     .project-detail-container {
       padding: 24px;
       max-width: 1200px;
@@ -293,6 +310,7 @@ import { EvaluationsService } from '../../core/services/evaluations.service';
       aspect-ratio: 1;
       border-radius: 8px;
       overflow: hidden;
+      background-color: #f5f5f5;
 
       img {
         width: 100%;
@@ -331,6 +349,17 @@ import { EvaluationsService } from '../../core/services/evaluations.service';
         opacity: 1;
       }
     }
+
+    .load-more-container {
+      display: flex;
+      justify-content: center;
+      margin-top: 24px;
+      margin-bottom: 8px;
+      
+      button {
+        min-width: 200px;
+      }
+    }
   `]
 })
 export class ProjectDetailComponent implements OnInit {
@@ -342,6 +371,11 @@ export class ProjectDetailComponent implements OnInit {
   uploadingDatasetId: string | null = null;
   datasetImages: Record<string, ImageItem[]> = {};
   loadingImages: Record<string, boolean> = {};
+  
+  // Pagination state
+  datasetOffsets: Record<string, number> = {};
+  hasMoreImages: Record<string, boolean> = {};
+  readonly PAGE_SIZE = 50;
 
   projectId = '';
 
@@ -384,7 +418,7 @@ export class ProjectDetailComponent implements OnInit {
         this.datasets.set(datasets);
         this.loading.set(false);
         // Load images for each dataset
-        datasets.forEach(d => this.loadImages(d.id));
+        datasets.forEach(d => this.loadImages(d.id, true));
       },
       error: (err) => {
         console.error('Failed to load datasets:', err);
@@ -393,17 +427,46 @@ export class ProjectDetailComponent implements OnInit {
     });
   }
 
-  loadImages(datasetId: string) {
+  loadImages(datasetId: string, reset: boolean = false) {
+    if (this.loadingImages[datasetId]) return;
+
     this.loadingImages[datasetId] = true;
-    this.projectsService.getImages(this.projectId, datasetId).subscribe({
+    
+    if (reset) {
+      this.datasetOffsets[datasetId] = 0;
+      this.datasetImages[datasetId] = [];
+      this.hasMoreImages[datasetId] = false;
+    }
+
+    const skip = this.datasetOffsets[datasetId] || 0;
+
+    this.projectsService.getImages(this.projectId, datasetId, skip, this.PAGE_SIZE).subscribe({
       next: (images) => {
-        this.datasetImages[datasetId] = images;
+        if (reset) {
+          this.datasetImages[datasetId] = images;
+        } else {
+          this.datasetImages[datasetId] = [...(this.datasetImages[datasetId] || []), ...images];
+        }
+        
+        // Update offset and check if we have more
+        this.datasetOffsets[datasetId] = skip + images.length;
+        this.hasMoreImages[datasetId] = images.length === this.PAGE_SIZE;
+        
         this.loadingImages[datasetId] = false;
       },
-      error: () => {
+      error: (err) => {
+        console.error(`Failed to load images for dataset ${datasetId}:`, err);
         this.loadingImages[datasetId] = false;
       }
     });
+  }
+
+  loadMoreImages(datasetId: string) {
+    this.loadImages(datasetId, false);
+  }
+
+  refreshDataset(datasetId: string) {
+    this.loadImages(datasetId, true);
   }
 
   createDataset() {
@@ -413,6 +476,8 @@ export class ProjectDetailComponent implements OnInit {
       next: (dataset) => {
         this.datasets.set([...this.datasets(), dataset]);
         this.datasetImages[dataset.id] = [];
+        this.datasetOffsets[dataset.id] = 0;
+        this.hasMoreImages[dataset.id] = false;
         this.newDatasetName = '';
         this.snackBar.open(`Dataset "${dataset.name}" created`, 'Close', { duration: 3000 });
       },
@@ -432,6 +497,8 @@ export class ProjectDetailComponent implements OnInit {
       next: () => {
         this.datasets.set(this.datasets().filter(d => d.id !== dataset.id));
         delete this.datasetImages[dataset.id];
+        delete this.datasetOffsets[dataset.id];
+        delete this.hasMoreImages[dataset.id];
         this.snackBar.open(`Dataset "${dataset.name}" deleted`, 'Close', { duration: 3000 });
       },
       error: (err) => {
@@ -505,15 +572,15 @@ export class ProjectDetailComponent implements OnInit {
           allErrors.push(`${status.filename}: ${status.error}`);
           errorCount++;
         }
-        // Progress updates are logged but not shown in UI (could add progress bars here)
       },
       complete: () => {
         // All uploads processed
         this.uploadingDatasetId = null;
 
         if (uploadedImages.length > 0) {
-          this.datasetImages[datasetId] = [...(this.datasetImages[datasetId] || []), ...uploadedImages];
-
+          // Prepend new images to the list
+          this.datasetImages[datasetId] = [...uploadedImages, ...(this.datasetImages[datasetId] || [])];
+          
           // Update dataset count
           const datasets = this.datasets();
           const idx = datasets.findIndex(d => d.id === datasetId);
@@ -532,7 +599,6 @@ export class ProjectDetailComponent implements OnInit {
         const duration = allErrors.length > 0 ? 8000 : 3000;
         const snackBarRef = this.snackBar.open(message, allErrors.length > 0 ? 'Show Errors' : 'Close', { duration });
 
-        // If there are errors and user clicks "Show Errors", show detailed list
         if (allErrors.length > 0) {
           snackBarRef.onAction().subscribe(() => {
             const errorMessage = 'Upload errors:\n\n' + allErrors.join('\n');
@@ -568,9 +634,13 @@ export class ProjectDetailComponent implements OnInit {
     });
   }
 
-  getImageUrl(datasetId: string, imageId: string) {
-    // Use thumbnail URL for fast loading without expiry
-    return this.projectsService.getImageThumbnailUrl(this.projectId, datasetId, imageId);
+  getImageUrl(datasetId: string, image: ImageItem) {
+    // Use base64 thumbnail URL if available (fast, no request)
+    if (image.thumbnail_url) {
+      return image.thumbnail_url;
+    }
+    // Fallback to backend thumbnail endpoint (legacy/slow)
+    return this.projectsService.getImageThumbnailUrl(this.projectId, datasetId, image.id);
   }
 
   formatQuestionType(type: string): string {
@@ -595,7 +665,7 @@ export class ProjectDetailComponent implements OnInit {
   }
 
   importAnnotations(datasetId: string) {
-    // Create a file input element
+    // ... (Import logic same as before)
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = '.csv';
@@ -605,18 +675,14 @@ export class ProjectDetailComponent implements OnInit {
       if (!file) return;
 
       try {
-        // Preview import
         const preview = await this.evaluationsService.previewImport(this.projectId, datasetId, file).toPromise();
-
         if (!preview) return;
 
-        // Show preview results
         const message = preview.errors > 0
           ? `Found ${preview.errors} errors. Cannot import.`
           : `Ready to import: ${preview.valid} valid annotations (${preview.create} new, ${preview.update} updates, ${preview.skip} skipped)`;
 
         const action = preview.errors > 0 ? 'OK' : 'Import';
-
         const snackBarRef = this.snackBar.open(message, action, {
           duration: preview.errors > 0 ? 5000 : 0
         });
@@ -626,7 +692,7 @@ export class ProjectDetailComponent implements OnInit {
             try {
               const result = await this.evaluationsService.confirmImport(this.projectId, datasetId, file).toPromise();
               this.snackBar.open(`Import complete! ${result?.total || 0} annotations imported.`, 'Close', { duration: 3000 });
-              this.loadProject(); // Refresh project data
+              this.loadProject();
             } catch (error: any) {
               this.snackBar.open(`Import failed: ${error.error?.detail || error.message}`, 'Close', { duration: 5000 });
             }
@@ -636,7 +702,6 @@ export class ProjectDetailComponent implements OnInit {
         this.snackBar.open(`Validation failed: ${error.error?.detail || error.message}`, 'Close', { duration: 5000 });
       }
     };
-
     fileInput.click();
   }
 }
