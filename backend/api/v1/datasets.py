@@ -23,6 +23,10 @@ from api.v1.auth import get_current_user
 
 from core.image_utils import generate_thumbnail
 
+# Import Storage Service
+from services.storage_service import get_storage_provider
+from core.interfaces.storage import IStorageProvider
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
