@@ -11,9 +11,9 @@ else:
 
 engine = create_engine(
     db_url,
-    pool_size=20,  # Increased from default 5 to handle more concurrent requests
-    max_overflow=30,  # Increased from default 10 for burst traffic
-    pool_timeout=60,  # Increased from default 30s
+    pool_size=5,  # Conservative for db-f1-micro with limited connections
+    max_overflow=10,  # Allow burst to max 15 connections per instance
+    pool_timeout=60,  # Wait up to 60s for connection
     pool_pre_ping=True,  # Verify connections before using them
     pool_recycle=3600,  # Recycle connections after 1 hour
     # connect_args={"check_same_thread": False} # This is for SQLite only
