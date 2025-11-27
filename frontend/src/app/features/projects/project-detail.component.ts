@@ -127,15 +127,31 @@ import { EvaluationsService } from '../../core/services/evaluations.service';
                 @if (datasetImages[dataset.id]?.length) {
                   <div class="image-grid">
                     @for (image of datasetImages[dataset.id]; track image.id) {
-                      <div class="image-item">
+                      <div class="image-item" (click)="openImageDetail(dataset.id, image)">
                         <img [src]="getImageUrl(dataset.id, image)" [alt]="image.filename">
                         <div class="image-overlay">
                           <span class="image-name">{{ image.filename }}</span>
-                          <button mat-icon-button color="warn" (click)="deleteImage(dataset.id, image.id)"
+                          <button mat-icon-button color="warn" (click)="deleteImage(dataset.id, image.id); $event.stopPropagation()"
                                   matTooltip="Delete">
                             <mat-icon>delete</mat-icon>
                           </button>
                         </div>
+                        
+                        <!-- Annotation Status Indicator -->
+                        @if (image.is_annotated) {
+                          <div class="annotation-status" [class.skipped]="image.is_skipped" [class.flagged]="image.is_flagged">
+                            @if (image.is_skipped) {
+                              <mat-icon>skip_next</mat-icon>
+                              <span>Skipped</span>
+                            } @else {
+                              <mat-icon>check_circle</mat-icon>
+                              <span>{{ formatAnnotationValue(image.annotation_value) }}</span>
+                            }
+                            @if (image.is_flagged) {
+                              <mat-icon class="flag-icon" matTooltip="Flagged">flag</mat-icon>
+                            }
+                          </div>
+                        }
                       </div>
                     }
                   </div>
@@ -192,6 +208,73 @@ import { EvaluationsService } from '../../core/services/evaluations.service';
         }
       }
     </div>
+
+    <!-- Image Overlay Modal -->
+    @if (selectedImage()) {
+      <div class="image-overlay-modal" (click)="closeImageDetail()">
+        <div class="overlay-content" (click)="$event.stopPropagation()">
+          <div class="overlay-header">
+            <h2>{{ selectedImage()!.filename }}</h2>
+            <button mat-icon-button (click)="closeImageDetail()">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+          
+          <div class="overlay-body">
+            <div class="image-container">
+              @if (selectedImageUrl()) {
+                <img [src]="selectedImageUrl()" [alt]="selectedImage()!.filename">
+              } @else {
+                <mat-spinner></mat-spinner>
+              }
+            </div>
+            
+            <div class="details-container">
+              <div class="detail-item">
+                <span class="label">Dataset:</span>
+                <span class="value">{{ getDatasetName(selectedDatasetId()) }}</span>
+              </div>
+
+              <div class="detail-item">
+                <span class="label">Status:</span>
+                <span class="value status-value">
+                  @if (selectedImage()!.is_annotated) {
+                    @if (selectedImage()!.is_skipped) {
+                      <mat-icon class="skipped">skip_next</mat-icon> Skipped
+                    } @else {
+                      <mat-icon class="annotated">check_circle</mat-icon> Annotated
+                    }
+                  } @else {
+                    <mat-icon>radio_button_unchecked</mat-icon> Not Annotated
+                  }
+                </span>
+              </div>
+
+              @if (selectedImage()!.is_annotated && !selectedImage()!.is_skipped) {
+                <div class="detail-item">
+                  <span class="label">Answer:</span>
+                  <span class="value answer-value">{{ formatAnnotationValue(selectedImage()!.annotation_value) }}</span>
+                </div>
+              }
+
+              @if (selectedImage()!.is_flagged) {
+                <div class="detail-item flagged-item">
+                  <span class="label"><mat-icon>flag</mat-icon> Flagged</span>
+                  <span class="value">This image was flagged during annotation.</span>
+                </div>
+              }
+              
+              <div class="actions">
+                <button mat-raised-button color="primary" 
+                        [routerLink]="['/projects', projectId, 'datasets', selectedDatasetId(), 'annotate']">
+                  Go to Annotation
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
   `,
   styles: [
     `
@@ -311,6 +394,14 @@ import { EvaluationsService } from '../../core/services/evaluations.service';
       border-radius: 8px;
       overflow: hidden;
       background-color: #f5f5f5;
+      cursor: pointer;
+      transition: transform 0.2s;
+
+      &:hover {
+        transform: scale(1.02);
+        z-index: 1;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      }
 
       img {
         width: 100%;
@@ -320,14 +411,14 @@ import { EvaluationsService } from '../../core/services/evaluations.service';
 
       .image-overlay {
         position: absolute;
-        bottom: 0;
+        top: 0;
         left: 0;
         right: 0;
-        background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
-        padding: 8px;
+        padding: 4px;
+        background: linear-gradient(rgba(0, 0, 0, 0.5), transparent);
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: start;
         opacity: 0;
         transition: opacity 0.2s ease;
 
@@ -338,15 +429,63 @@ import { EvaluationsService } from '../../core/services/evaluations.service';
           text-overflow: ellipsis;
           white-space: nowrap;
           flex: 1;
+          margin: 0;
+          padding: 4px;
         }
 
         button {
           color: white;
+          width: 24px;
+          height: 24px;
+          line-height: 24px;
+          .mat-icon { font-size: 18px; }
         }
       }
 
       &:hover .image-overlay {
         opacity: 1;
+      }
+      
+      .annotation-status {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 4px 8px;
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        color: #1e8e3e;
+        font-weight: 500;
+        border-top: 1px solid rgba(0,0,0,0.05);
+        
+        mat-icon {
+          font-size: 14px;
+          width: 14px;
+          height: 14px;
+        }
+        
+        &.skipped {
+          color: #5f6368;
+          background: #f1f3f4;
+        }
+        
+        &.flagged {
+          background: #fce8e6;
+        }
+        
+        .flag-icon {
+          color: #d93025;
+          margin-left: auto;
+        }
+        
+        span {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
       }
     }
 
@@ -359,6 +498,120 @@ import { EvaluationsService } from '../../core/services/evaluations.service';
       button {
         min-width: 200px;
       }
+    }
+    
+    /* Overlay Modal Styles */
+    .image-overlay-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+    }
+    
+    .overlay-content {
+      background: white;
+      border-radius: 8px;
+      width: 100%;
+      max-width: 1200px;
+      height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+    }
+    
+    .overlay-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      
+      h2 {
+        margin: 0;
+        font-size: 18px;
+      }
+    }
+    
+    .overlay-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+    
+    .image-container {
+      flex: 2;
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 16px;
+      
+      img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+      }
+    }
+    
+    .details-container {
+      flex: 1;
+      padding: 24px;
+      overflow-y: auto;
+      border-left: 1px solid #e0e0e0;
+      background: #f8f9fa;
+      min-width: 300px;
+      max-width: 400px;
+    }
+    
+    .detail-item {
+      margin-bottom: 24px;
+      
+      .label {
+        display: block;
+        font-size: 12px;
+        text-transform: uppercase;
+        color: #5f6368;
+        margin-bottom: 8px;
+        font-weight: 500;
+      }
+      
+      .value {
+        font-size: 16px;
+        color: #202124;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      
+      .annotated { color: #137333; }
+      .skipped { color: #5f6368; }
+      
+      .answer-value {
+        font-size: 18px;
+        font-weight: 500;
+      }
+      
+      &.flagged-item {
+        color: #d93025;
+        background: #fce8e6;
+        padding: 12px;
+        border-radius: 4px;
+        .label { color: #d93025; }
+      }
+    }
+    
+    .actions {
+      margin-top: 32px;
+      display: flex;
+      justify-content: center;
     }
   `]
 })
@@ -376,6 +629,11 @@ export class ProjectDetailComponent implements OnInit {
   datasetOffsets: Record<string, number> = {};
   hasMoreImages: Record<string, boolean> = {};
   readonly PAGE_SIZE = 50;
+  
+  // Overlay State
+  selectedImage = signal<ImageItem | null>(null);
+  selectedDatasetId = signal<string>('');
+  selectedImageUrl = signal<string | null>(null);
 
   projectId = '';
 
@@ -395,6 +653,13 @@ export class ProjectDetailComponent implements OnInit {
     } else {
       this.router.navigate(['/projects']);
     }
+    
+    // Listen for ESC key to close overlay
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && this.selectedImage()) {
+        this.closeImageDetail();
+      }
+    });
   }
 
   loadProject() {
@@ -469,6 +734,8 @@ export class ProjectDetailComponent implements OnInit {
     this.loadImages(datasetId, true);
   }
 
+  // ... (createDataset, deleteDataset, upload logic same as before) 
+  
   createDataset() {
     if (!this.newDatasetName) return;
 
@@ -635,11 +902,9 @@ export class ProjectDetailComponent implements OnInit {
   }
 
   getImageUrl(datasetId: string, image: ImageItem) {
-    // Use base64 thumbnail URL if available (fast, no request)
     if (image.thumbnail_url) {
       return image.thumbnail_url;
     }
-    // Fallback to backend thumbnail endpoint (legacy/slow)
     return this.projectsService.getImageThumbnailUrl(this.projectId, datasetId, image.id);
   }
 
@@ -651,6 +916,20 @@ export class ProjectDetailComponent implements OnInit {
       'count': 'Count'
     };
     return types[type] || type;
+  }
+  
+  formatAnnotationValue(value: any): string {
+    if (value && typeof value === 'object' && 'value' in value) {
+      value = value.value; // Handle nested object from backend
+    }
+    if (value === true) return 'Yes';
+    if (value === false) return 'No';
+    return String(value);
+  }
+  
+  getDatasetName(id: string): string {
+    const dataset = this.datasets().find(d => d.id === id);
+    return dataset ? dataset.name : 'Unknown';
   }
 
   // Import/Export handlers
@@ -703,5 +982,17 @@ export class ProjectDetailComponent implements OnInit {
       }
     };
     fileInput.click();
+  }
+  
+  openImageDetail(datasetId: string, image: ImageItem) {
+    this.selectedDatasetId.set(datasetId);
+    this.selectedImage.set(image);
+    // Proxy URL for full image
+    this.selectedImageUrl.set(`${this.projectsService['API_URL']}/projects/${this.projectId}/datasets/${datasetId}/images/${image.id}/file`);
+  }
+  
+  closeImageDetail() {
+    this.selectedImage.set(null);
+    this.selectedImageUrl.set(null);
   }
 }

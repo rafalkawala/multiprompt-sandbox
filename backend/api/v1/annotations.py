@@ -126,7 +126,7 @@ async def get_next_unannotated(
     image = db.query(Image).outerjoin(Annotation).filter(
         Image.dataset_id == dataset_id,
         Annotation.id == None
-    ).first()
+    ).order_by(Image.uploaded_at.asc()).first()
 
     if not image:
         return {"image": None, "message": "All images annotated"}

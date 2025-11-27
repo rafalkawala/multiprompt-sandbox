@@ -44,9 +44,15 @@ import { ProjectsService, Project, ImageItem } from '../../core/services/project
       } @else {
         <!-- Header -->
         <div class="header">
-          <button mat-icon-button [routerLink]="['/projects', projectId]" matTooltip="Back to Project">
-            <mat-icon>arrow_back</mat-icon>
-          </button>
+          <div class="header-left">
+            <button mat-icon-button [routerLink]="['/projects', projectId]" matTooltip="Back to Project">
+              <mat-icon>arrow_back</mat-icon>
+            </button>
+            <button mat-stroked-button (click)="skipToUnannotated()" matTooltip="Jump to first unannotated image">
+              <mat-icon>fast_forward</mat-icon>
+              Skip to Unannotated
+            </button>
+          </div>
           <div class="title">
             <h2>{{ project()?.name }} - Annotation</h2>
             <p>{{ datasetName }}</p>
@@ -195,6 +201,12 @@ import { ProjectsService, Project, ImageItem } from '../../core/services/project
       align-items: center;
       gap: 16px;
       margin-bottom: 16px;
+
+      .header-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
 
       .title {
         h2 {
@@ -397,11 +409,11 @@ export class AnnotationComponent implements OnInit {
   loadData() {
     this.loading.set(true);
 
-    // Load project, stats, and images
+    // Load project, stats, and initial images
     Promise.all([
       this.projectsService.getProject(this.projectId).toPromise(),
       this.evaluationsService.getAnnotationStats(this.projectId, this.datasetId).toPromise(),
-      this.projectsService.getImages(this.projectId, this.datasetId).toPromise(),
+      this.projectsService.getImages(this.projectId, this.datasetId, 0, 50).toPromise(), // Load first 50
       this.projectsService.getDatasets(this.projectId).toPromise()
     ]).then(([project, stats, images, datasets]) => {
       this.project.set(project || null);
@@ -411,11 +423,8 @@ export class AnnotationComponent implements OnInit {
       const dataset = datasets?.find(d => d.id === this.datasetId);
       this.datasetName = dataset?.name || '';
 
-      // Find first unannotated or show first image
-      if (images && images.length > 0) {
-        this.currentImage.set(images[0]);
-        this.loadAnnotation();
-      }
+      // Check if we should start at a specific unannotated image
+      this.skipToUnannotated(false); // false = don't force reload if we have images
 
       this.loading.set(false);
     }).catch(err => {
@@ -425,86 +434,53 @@ export class AnnotationComponent implements OnInit {
     });
   }
 
-  loadAnnotation() {
-    const img = this.currentImage();
-    if (!img) return;
-
-    // Use full image for annotation (via proxy, no expiry with JWT auth)
-    this.imageUrl.set(this.projectsService.getImageUrl(this.projectId, this.datasetId, img.id));
-
-    // Load annotation
-    this.evaluationsService.getAnnotation(this.projectId, this.datasetId, img.id).subscribe({
-      next: (data) => {
-        if (data.annotation) {
-          this.answer = data.annotation.answer_value?.value ?? null;
-          this.isFlagged = data.annotation.is_flagged;
-          this.flagReason = data.annotation.flag_reason || '';
+  skipToUnannotated(force: boolean = true) {
+    this.evaluationsService.getNextUnannotated(this.projectId, this.datasetId).subscribe({
+      next: (res) => {
+        if (res.image) {
+          // Check if image is already in our list
+          const idx = this.allImages().findIndex(img => img.id === res.image!.id);
+          if (idx !== -1) {
+            this.imageIndex = idx;
+            this.currentImage.set(this.allImages()[idx]);
+            this.loadAnnotation();
+          } else {
+            // Image not in current batch, we need to handle this. 
+            // Ideally we'd jump to that page, but for now let's just load this specific image 
+            // into the "current" slot or append it.
+            // Simpler approach: Just append it to the list and select it.
+            const newImageItem: ImageItem = {
+                id: res.image.id,
+                filename: res.image.filename,
+                file_size: 0, // Placeholder
+                uploaded_at: new Date().toISOString()
+            };
+            this.allImages.update(imgs => [...imgs, newImageItem]);
+            this.imageIndex = this.allImages().length - 1;
+            this.currentImage.set(newImageItem);
+            this.loadAnnotation();
+          }
+        } else if (force) {
+           this.snackBar.open(res['message'] || 'All images annotated!', 'Close', { duration: 3000 });
+           if (!this.currentImage() && this.allImages().length > 0) {
+               // Fallback to first image if nothing selected
+               this.imageIndex = 0;
+               this.currentImage.set(this.allImages()[0]);
+               this.loadAnnotation();
+           }
         } else {
-          this.resetForm();
+            // Default behavior on load: Start at 0 if no unannotated found or just fallback
+            if (this.allImages().length > 0) {
+                this.imageIndex = 0;
+                this.currentImage.set(this.allImages()[0]);
+                this.loadAnnotation();
+            }
         }
-      },
-      error: () => this.resetForm()
-    });
-  }
-
-  getImageUrl(): string {
-    return this.imageUrl();
-  }
-
-  getProgress(): number {
-    const s = this.stats();
-    if (!s || !s.total_images) return 0;
-    return ((s.annotated + s.skipped) / s.total_images) * 100;
-  }
-
-  canSave(): boolean {
-    return this.answer !== null && this.answer !== '';
-  }
-
-  save() {
-    const img = this.currentImage();
-    if (!img) return;
-
-    this.saving.set(true);
-    this.evaluationsService.saveAnnotation(this.projectId, this.datasetId, img.id, {
-      answer_value: { value: this.answer },
-      is_skipped: false,
-      is_flagged: this.isFlagged,
-      flag_reason: this.isFlagged ? this.flagReason : undefined
-    }).subscribe({
-      next: () => {
-        this.saving.set(false);
-        this.loadNextImage();
-        this.refreshStats();
-      },
-      error: (err) => {
-        console.error('Failed to save annotation:', err);
-        this.saving.set(false);
-        this.snackBar.open('Failed to save', 'Close', { duration: 3000 });
       }
     });
   }
 
-  skip() {
-    const img = this.currentImage();
-    if (!img) return;
-
-    this.saving.set(true);
-    this.evaluationsService.saveAnnotation(this.projectId, this.datasetId, img.id, {
-      is_skipped: true
-    }).subscribe({
-      next: () => {
-        this.saving.set(false);
-        this.loadNextImage();
-        this.refreshStats();
-      },
-      error: (err) => {
-        console.error('Failed to skip:', err);
-        this.saving.set(false);
-        this.snackBar.open('Failed to skip', 'Close', { duration: 3000 });
-      }
-    });
-  }
+  // ...
 
   loadNextImage() {
     const images = this.allImages();
@@ -513,8 +489,23 @@ export class AnnotationComponent implements OnInit {
       this.currentImage.set(images[this.imageIndex]);
       this.loadAnnotation();
     } else {
-      // All done
-      this.currentImage.set(null);
+      // Try to load more images
+      this.loading.set(true);
+      const currentCount = images.length;
+      this.projectsService.getImages(this.projectId, this.datasetId, currentCount, 50).subscribe({
+        next: (newImages) => {
+            this.loading.set(false);
+            if (newImages && newImages.length > 0) {
+                this.allImages.update(imgs => [...imgs, ...newImages]);
+                this.imageIndex++;
+                this.currentImage.set(this.allImages()[this.imageIndex]);
+                this.loadAnnotation();
+            } else {
+                this.snackBar.open('End of dataset reached', 'Close', { duration: 2000 });
+            }
+        },
+        error: () => this.loading.set(false)
+      });
     }
   }
 

@@ -57,6 +57,10 @@ export interface ImageItem {
   file_size: number;
   uploaded_at: string;
   thumbnail_url?: string;
+  is_annotated?: boolean;
+  annotation_value?: any;
+  is_skipped?: boolean;
+  is_flagged?: boolean;
 }
 
 export interface DatasetDetail {
