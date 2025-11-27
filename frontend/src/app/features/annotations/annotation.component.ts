@@ -30,7 +30,6 @@ import { ProjectsService, Project, ImageItem } from '../../core/services/project
     MatInputModule,
     MatRadioModule,
     MatCheckboxModule,
-    MatSnackBar,
     MatSnackBarModule,
     MatProgressSpinnerModule,
     MatProgressBarModule,
