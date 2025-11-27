@@ -483,6 +483,7 @@ export class ProjectDetailComponent implements OnInit {
     this.uploadingDatasetId = datasetId;
 
     const uploadedImages: ImageItem[] = [];
+    const allErrors: string[] = [];
     let completedCount = 0;
     let errorCount = 0;
 
@@ -492,9 +493,16 @@ export class ProjectDetailComponent implements OnInit {
           // File upload completed
           uploadedImages.push(...status.result);
           completedCount++;
+
+          // Collect any errors from partial success
+          if (status.errors && status.errors.length > 0) {
+            allErrors.push(...status.errors);
+            errorCount += status.errors.length;
+          }
         } else if (status.error) {
-          // File upload failed
+          // File upload failed completely
           console.error(`Failed to upload ${status.filename}:`, status.error);
+          allErrors.push(`${status.filename}: ${status.error}`);
           errorCount++;
         }
         // Progress updates are logged but not shown in UI (could add progress bars here)
@@ -515,12 +523,22 @@ export class ProjectDetailComponent implements OnInit {
           }
         }
 
-        // Show summary
+        // Show summary with error details
         let message = `${completedCount} of ${files.length} uploaded`;
         if (errorCount > 0) {
           message += ` (${errorCount} failed)`;
         }
-        this.snackBar.open(message, 'Close', { duration: 3000 });
+
+        const duration = allErrors.length > 0 ? 8000 : 3000;
+        const snackBarRef = this.snackBar.open(message, allErrors.length > 0 ? 'Show Errors' : 'Close', { duration });
+
+        // If there are errors and user clicks "Show Errors", show detailed list
+        if (allErrors.length > 0) {
+          snackBarRef.onAction().subscribe(() => {
+            const errorMessage = 'Upload errors:\n\n' + allErrors.join('\n');
+            alert(errorMessage);
+          });
+        }
       },
       error: (err) => {
         console.error('Upload error:', err);

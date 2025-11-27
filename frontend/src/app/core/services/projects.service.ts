@@ -124,12 +124,14 @@ export class ProjectsService {
     progress?: number;
     result?: ImageItem[];
     error?: string;
+    errors?: string[];
+    summary?: string;
     filename: string;
   }> {
     const formData = new FormData();
     formData.append('files', file);
 
-    return this.http.post<ImageItem[]>(
+    return this.http.post<{images: ImageItem[], errors?: string[], summary?: string}>(
       `${this.API_URL}/projects/${projectId}/datasets/${datasetId}/images`,
       formData,
       {
@@ -137,20 +139,27 @@ export class ProjectsService {
         observe: 'events'
       }
     ).pipe(
-      map((event: HttpEvent<ImageItem[]>) => {
+      map((event: HttpEvent<{images: ImageItem[], errors?: string[], summary?: string}>) => {
         switch (event.type) {
           case HttpEventType.UploadProgress:
             const progress = event.total ? Math.round(100 * event.loaded / event.total) : 0;
             return { progress, filename: file.name };
           case HttpEventType.Response:
-            return { result: event.body || [], filename: file.name };
+            const body = event.body;
+            return {
+              result: body?.images || [],
+              errors: body?.errors,
+              summary: body?.summary,
+              filename: file.name
+            };
           default:
             return { filename: file.name };
         }
       }),
       catchError(err => {
         console.error(`Upload failed for ${file.name}:`, err);
-        return [{ error: err.message || 'Upload failed', filename: file.name }];
+        const errorDetail = err.error?.detail || err.message || 'Upload failed';
+        return [{ error: errorDetail, filename: file.name }];
       })
     );
   }

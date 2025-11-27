@@ -85,6 +85,13 @@ class ImageResponse(BaseModel):
         from_attributes = True
 
 
+class UploadResponse(BaseModel):
+    """Response for batch image upload with optional error details"""
+    images: List[ImageResponse]
+    errors: Optional[List[str]] = None
+    summary: Optional[str] = None
+
+
 class DatasetResponse(BaseModel):
     id: str
     name: str
@@ -217,7 +224,7 @@ async def delete_dataset(
     return {"message": f"Dataset '{dataset_name}' deleted successfully"}
 
 
-@router.post("/{project_id}/datasets/{dataset_id}/images", response_model=List[ImageResponse])
+@router.post("/{project_id}/datasets/{dataset_id}/images", response_model=UploadResponse)
 async def upload_images(
     project_id: str,
     dataset_id: str,
@@ -225,7 +232,11 @@ async def upload_images(
     current_user: User = Depends(require_write_access),
     db: Session = Depends(get_db)
 ):
-    """Upload images to a dataset (requires write access)"""
+    """
+    Upload images to a dataset (requires write access)
+
+    Returns uploaded images with error details for any rejected files.
+    """
 
     # Verify dataset exists
     dataset = db.query(Dataset).filter(
@@ -264,8 +275,14 @@ async def upload_images(
             try:
                 # Validate file type (checks both MIME type and extension)
                 if not is_valid_image_file(file.filename, file.content_type):
-                    errors.append(f"{file.filename}: Invalid file type")
-                    logger.warning(f"Skipping {file.filename}: invalid type {file.content_type}")
+                    # Get file extension for better error message
+                    _, ext = os.path.splitext(file.filename)
+                    if ext:
+                        error_msg = f"Invalid file extension '{ext}' (allowed: .jpg, .jpeg, .png, .gif, .webp)"
+                    else:
+                        error_msg = f"No file extension (allowed: .jpg, .jpeg, .png, .gif, .webp)"
+                    errors.append(f"{file.filename}: {error_msg}")
+                    logger.warning(f"Skipping {file.filename}: {error_msg} (MIME type: {file.content_type})")
                     await file.close()
                     continue
 
@@ -283,8 +300,11 @@ async def upload_images(
                     thumbnail_bytes = generate_thumbnail(file_bytes)
                     logger.info(f"Generated thumbnail for {file.filename}: {len(thumbnail_bytes)} bytes")
                 except Exception as thumb_error:
+                    # If thumbnail generation fails, the file is likely corrupted or not a valid image
                     logger.warning(f"Failed to generate thumbnail for {file.filename}: {str(thumb_error)}")
-                    thumbnail_bytes = None
+                    errors.append(f"{file.filename}: Corrupted or invalid image file (thumbnail generation failed)")
+                    await file.close()
+                    continue
 
                 # Create BytesIO object for storage upload (avoids file seek issues)
                 file_obj = BytesIO(file_bytes)
@@ -331,9 +351,8 @@ async def upload_images(
             logger.warning(f"Upload completed with {len(errors)} errors: {errors}")
 
         if not uploaded_images:
-            error_msg = "; ".join(errors[:5]) if errors else "No valid images to upload"
-            if len(errors) > 5:
-                error_msg += f" (and {len(errors) - 5} more errors)"
+            # All uploads failed - return 400 with all error details
+            error_msg = "\n".join(errors) if errors else "No valid images to upload"
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=error_msg
@@ -341,7 +360,8 @@ async def upload_images(
 
         logger.info(f"Successfully uploaded {len(uploaded_images)} of {len(files)} images to dataset: {dataset.name}")
 
-        return [
+        # Build response with images and any errors
+        images_response = [
             ImageResponse(
                 id=str(img.id),
                 filename=img.filename,
@@ -350,6 +370,17 @@ async def upload_images(
             )
             for img in uploaded_images
         ]
+
+        # Build summary message
+        summary = f"Successfully uploaded {len(uploaded_images)} of {len(files)} images"
+        if errors:
+            summary += f" ({len(errors)} failed)"
+
+        return UploadResponse(
+            images=images_response,
+            errors=errors if errors else None,
+            summary=summary
+        )
 
     except HTTPException:
         # Re-raise HTTP exceptions
