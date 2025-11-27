@@ -21,7 +21,50 @@ from models.image import Image, Annotation
 from models.user import User
 from api.v1.auth import get_current_user
 
-# ... (imports)
+from core.image_utils import generate_thumbnail
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+# Allowed image extensions (with leading dot)
+ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.JPG', '.JPEG', '.PNG', '.GIF', '.WEBP'}
+
+def is_valid_image_file(filename: str, content_type: str) -> bool:
+    """
+    Validate if file is a valid image by checking both MIME type and extension.
+
+    Falls back to extension check if MIME type is generic (application/octet-stream).
+    This handles cases where browser doesn't provide correct MIME type.
+    """
+    # Check MIME type if it's specific (not generic)
+    if content_type and content_type in settings.ALLOWED_IMAGE_TYPES:
+        return True
+
+    # Fallback: check file extension
+    _, ext = os.path.splitext(filename)
+    return ext in ALLOWED_IMAGE_EXTENSIONS
+
+
+def require_write_access(current_user: User = Depends(get_current_user)) -> User:
+    """Require user to have write access (not a viewer)"""
+    from models.user import UserRole
+    if current_user.role == UserRole.VIEWER.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Viewers have read-only access. Cannot create, update, or delete resources."
+        )
+    return current_user
+
+
+def get_db():
+    """Database session dependency"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 
 # Pydantic models
 class DatasetCreate(BaseModel):
@@ -42,7 +85,24 @@ class ImageResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# ... (other models)
+
+class UploadResponse(BaseModel):
+    """Response for batch image upload with optional error details"""
+    images: List[ImageResponse]
+    errors: Optional[List[str]] = None
+    summary: Optional[str] = None
+
+
+class DatasetResponse(BaseModel):
+    id: str
+    name: str
+    project_id: str
+    created_at: datetime
+    image_count: int
+    images: Optional[List[ImageResponse]] = None
+
+    class Config:
+        from_attributes = True
 
 @router.get("/{project_id}/datasets/{dataset_id}/images", response_model=List[ImageResponse])
 async def list_images(
