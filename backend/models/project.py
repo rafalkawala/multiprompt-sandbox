@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, ForeignKey, DateTime, JSON
+from sqlalchemy import Column, String, Text, ForeignKey, DateTime, JSON, Integer
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -31,6 +31,15 @@ class Dataset(Base):
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Processing status tracking for async batch uploads
+    processing_status = Column(String, default="ready", nullable=False)  # ready, uploading, processing, completed, failed
+    processing_started_at = Column(DateTime, nullable=True)
+    processing_completed_at = Column(DateTime, nullable=True)
+    total_files = Column(Integer, default=0, nullable=False)
+    processed_files = Column(Integer, default=0, nullable=False)
+    failed_files = Column(Integer, default=0, nullable=False)
+    processing_errors = Column(JSON, nullable=True)  # List of error messages
 
     project = relationship("Project", back_populates="datasets")
     created_by = relationship("User")

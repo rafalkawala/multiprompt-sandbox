@@ -13,7 +13,11 @@ class Image(Base):
     filename = Column(String, nullable=False)
     storage_path = Column(String, nullable=False)
     file_size = Column(Integer, nullable=True)
-    thumbnail_data = Column(LargeBinary, nullable=True)
+    thumbnail_data = Column(LargeBinary, nullable=True)  # Generated in background processing
+
+    # Processing status tracking
+    processing_status = Column(String, default="pending", nullable=False)  # pending, processing, completed, failed
+    processing_error = Column(Text, nullable=True)
 
     uploaded_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
