@@ -30,6 +30,7 @@ import { ProjectsService, Project, ImageItem } from '../../core/services/project
     MatInputModule,
     MatRadioModule,
     MatCheckboxModule,
+    MatSnackBar,
     MatSnackBarModule,
     MatProgressSpinnerModule,
     MatProgressBarModule,
@@ -436,7 +437,7 @@ export class AnnotationComponent implements OnInit {
 
   skipToUnannotated(force: boolean = true) {
     this.evaluationsService.getNextUnannotated(this.projectId, this.datasetId).subscribe({
-      next: (res) => {
+      next: (res: any) => {
         if (res.image) {
           // Check if image is already in our list
           const idx = this.allImages().findIndex(img => img.id === res.image!.id);
@@ -445,10 +446,7 @@ export class AnnotationComponent implements OnInit {
             this.currentImage.set(this.allImages()[idx]);
             this.loadAnnotation();
           } else {
-            // Image not in current batch, we need to handle this. 
-            // Ideally we'd jump to that page, but for now let's just load this specific image 
-            // into the "current" slot or append it.
-            // Simpler approach: Just append it to the list and select it.
+            // Image not in current batch, append it
             const newImageItem: ImageItem = {
                 id: res.image.id,
                 filename: res.image.filename,
@@ -480,7 +478,86 @@ export class AnnotationComponent implements OnInit {
     });
   }
 
-  // ...
+  loadAnnotation() {
+    const img = this.currentImage();
+    if (!img) return;
+
+    // Use full image for annotation (via proxy, no expiry with JWT auth)
+    this.imageUrl.set(this.projectsService.getImageUrl(this.projectId, this.datasetId, img.id));
+
+    // Load annotation
+    this.evaluationsService.getAnnotation(this.projectId, this.datasetId, img.id).subscribe({
+      next: (data) => {
+        if (data.annotation) {
+          this.answer = data.annotation.answer_value?.value ?? null;
+          this.isFlagged = data.annotation.is_flagged;
+          this.flagReason = data.annotation.flag_reason || '';
+        } else {
+          this.resetForm();
+        }
+      },
+      error: () => this.resetForm()
+    });
+  }
+
+  getImageUrl(): string {
+    return this.imageUrl();
+  }
+
+  getProgress(): number {
+    const s = this.stats();
+    if (!s || !s.total_images) return 0;
+    return ((s.annotated + s.skipped) / s.total_images) * 100;
+  }
+
+  canSave(): boolean {
+    return this.answer !== null && this.answer !== '';
+  }
+
+  save() {
+    const img = this.currentImage();
+    if (!img) return;
+
+    this.saving.set(true);
+    this.evaluationsService.saveAnnotation(this.projectId, this.datasetId, img.id, {
+      answer_value: { value: this.answer },
+      is_skipped: false,
+      is_flagged: this.isFlagged,
+      flag_reason: this.isFlagged ? this.flagReason : undefined
+    }).subscribe({
+      next: () => {
+        this.saving.set(false);
+        this.loadNextImage();
+        this.refreshStats();
+      },
+      error: (err) => {
+        console.error('Failed to save annotation:', err);
+        this.saving.set(false);
+        this.snackBar.open('Failed to save', 'Close', { duration: 3000 });
+      }
+    });
+  }
+
+  skip() {
+    const img = this.currentImage();
+    if (!img) return;
+
+    this.saving.set(true);
+    this.evaluationsService.saveAnnotation(this.projectId, this.datasetId, img.id, {
+      is_skipped: true
+    }).subscribe({
+      next: () => {
+        this.saving.set(false);
+        this.loadNextImage();
+        this.refreshStats();
+      },
+      error: (err) => {
+        console.error('Failed to skip:', err);
+        this.saving.set(false);
+        this.snackBar.open('Failed to skip', 'Close', { duration: 3000 });
+      }
+    });
+  }
 
   loadNextImage() {
     const images = this.allImages();
