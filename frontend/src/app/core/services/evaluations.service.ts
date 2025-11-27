@@ -159,8 +159,8 @@ export class EvaluationsService {
     return this.http.post<Evaluation>(`${this.API_URL}/evaluations`, data);
   }
 
-  getEvaluationResults(id: string, skip: number = 0, limit: number = 50) {
-    return this.http.get<EvaluationResult[]>(`${this.API_URL}/evaluations/${id}/results?skip=${skip}&limit=${limit}`);
+  getEvaluationResults(id: string, skip: number = 0, limit: number = 50, filter: string = 'all') {
+    return this.http.get<EvaluationResult[]>(`${this.API_URL}/evaluations/${id}/results?skip=${skip}&limit=${limit}&filter=${filter}`);
   }
 
   deleteEvaluation(id: string) {

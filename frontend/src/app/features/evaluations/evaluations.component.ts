@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
@@ -33,7 +34,8 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
     MatProgressBarModule,
     MatChipsModule,
     MatTableModule,
-    MatExpansionModule
+    MatExpansionModule,
+    MatTooltipModule
   ],
   template: `
     <div class="evaluations-container">
@@ -217,32 +219,52 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
                 </mat-expansion-panel>
               }
 
+              <!-- Filter Chips -->
+              <div class="filters-row">
+                <span class="filter-label">Filter Results:</span>
+                <mat-chip-listbox aria-label="Result Filters">
+                  @for (filter of filterOptions; track filter.value) {
+                    <mat-chip-option 
+                      [selected]="activeFilter() === filter.value"
+                      (selectionChange)="setFilter(filter.value)">
+                      {{ filter.label }}
+                    </mat-chip-option>
+                  }
+                </mat-chip-listbox>
+              </div>
+
               <!-- Results Table Panel -->
               @if (results().length > 0 || hasMoreResults()) {
                 <mat-expansion-panel [expanded]="true">
                   <mat-expansion-panel-header>
                     <mat-panel-title>
                       <mat-icon>table_chart</mat-icon>
-                      Results ({{ results().length }} of {{ evaluation.total_images }})
+                      Results ({{ results().length }} loaded)
                     </mat-panel-title>
                   </mat-expansion-panel-header>
                   <div class="results-table">
                   <table mat-table [dataSource]="results()">
                     <ng-container matColumnDef="image">
                       <th mat-header-cell *matHeaderCellDef>Image</th>
-                      <td mat-cell *matCellDef="let row">{{ row.image_filename }}</td>
+                      <td mat-cell *matCellDef="let row" class="clickable-cell" (click)="openResultDetail(row)">
+                        {{ row.image_filename }}
+                      </td>
                     </ng-container>
                     <ng-container matColumnDef="response">
                       <th mat-header-cell *matHeaderCellDef>Response</th>
-                      <td mat-cell *matCellDef="let row" [matTooltip]="row.model_response || ''">{{ row.parsed_answer?.value ?? '-' }}</td>
+                      <td mat-cell *matCellDef="let row" [matTooltip]="row.model_response || ''" class="clickable-cell" (click)="openResultDetail(row)">
+                        {{ row.parsed_answer?.value ?? '-' }}
+                      </td>
                     </ng-container>
                     <ng-container matColumnDef="ground_truth">
                       <th mat-header-cell *matHeaderCellDef>Ground Truth</th>
-                      <td mat-cell *matCellDef="let row">{{ row.ground_truth?.value ?? '-' }}</td>
+                      <td mat-cell *matCellDef="let row" class="clickable-cell" (click)="openResultDetail(row)">
+                        {{ row.ground_truth?.value ?? '-' }}
+                      </td>
                     </ng-container>
                     <ng-container matColumnDef="correct">
                       <th mat-header-cell *matHeaderCellDef>Correct</th>
-                      <td mat-cell *matCellDef="let row">
+                      <td mat-cell *matCellDef="let row" class="clickable-cell" (click)="openResultDetail(row)">
                         @if (row.is_correct === true) {
                           <mat-icon class="correct">check_circle</mat-icon>
                         } @else if (row.is_correct === false) {
@@ -254,10 +276,12 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
                     </ng-container>
                     <ng-container matColumnDef="latency">
                       <th mat-header-cell *matHeaderCellDef>Latency</th>
-                      <td mat-cell *matCellDef="let row">{{ row.latency_ms ? row.latency_ms + 'ms' : '-' }}</td>
+                      <td mat-cell *matCellDef="let row" class="clickable-cell" (click)="openResultDetail(row)">
+                        {{ row.latency_ms ? row.latency_ms + 'ms' : '-' }}
+                      </td>
                     </ng-container>
                     <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-                    <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+                    <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row"></tr>
                   </table>
                   
                   @if (hasMoreResults()) {
@@ -274,12 +298,73 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
                   }
                 </div>
               </mat-expansion-panel>
+              } @else if (!loadingResults()) {
+                <div class="no-results">No results match the selected filter.</div>
               }
             }
           </mat-card>
         }
       }
     </div>
+
+    <!-- Image Overlay Modal -->
+    @if (selectedResult()) {
+      <div class="image-overlay-modal" (click)="closeResultDetail()">
+        <div class="overlay-content" (click)="$event.stopPropagation()">
+          <div class="overlay-header">
+            <h2>{{ selectedResult()!.image_filename }}</h2>
+            <button mat-icon-button (click)="closeResultDetail()">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+          
+          <div class="overlay-body">
+            <div class="image-container">
+              @if (selectedImageUrl()) {
+                <img [src]="selectedImageUrl()" [alt]="selectedResult()!.image_filename">
+              } @else {
+                <mat-spinner></mat-spinner>
+              }
+            </div>
+            
+            <div class="details-container">
+              <div class="detail-item" [class.correct]="selectedResult()!.is_correct" [class.incorrect]="selectedResult()!.is_correct === false">
+                <span class="label">Status:</span>
+                <span class="value">
+                  @if (selectedResult()!.is_correct === true) {
+                    <mat-icon class="inline-icon">check_circle</mat-icon> Correct
+                  } @else if (selectedResult()!.is_correct === false) {
+                    <mat-icon class="inline-icon">cancel</mat-icon> Incorrect
+                  } @else {
+                    Unknown
+                  }
+                </span>
+              </div>
+
+              <div class="detail-item">
+                <span class="label">Ground Truth:</span>
+                <span class="value">{{ selectedResult()!.ground_truth?.value ?? 'N/A' }}</span>
+              </div>
+
+              <div class="detail-item">
+                <span class="label">Model Prediction:</span>
+                <span class="value">{{ selectedResult()!.parsed_answer?.value ?? 'N/A' }}</span>
+              </div>
+
+              <div class="detail-item">
+                <span class="label">Full Response:</span>
+                <pre class="response-text">{{ selectedResult()!.model_response }}</pre>
+              </div>
+              
+              <div class="detail-item">
+                <span class="label">Latency:</span>
+                <span class="value">{{ selectedResult()!.latency_ms }} ms</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
   `,
   styles: [`
     .evaluations-container {
@@ -398,6 +483,14 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
       }
     }
     
+    .clickable-row {
+      cursor: pointer;
+      transition: background-color 0.2s;
+      &:hover {
+        background-color: #f5f5f5;
+      }
+    }
+    
     .load-more-container {
       display: flex;
       justify-content: center;
@@ -503,6 +596,139 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
       align-items: center;
       gap: 8px;
     }
+    
+    /* Filter Styles */
+    .filters-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 16px 0;
+      
+      .filter-label {
+        font-weight: 500;
+        color: #5f6368;
+      }
+    }
+    
+    .no-results {
+      padding: 32px;
+      text-align: center;
+      color: #5f6368;
+      background: #f8f9fa;
+      border-radius: 4px;
+      margin-top: 16px;
+    }
+    
+    /* Overlay Modal Styles */
+    .image-overlay-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+    }
+    
+    .overlay-content {
+      background: white;
+      border-radius: 8px;
+      width: 100%;
+      max-width: 1200px;
+      height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+    }
+    
+    .overlay-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      
+      h2 {
+        margin: 0;
+        font-size: 18px;
+      }
+    }
+    
+    .overlay-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+    
+    .image-container {
+      flex: 2;
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 16px;
+      
+      img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+      }
+    }
+    
+    .details-container {
+      flex: 1;
+      padding: 24px;
+      overflow-y: auto;
+      border-left: 1px solid #e0e0e0;
+      background: #f8f9fa;
+      min-width: 300px;
+      max-width: 400px;
+    }
+    
+    .detail-item {
+      margin-bottom: 24px;
+      
+      .label {
+        display: block;
+        font-size: 12px;
+        text-transform: uppercase;
+        color: #5f6368;
+        margin-bottom: 8px;
+        font-weight: 500;
+      }
+      
+      .value {
+        font-size: 16px;
+        color: #202124;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      
+      .response-text {
+        background: white;
+        padding: 12px;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        white-space: pre-wrap;
+        font-size: 14px;
+        margin: 0;
+      }
+      
+      .inline-icon {
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
+      }
+      
+      &.correct .value { color: #34a853; }
+      &.incorrect .value { color: #ea4335; }
+    }
   `]
 })
 export class EvaluationsComponent implements OnInit {
@@ -517,7 +743,12 @@ export class EvaluationsComponent implements OnInit {
   loadingResults = signal(false);
   hasMoreResults = signal(false);
   confusionMatrix = signal<any>(null);
+  activeFilter = signal<string>('all');
   readonly RESULTS_PAGE_SIZE = 50;
+  
+  // Overlay State
+  selectedResult = signal<EvaluationResult | null>(null);
+  selectedImageUrl = signal<string | null>(null);
   
   loading = signal(true);
   selectedEvaluationId: string | null = null;
@@ -552,6 +783,13 @@ export class EvaluationsComponent implements OnInit {
         this.loadEvaluations();
       }
     }, 3000);
+
+    // Listen for ESC key to close overlay
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && this.selectedResult()) {
+        this.closeResultDetail();
+      }
+    });
   }
 
   ngOnDestroy() {
@@ -711,6 +949,7 @@ export class EvaluationsComponent implements OnInit {
 
     this.selectedEvaluationId = evaluation.id;
     this.currentResultOffset = 0;
+    this.activeFilter.set('all'); // Reset filter
     this.results.set([]);
 
     // Load full evaluation details (including prompts)
@@ -736,13 +975,19 @@ export class EvaluationsComponent implements OnInit {
     
     this.loadingResults.set(true);
     
+    // Pass filter to backend (implemented in next step, currently handled by service)
     this.evaluationsService.getEvaluationResults(
       this.selectedEvaluationId, 
       this.currentResultOffset, 
-      this.RESULTS_PAGE_SIZE
+      this.RESULTS_PAGE_SIZE,
+      this.activeFilter() 
     ).subscribe({
       next: (results) => {
-        this.results.set([...this.results(), ...results]);
+        if (this.currentResultOffset === 0) {
+          this.results.set(results);
+        } else {
+          this.results.set([...this.results(), ...results]);
+        }
         this.currentResultOffset += results.length;
         this.hasMoreResults.set(results.length === this.RESULTS_PAGE_SIZE);
         this.loadingResults.set(false);
@@ -753,6 +998,41 @@ export class EvaluationsComponent implements OnInit {
         this.loadingResults.set(false);
       }
     });
+  }
+
+  setFilter(filter: string) {
+    if (this.activeFilter() === filter) return;
+    
+    this.activeFilter.set(filter);
+    this.currentResultOffset = 0;
+    this.results.set([]); // Clear current results
+    this.loadMoreResults(); // Reload with new filter
+  }
+
+  openResultDetail(result: EvaluationResult) {
+    this.selectedResult.set(result);
+    if (this.selectedEvaluation) {
+       // Get full image URL (using proxy)
+       this.selectedImageUrl.set(`${this.projectsService['API_URL']}/projects/${this.selectedEvaluation.project_id}/datasets/${this.selectedEvaluation.dataset_id}/images/${result.image_id}/file`);
+    }
+  }
+
+  closeResultDetail() {
+    this.selectedResult.set(null);
+    this.selectedImageUrl.set(null);
+  }
+  
+  // Helper for template
+  get filterOptions() {
+    return [
+      { label: 'All', value: 'all' },
+      { label: 'Correct', value: 'correct' },
+      { label: 'Incorrect', value: 'incorrect' },
+      { label: 'False Positive', value: 'fp' },
+      { label: 'False Negative', value: 'fn' },
+      { label: 'True Positive', value: 'tp' },
+      { label: 'True Negative', value: 'tn' }
+    ];
   }
 
   deleteEvaluation(evaluation: EvaluationListItem) {

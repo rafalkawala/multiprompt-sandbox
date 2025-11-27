@@ -524,10 +524,11 @@ async def get_evaluation_results(
     evaluation_id: str,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    filter: str = Query('all', regex="^(all|correct|incorrect|tp|tn|fp|fn)$"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get evaluation results"""
+    """Get evaluation results with filtering"""
     evaluation = db.query(Evaluation).filter(
         Evaluation.id == evaluation_id,
         Evaluation.created_by_id == current_user.id
@@ -535,9 +536,54 @@ async def get_evaluation_results(
     if not evaluation:
         raise HTTPException(status_code=404, detail="Evaluation not found")
 
-    results = db.query(EvaluationResult).filter(
+    query = db.query(EvaluationResult).filter(
         EvaluationResult.evaluation_id == evaluation_id
-    ).offset(skip).limit(limit).all()
+    )
+
+    # Apply filters
+    if filter == 'correct':
+        query = query.filter(EvaluationResult.is_correct == True)
+    elif filter == 'incorrect':
+        query = query.filter(EvaluationResult.is_correct == False)
+    elif filter in ['tp', 'tn', 'fp', 'fn']:
+        # Advanced filters for binary classification (requires casting JSON)
+        # This relies on Postgres/SQLite JSON operators. 
+        # We assume 'value' key exists and is boolean.
+        from sqlalchemy import cast, String
+        
+        # We'll filter in Python for simplicity and safety across generic SQL setups 
+        # unless we strictly enforce Postgres JSONB.
+        # Given pagination, Python filtering of the WHOLE set is bad. 
+        # BUT we can try to filter at DB level using text casting which is safer.
+        
+        # Note: In JSON, True is 'true', False is 'false'
+        
+        if filter == 'tp':
+            # True Positive: Correct + Prediction is True
+            query = query.filter(
+                EvaluationResult.is_correct == True,
+                cast(EvaluationResult.parsed_answer['value'], String) == 'true'
+            )
+        elif filter == 'tn':
+            # True Negative: Correct + Prediction is False
+            query = query.filter(
+                EvaluationResult.is_correct == True,
+                cast(EvaluationResult.parsed_answer['value'], String) == 'false'
+            )
+        elif filter == 'fp':
+            # False Positive: Incorrect + Prediction is True (Actual was False)
+            query = query.filter(
+                EvaluationResult.is_correct == False,
+                cast(EvaluationResult.parsed_answer['value'], String) == 'true'
+            )
+        elif filter == 'fn':
+            # False Negative: Incorrect + Prediction is False (Actual was True)
+            query = query.filter(
+                EvaluationResult.is_correct == False,
+                cast(EvaluationResult.parsed_answer['value'], String) == 'false'
+            )
+
+    results = query.offset(skip).limit(limit).all()
 
     return [
         EvaluationResultItem(
