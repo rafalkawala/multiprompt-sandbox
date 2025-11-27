@@ -77,6 +77,11 @@ async def sync_admin_users():
 async def shutdown_event():
     """Close resources on shutdown"""
     from core.http_client import HttpClient
+    from core.database import engine
+    
+    logger.info("Closing database connections...")
+    engine.dispose()
+    
     await HttpClient.close()
 
 

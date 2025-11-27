@@ -11,8 +11,8 @@ else:
 
 engine = create_engine(
     db_url,
-    pool_size=5,  # Conservative for db-f1-micro with limited connections
-    max_overflow=10,  # Allow burst to max 15 connections per instance
+    pool_size=2,  # Conservative for db-f1-micro with limited connections
+    max_overflow=3,  # Allow burst to max 5 connections per instance
     pool_timeout=60,  # Wait up to 60s for connection
     pool_pre_ping=True,  # Verify connections before using them
     pool_recycle=3600,  # Recycle connections after 1 hour
