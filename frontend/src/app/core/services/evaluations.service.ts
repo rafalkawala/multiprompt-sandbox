@@ -47,6 +47,7 @@ export interface Evaluation {
   total_images: number;
   processed_images: number;
   accuracy: number | null;
+  results_summary: any;
   error_message: string | null;
   system_message: string | null;
   question_text: string | null;
@@ -63,6 +64,8 @@ export interface EvaluationListItem {
   model_name: string;
   status: string;
   progress: number;
+  total_images: number;
+  processed_images: number;
   accuracy: number | null;
   created_at: string;
 }
@@ -156,8 +159,8 @@ export class EvaluationsService {
     return this.http.post<Evaluation>(`${this.API_URL}/evaluations`, data);
   }
 
-  getEvaluationResults(id: string) {
-    return this.http.get<EvaluationResult[]>(`${this.API_URL}/evaluations/${id}/results`);
+  getEvaluationResults(id: string, skip: number = 0, limit: number = 50) {
+    return this.http.get<EvaluationResult[]>(`${this.API_URL}/evaluations/${id}/results?skip=${skip}&limit=${limit}`);
   }
 
   deleteEvaluation(id: string) {

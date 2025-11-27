@@ -133,10 +133,18 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
                 @if (evaluation.accuracy !== null) {
                   <span class="accuracy">Accuracy: {{ (evaluation.accuracy * 100).toFixed(1) }}%</span>
                 }
+                @if (evaluation.status === 'running' || evaluation.status === 'completed') {
+                   <span class="count-text">
+                     {{ evaluation.processed_images }} / {{ evaluation.total_images }} images
+                   </span>
+                }
               </div>
               @if (evaluation.status === 'running') {
-                <mat-progress-bar mode="determinate" [value]="evaluation.progress"></mat-progress-bar>
-                <p class="progress-text">{{ evaluation.progress }}% complete</p>
+                <mat-progress-bar mode="determinate" [value]="(evaluation.processed_images / evaluation.total_images) * 100"></mat-progress-bar>
+                <div class="progress-info">
+                  <span class="progress-text">{{ ((evaluation.processed_images / evaluation.total_images) * 100).toFixed(0) }}% complete</span>
+                  <span class="eta-text">{{ getEta(evaluation) }}</span>
+                </div>
               }
             </mat-card-content>
             <mat-card-actions>
@@ -154,6 +162,39 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
 
             <!-- Results Panel -->
             @if (selectedEvaluationId === evaluation.id) {
+              
+              <!-- Confusion Matrix -->
+              @if (confusionMatrix()) {
+                <div class="matrix-container">
+                  <h3 class="section-title">Confusion Matrix</h3>
+                  <div class="confusion-matrix">
+                    <div class="matrix-cell header"></div>
+                    <div class="matrix-cell header">Pred: True</div>
+                    <div class="matrix-cell header">Pred: False</div>
+                    
+                    <div class="matrix-cell header row-header">Actual: True</div>
+                    <div class="matrix-cell tp" matTooltip="True Positive: Correctly identified as True">
+                      <span class="value">{{ confusionMatrix().tp }}</span>
+                      <span class="label">TP</span>
+                    </div>
+                    <div class="matrix-cell fn" matTooltip="False Negative: Incorrectly identified as False">
+                      <span class="value">{{ confusionMatrix().fn }}</span>
+                      <span class="label">FN</span>
+                    </div>
+                    
+                    <div class="matrix-cell header row-header">Actual: False</div>
+                    <div class="matrix-cell fp" matTooltip="False Positive: Incorrectly identified as True">
+                      <span class="value">{{ confusionMatrix().fp }}</span>
+                      <span class="label">FP</span>
+                    </div>
+                    <div class="matrix-cell tn" matTooltip="True Negative: Correctly identified as False">
+                      <span class="value">{{ confusionMatrix().tn }}</span>
+                      <span class="label">TN</span>
+                    </div>
+                  </div>
+                </div>
+              }
+
               <!-- Prompts Panel -->
               @if (selectedEvaluation) {
                 <mat-expansion-panel class="prompts-panel">
@@ -177,12 +218,12 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
               }
 
               <!-- Results Table Panel -->
-              @if (results().length > 0) {
+              @if (results().length > 0 || hasMoreResults()) {
                 <mat-expansion-panel [expanded]="true">
                   <mat-expansion-panel-header>
                     <mat-panel-title>
                       <mat-icon>table_chart</mat-icon>
-                      Results ({{ results().length }} images)
+                      Results ({{ results().length }} of {{ evaluation.total_images }})
                     </mat-panel-title>
                   </mat-expansion-panel-header>
                   <div class="results-table">
@@ -193,7 +234,7 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
                     </ng-container>
                     <ng-container matColumnDef="response">
                       <th mat-header-cell *matHeaderCellDef>Response</th>
-                      <td mat-cell *matCellDef="let row">{{ row.parsed_answer?.value ?? '-' }}</td>
+                      <td mat-cell *matCellDef="let row" [matTooltip]="row.model_response || ''">{{ row.parsed_answer?.value ?? '-' }}</td>
                     </ng-container>
                     <ng-container matColumnDef="ground_truth">
                       <th mat-header-cell *matHeaderCellDef>Ground Truth</th>
@@ -218,6 +259,19 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
                     <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
                     <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
                   </table>
+                  
+                  @if (hasMoreResults()) {
+                    <div class="load-more-container">
+                      <button mat-stroked-button (click)="loadMoreResults()" [disabled]="loadingResults()">
+                        @if (loadingResults()) {
+                          <mat-icon><mat-spinner diameter="18"></mat-spinner></mat-icon>
+                        } @else {
+                          <mat-icon>expand_more</mat-icon>
+                        }
+                        Load More Results
+                      </button>
+                    </div>
+                  }
                 </div>
               </mat-expansion-panel>
               }
@@ -319,12 +373,35 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
       margin-top: 8px;
     }
 
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #5f6368;
+    }
+
+    .eta-text {
+      font-style: italic;
+    }
+
+    .count-text {
+      color: #5f6368;
+      font-size: 13px;
+    }
+
     .results-table {
       overflow-x: auto;
 
       table {
         width: 100%;
       }
+    }
+    
+    .load-more-container {
+      display: flex;
+      justify-content: center;
+      padding: 16px;
     }
 
     .correct {
@@ -370,6 +447,56 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
         color: #5f6368;
       }
     }
+    
+    .matrix-container {
+      padding: 16px;
+      background: #fafafa;
+      border-radius: 4px;
+      margin-bottom: 16px;
+      border: 1px solid #eee;
+    }
+    
+    .confusion-matrix {
+      display: grid;
+      grid-template-columns: auto 1fr 1fr;
+      gap: 8px;
+      max-width: 400px;
+      
+      .matrix-cell {
+        padding: 12px;
+        border-radius: 4px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        
+        &.header {
+          font-weight: 500;
+          color: #5f6368;
+          background: transparent;
+        }
+        
+        &.row-header {
+          justify-content: flex-start;
+          padding-left: 0;
+        }
+        
+        &.tp { background-color: #e6f4ea; color: #137333; }
+        &.tn { background-color: #e6f4ea; color: #137333; }
+        &.fp { background-color: #fce8e6; color: #c5221f; }
+        &.fn { background-color: #fce8e6; color: #c5221f; }
+        
+        .value {
+          font-size: 18px;
+          font-weight: bold;
+        }
+        
+        .label {
+          font-size: 10px;
+          opacity: 0.7;
+        }
+      }
+    }
 
     mat-panel-title {
       display: flex;
@@ -383,7 +510,15 @@ export class EvaluationsComponent implements OnInit {
   projects = signal<ProjectListItem[]>([]);
   datasets = signal<DatasetDetail[]>([]);
   modelConfigs = signal<ModelConfigListItem[]>([]);
+  
+  // Results State
   results = signal<EvaluationResult[]>([]);
+  currentResultOffset = 0;
+  loadingResults = signal(false);
+  hasMoreResults = signal(false);
+  confusionMatrix = signal<any>(null);
+  readonly RESULTS_PAGE_SIZE = 50;
+  
   loading = signal(true);
   selectedEvaluationId: string | null = null;
 
@@ -517,6 +652,30 @@ export class EvaluationsComponent implements OnInit {
     }
   }
 
+  getEta(evaluation: EvaluationListItem): string {
+    if (evaluation.status !== 'running' || !evaluation.processed_images || !evaluation.total_images) {
+      return '';
+    }
+    
+    if (evaluation.processed_images < 2) {
+      return 'Calculating ETA...';
+    }
+
+    const startTime = new Date(evaluation.created_at).getTime();
+    const now = new Date().getTime();
+    const elapsedMs = now - startTime;
+    
+    const msPerImage = elapsedMs / evaluation.processed_images;
+    const remainingImages = evaluation.total_images - evaluation.processed_images;
+    const remainingMs = remainingImages * msPerImage;
+
+    if (remainingMs < 60000) {
+      return `~${Math.ceil(remainingMs / 1000)}s remaining`;
+    } else {
+      return `~${Math.ceil(remainingMs / 60000)}m remaining`;
+    }
+  }
+
   startEvaluation() {
     if (!this.isFormValid()) return;
 
@@ -546,27 +705,52 @@ export class EvaluationsComponent implements OnInit {
       this.selectedEvaluationId = null;
       this.selectedEvaluation = null;
       this.results.set([]);
+      this.confusionMatrix.set(null);
       return;
     }
 
     this.selectedEvaluationId = evaluation.id;
+    this.currentResultOffset = 0;
+    this.results.set([]);
 
     // Load full evaluation details (including prompts)
     this.evaluationsService.getEvaluation(evaluation.id).subscribe({
       next: (evalDetails) => {
         this.selectedEvaluation = evalDetails;
+        // Set confusion matrix if available
+        if (evalDetails.results_summary?.confusion_matrix) {
+          this.confusionMatrix.set(evalDetails.results_summary.confusion_matrix);
+        } else {
+          this.confusionMatrix.set(null);
+        }
+        this.loadMoreResults();
       },
       error: (err) => {
         console.error('Failed to load evaluation details:', err);
       }
     });
+  }
 
-    // Load results
-    this.evaluationsService.getEvaluationResults(evaluation.id).subscribe({
-      next: (results) => this.results.set(results),
+  loadMoreResults() {
+    if (!this.selectedEvaluationId || this.loadingResults()) return;
+    
+    this.loadingResults.set(true);
+    
+    this.evaluationsService.getEvaluationResults(
+      this.selectedEvaluationId, 
+      this.currentResultOffset, 
+      this.RESULTS_PAGE_SIZE
+    ).subscribe({
+      next: (results) => {
+        this.results.set([...this.results(), ...results]);
+        this.currentResultOffset += results.length;
+        this.hasMoreResults.set(results.length === this.RESULTS_PAGE_SIZE);
+        this.loadingResults.set(false);
+      },
       error: (err) => {
         console.error('Failed to load results:', err);
         this.snackBar.open('Failed to load results', 'Close', { duration: 3000 });
+        this.loadingResults.set(false);
       }
     });
   }

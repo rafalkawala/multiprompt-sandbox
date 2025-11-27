@@ -1,7 +1,7 @@
 """
 Evaluation API endpoints with LLM integrations
 """
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
@@ -73,6 +73,8 @@ class EvaluationListItem(BaseModel):
     model_name: str
     status: str
     progress: int
+    total_images: int
+    processed_images: int
     accuracy: Optional[float]
     created_at: datetime
 
@@ -307,6 +309,38 @@ async def run_evaluation_task(evaluation_id: str):
         successful_count = total_processed - failed_count
         failure_rate = (failed_count / total_processed * 100) if total_processed > 0 else 0
 
+        # Confusion Matrix for Binary Classification
+        confusion_matrix = None
+        if project.question_type == 'binary':
+            tp = 0
+            tn = 0
+            fp = 0
+            fn = 0
+            
+            # Re-query results to calculate matrix (or accumulate during loop)
+            # Since we are in the same transaction, we can query the just-added results
+            results = db.query(EvaluationResult).filter(EvaluationResult.evaluation_id == evaluation.id).all()
+            
+            for r in results:
+                if r.is_correct is None: continue
+                
+                # Ensure we have boolean values
+                gt = r.ground_truth.get('value') if r.ground_truth else None
+                pred = r.parsed_answer.get('value') if r.parsed_answer else None
+                
+                if gt is True and pred is True:
+                    tp += 1
+                elif gt is False and pred is False:
+                    tn += 1
+                elif gt is False and pred is True:
+                    fp += 1
+                elif gt is True and pred is False:
+                    fn += 1
+            
+            confusion_matrix = {
+                'tp': tp, 'tn': tn, 'fp': fp, 'fn': fn
+            }
+
         # Determine if evaluation should be marked as failed due to high failure rate
         FAILURE_THRESHOLD_PERCENT = 50  # If >50% of predictions fail, mark evaluation as failed
 
@@ -329,7 +363,8 @@ async def run_evaluation_task(evaluation_id: str):
             'successful': successful_count,
             'failed': failed_count,
             'failure_rate_percent': round(failure_rate, 2),
-            'accuracy_percent': round(evaluation.accuracy * 100, 2)
+            'accuracy_percent': round(evaluation.accuracy * 100, 2),
+            'confusion_matrix': confusion_matrix
         }
         db.commit()
 
@@ -366,6 +401,8 @@ async def list_evaluations(
             model_name=f"{e.model_config.provider}/{e.model_config.model_name}",
             status=e.status,
             progress=e.progress,
+            total_images=e.total_images,
+            processed_images=e.processed_images,
             accuracy=e.accuracy,
             created_at=e.created_at
         )
@@ -485,6 +522,8 @@ async def get_evaluation(
 @router.get("/{evaluation_id}/results", response_model=List[EvaluationResultItem])
 async def get_evaluation_results(
     evaluation_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -498,7 +537,7 @@ async def get_evaluation_results(
 
     results = db.query(EvaluationResult).filter(
         EvaluationResult.evaluation_id == evaluation_id
-    ).all()
+    ).offset(skip).limit(limit).all()
 
     return [
         EvaluationResultItem(
