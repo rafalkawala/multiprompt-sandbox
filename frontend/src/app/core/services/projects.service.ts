@@ -174,6 +174,8 @@ export class ProjectsService {
     progress?: number;
     result?: ImageItem[];
     error?: string;
+    errors?: string[];
+    summary?: string;
     filename: string;
   }> {
     return from(files).pipe(
