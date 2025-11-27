@@ -4,11 +4,13 @@ API v1 router
 from fastapi import APIRouter
 # Temporarily disable agents endpoint due to import issues
 # from api.v1 import agents, images
-from api.v1 import images, auth, users, projects, datasets, annotations, model_configs, evaluations
+from api.v1 import images, auth, users, projects, datasets, annotations, model_configs, evaluations, agents
 
 api_router = APIRouter()
 
 # api_router.include_router(agents.router, prefix="/agents", tags=["agents"])
+# Uncommenting line below as import issue should be resolved
+api_router.include_router(agents.router, prefix="/agents", tags=["agents"])
 api_router.include_router(images.router, prefix="/images", tags=["images"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])

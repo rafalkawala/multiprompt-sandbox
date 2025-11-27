@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import logging
 
-from app.services.agent_service import AgentService
+from services.agent_service import AgentService
 from api.v1.auth import get_current_user
 from models.user import User
 
