@@ -59,6 +59,7 @@ class EvaluationResponse(BaseModel):
     processed_images: int
     accuracy: Optional[float]
     error_message: Optional[str]
+    results_summary: Optional[dict] = None
     system_message: Optional[str]
     question_text: Optional[str]
     started_at: Optional[datetime]
@@ -479,6 +480,7 @@ async def create_evaluation(
         processed_images=evaluation.processed_images,
         accuracy=evaluation.accuracy,
         error_message=evaluation.error_message,
+        results_summary=evaluation.results_summary,
         system_message=evaluation.system_message,
         question_text=evaluation.question_text,
         started_at=evaluation.started_at,
@@ -512,6 +514,7 @@ async def get_evaluation(
         processed_images=evaluation.processed_images,
         accuracy=evaluation.accuracy,
         error_message=evaluation.error_message,
+        results_summary=evaluation.results_summary,
         system_message=evaluation.system_message,
         question_text=evaluation.question_text,
         started_at=evaluation.started_at,
