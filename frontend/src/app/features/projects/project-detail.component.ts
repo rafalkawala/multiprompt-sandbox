@@ -168,7 +168,7 @@ import { switchMap } from 'rxjs/operators';
                               <span>Skipped</span>
                             } @else {
                               <mat-icon>check_circle</mat-icon>
-                              <span>{{ formatAnnotationValue(image.annotation_value) }}</span>
+                              <span [class.no-answer]="isNoAnswer(image.annotation_value)">{{ formatAnnotationValue(image.annotation_value) }}</span>
                             }
                             @if (image.is_flagged) {
                               <mat-icon class="flag-icon" matTooltip="Flagged">flag</mat-icon>
@@ -276,7 +276,7 @@ import { switchMap } from 'rxjs/operators';
               @if (selectedImage()!.is_annotated && !selectedImage()!.is_skipped) {
                 <div class="detail-item">
                   <span class="label">Answer:</span>
-                  <span class="value answer-value">{{ formatAnnotationValue(selectedImage()!.annotation_value) }}</span>
+                  <span class="value answer-value" [class.no-answer]="isNoAnswer(selectedImage()!.annotation_value)">{{ formatAnnotationValue(selectedImage()!.annotation_value) }}</span>
                 </div>
               }
 
@@ -541,6 +541,10 @@ import { switchMap } from 'rxjs/operators';
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+
+          &.no-answer {
+            color: #d93025;
+          }
         }
       }
     }
@@ -653,8 +657,12 @@ import { switchMap } from 'rxjs/operators';
       .answer-value {
         font-size: 18px;
         font-weight: 500;
+
+        &.no-answer {
+          color: #d93025;
+        }
       }
-      
+
       &.flagged-item {
         color: #d93025;
         background: #fce8e6;
@@ -1013,7 +1021,14 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
     if (value === false) return 'No';
     return String(value);
   }
-  
+
+  isNoAnswer(value: any): boolean {
+    if (value && typeof value === 'object' && 'value' in value) {
+      value = value.value; // Handle nested object from backend
+    }
+    return value === false;
+  }
+
   getDatasetName(id: string): string {
     const dataset = this.datasets().find(d => d.id === id);
     return dataset ? dataset.name : 'Unknown';

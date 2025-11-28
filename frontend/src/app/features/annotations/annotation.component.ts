@@ -409,24 +409,34 @@ export class AnnotationComponent implements OnInit {
   loadData() {
     this.loading.set(true);
 
-    // Load project, stats, and initial images
+    // Load project, stats, datasets first
     Promise.all([
       this.projectsService.getProject(this.projectId).toPromise(),
       this.evaluationsService.getAnnotationStats(this.projectId, this.datasetId).toPromise(),
-      this.projectsService.getImages(this.projectId, this.datasetId, 0, 50).toPromise(), // Load first 50
       this.projectsService.getDatasets(this.projectId).toPromise()
-    ]).then(([project, stats, images, datasets]) => {
+    ]).then(([project, stats, datasets]) => {
       this.project.set(project || null);
       this.stats.set(stats || null);
-      this.allImages.set(images || []);
 
       const dataset = datasets?.find(d => d.id === this.datasetId);
       this.datasetName = dataset?.name || '';
+      const imageCount = stats?.total_images || 1000; // Use stats total, fallback to 1000
 
-      // Check if we should start at a specific unannotated image
-      this.skipToUnannotated(false); // false = don't force reload if we have images
+      // Load all images metadata at once (only metadata, images loaded lazily)
+      this.projectsService.getImages(this.projectId, this.datasetId, 0, imageCount).toPromise()
+        .then(images => {
+          this.allImages.set(images || []);
 
-      this.loading.set(false);
+          // Check if we should start at a specific unannotated image
+          this.skipToUnannotated(false); // false = don't force reload if we have images
+
+          this.loading.set(false);
+        })
+        .catch(err => {
+          console.error('Failed to load images:', err);
+          this.loading.set(false);
+          this.snackBar.open('Failed to load images', 'Close', { duration: 3000 });
+        });
     }).catch(err => {
       console.error('Failed to load data:', err);
       this.loading.set(false);
@@ -565,23 +575,8 @@ export class AnnotationComponent implements OnInit {
       this.currentImage.set(images[this.imageIndex]);
       this.loadAnnotation();
     } else {
-      // Try to load more images
-      this.loading.set(true);
-      const currentCount = images.length;
-      this.projectsService.getImages(this.projectId, this.datasetId, currentCount, 50).subscribe({
-        next: (newImages) => {
-            this.loading.set(false);
-            if (newImages && newImages.length > 0) {
-                this.allImages.update(imgs => [...imgs, ...newImages]);
-                this.imageIndex++;
-                this.currentImage.set(this.allImages()[this.imageIndex]);
-                this.loadAnnotation();
-            } else {
-                this.snackBar.open('End of dataset reached', 'Close', { duration: 2000 });
-            }
-        },
-        error: () => this.loading.set(false)
-      });
+      // End of dataset - try to find next unannotated
+      this.skipToUnannotated(true);
     }
   }
 
