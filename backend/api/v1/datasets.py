@@ -13,6 +13,7 @@ import os
 import uuid
 import shutil
 import base64
+import asyncio
 
 from core.database import SessionLocal
 from core.config import settings
@@ -107,6 +108,29 @@ class DatasetResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class BatchUploadResponse(BaseModel):
+    """Response for batch upload - Phase 1 (upload to GCS)"""
+    dataset_id: str
+    uploaded_count: int
+    failed_count: int
+    processing_status: str  # 'processing', 'failed'
+    errors: Optional[List[str]] = None
+    message: str
+
+
+class ProcessingStatusResponse(BaseModel):
+    """Response for processing status polling"""
+    dataset_id: str
+    processing_status: str  # 'ready', 'uploading', 'processing', 'completed', 'failed'
+    total_files: int
+    processed_files: int
+    failed_files: int
+    progress_percent: float
+    processing_started_at: Optional[datetime] = None
+    processing_completed_at: Optional[datetime] = None
+    errors: Optional[List[str]] = None
 
 
 @router.post("/{project_id}/datasets", response_model=DatasetResponse, status_code=status.HTTP_201_CREATED)
@@ -698,3 +722,246 @@ async def delete_image(
     db.commit()
 
     return {"message": f"Image '{filename}' deleted successfully"}
+
+
+@router.post("/{project_id}/datasets/{dataset_id}/images/batch-upload", response_model=BatchUploadResponse)
+async def batch_upload_images(
+    project_id: str,
+    dataset_id: str,
+    files: List[UploadFile] = File(...),
+    current_user: User = Depends(require_write_access),
+    db: Session = Depends(get_db)
+):
+    """
+    Batch upload images - Two-phase approach:
+    Phase 1 (this endpoint): Stream files directly to GCS in parallel
+    Phase 2 (background): Generate thumbnails via Cloud Tasks
+
+    This endpoint returns immediately after uploading to GCS.
+    Use the processing-status endpoint to monitor thumbnail generation progress.
+    """
+
+    # Verify dataset exists
+    dataset = db.query(Dataset).filter(
+        Dataset.id == dataset_id,
+        Dataset.project_id == project_id
+    ).first()
+
+    if not dataset:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Dataset not found"
+        )
+
+    # Verify project belongs to user
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.created_by_id == current_user.id
+    ).first()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found"
+        )
+
+    # Check if dataset is already being processed
+    if dataset.processing_status in ['uploading', 'processing']:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Dataset is currently {dataset.processing_status}. Please wait for it to complete."
+        )
+
+    logger.info(f"Starting batch upload of {len(files)} files to dataset {dataset_id}")
+
+    # Update dataset status to 'uploading'
+    dataset.processing_status = "uploading"
+    dataset.processing_started_at = datetime.utcnow()
+    dataset.total_files = len(files)
+    dataset.processed_files = 0
+    dataset.failed_files = 0
+    dataset.processing_errors = []
+    db.commit()
+
+    storage = get_storage_provider()
+    storage_prefix = f"projects/{project_id}/datasets/{dataset_id}"
+
+    uploaded_images = []
+    errors = []
+
+    # Semaphore for rate limiting parallel uploads
+    semaphore = asyncio.Semaphore(10)  # Max 10 concurrent uploads
+
+    async def upload_single_file(file: UploadFile) -> Optional[Image]:
+        """Upload a single file to GCS and create database record"""
+        async with semaphore:
+            try:
+                # Validate file type
+                if not is_valid_image_file(file.filename, file.content_type):
+                    _, ext = os.path.splitext(file.filename)
+                    error_msg = f"Invalid file extension '{ext}' (allowed: .jpg, .jpeg, .png, .gif, .webp)"
+                    errors.append(f"{file.filename}: {error_msg}")
+                    logger.warning(f"Skipping {file.filename}: {error_msg}")
+                    await file.close()
+                    return None
+
+                # Generate unique filename
+                ext = os.path.splitext(file.filename)[1]
+                unique_filename = f"{uuid.uuid4()}{ext}"
+                storage_path = f"{storage_prefix}/{unique_filename}"
+
+                # Stream upload directly to GCS (no BytesIO buffering)
+                uploaded_path, file_size = await storage.upload(file, storage_path)
+
+                logger.info(f"Uploaded {file.filename} to {uploaded_path} ({file_size} bytes)")
+
+                # Create database record with processing_status='pending'
+                # Thumbnail will be generated in Phase 2
+                image = Image(
+                    dataset_id=dataset_id,
+                    filename=file.filename,
+                    storage_path=uploaded_path,
+                    file_size=file_size,
+                    thumbnail_data=None,  # Generated in Phase 2
+                    processing_status='pending',  # Will be processed by Cloud Task
+                    uploaded_by_id=current_user.id
+                )
+
+                await file.close()
+                return image
+
+            except Exception as e:
+                logger.error(f"Failed to upload {file.filename}: {str(e)}", exc_info=True)
+                errors.append(f"{file.filename}: {str(e)}")
+                await file.close()
+                return None
+
+    try:
+        # Upload all files in parallel
+        results = await asyncio.gather(
+            *[upload_single_file(file) for file in files],
+            return_exceptions=True
+        )
+
+        # Filter out None and exceptions
+        uploaded_images = [img for img in results if isinstance(img, Image)]
+
+        # Add all images to database
+        if uploaded_images:
+            db.add_all(uploaded_images)
+            db.commit()
+            logger.info(f"Committed {len(uploaded_images)} images to database")
+
+        # Update dataset status
+        if not uploaded_images:
+            # All uploads failed
+            dataset.processing_status = "failed"
+            dataset.processing_completed_at = datetime.utcnow()
+            dataset.processing_errors = errors[:10]  # Limit to 10 errors
+            db.commit()
+
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"All uploads failed. Errors: {'; '.join(errors[:3])}"
+            )
+
+        # Update dataset to 'processing' and enqueue Cloud Task
+        dataset.processing_status = "processing"
+        dataset.total_files = len(uploaded_images)
+        db.commit()
+
+        # Enqueue Cloud Task for Phase 2 (thumbnail generation)
+        try:
+            from services.cloud_tasks_service import get_cloud_tasks_service
+            tasks_service = get_cloud_tasks_service()
+            task_name = tasks_service.enqueue_dataset_processing(project_id, dataset_id)
+            logger.info(f"Enqueued processing task: {task_name}")
+        except Exception as e:
+            logger.error(f"Failed to enqueue Cloud Task: {str(e)}", exc_info=True)
+            # Don't fail the request - images are uploaded, just log the error
+            # The user can manually trigger processing later if needed
+
+        message = f"Successfully uploaded {len(uploaded_images)} of {len(files)} files to GCS. Thumbnail generation started in background."
+        if errors:
+            message += f" ({len(errors)} files failed)"
+
+        return BatchUploadResponse(
+            dataset_id=str(dataset_id),
+            uploaded_count=len(uploaded_images),
+            failed_count=len(errors),
+            processing_status=dataset.processing_status,
+            errors=errors if errors else None,
+            message=message
+        )
+
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Unexpected error during batch upload: {str(e)}", exc_info=True)
+
+        # Update dataset status to failed
+        dataset.processing_status = "failed"
+        dataset.processing_completed_at = datetime.utcnow()
+        dataset.processing_errors = [str(e)]
+        db.commit()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Batch upload failed: {str(e)}"
+        )
+
+
+@router.get("/{project_id}/datasets/{dataset_id}/processing-status", response_model=ProcessingStatusResponse)
+async def get_processing_status(
+    project_id: str,
+    dataset_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get processing status for a dataset.
+    Used by frontend to poll progress during Phase 2 (thumbnail generation).
+    """
+
+    # Verify dataset exists
+    dataset = db.query(Dataset).filter(
+        Dataset.id == dataset_id,
+        Dataset.project_id == project_id
+    ).first()
+
+    if not dataset:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Dataset not found"
+        )
+
+    # Verify project belongs to user
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.created_by_id == current_user.id
+    ).first()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found"
+        )
+
+    # Calculate progress percentage
+    progress_percent = 0.0
+    if dataset.total_files > 0:
+        progress_percent = (dataset.processed_files / dataset.total_files) * 100
+
+    return ProcessingStatusResponse(
+        dataset_id=str(dataset_id),
+        processing_status=dataset.processing_status,
+        total_files=dataset.total_files,
+        processed_files=dataset.processed_files,
+        failed_files=dataset.failed_files,
+        progress_percent=round(progress_percent, 2),
+        processing_started_at=dataset.processing_started_at,
+        processing_completed_at=dataset.processing_completed_at,
+        errors=dataset.processing_errors if dataset.processing_errors else None
+    )

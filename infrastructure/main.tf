@@ -38,7 +38,8 @@ resource "google_project_service" "project_services" {
     "cloudkms.googleapis.com",       # Cloud KMS
     "vpcaccess.googleapis.com",      # Serverless VPC Access
     "compute.googleapis.com",        # Compute Engine (for VPC)
-    "servicenetworking.googleapis.com" # Service Networking (for private SQL)
+    "servicenetworking.googleapis.com", # Service Networking (for private SQL)
+    "cloudtasks.googleapis.com"      # Cloud Tasks (for background jobs)
   ])
   service                    = each.key
   disable_dependent_services = false
@@ -184,4 +185,42 @@ resource "google_secret_manager_secret_iam_member" "allowed_domain_accessor" {
   secret_id = google_secret_manager_secret.allowed_domain.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.backend_sa.email}"
+}
+
+# --- Cloud Tasks (for background image processing) ---
+
+resource "google_cloud_tasks_queue" "image_processing" {
+  project  = google_project.project.project_id
+  name     = "image-processing-queue"
+  location = var.gcp_region
+
+  rate_limits {
+    max_concurrent_dispatches = 10
+    max_dispatches_per_second = 5
+  }
+
+  retry_config {
+    max_attempts       = 3
+    max_retry_duration = "3600s"
+    min_backoff        = "10s"
+    max_backoff        = "300s"
+    max_doublings      = 3
+  }
+
+  depends_on = [google_project_service.project_services]
+}
+
+# Grant backend service account permission to enqueue tasks
+resource "google_project_iam_member" "cloudtasks_enqueuer" {
+  project = google_project.project.project_id
+  role    = "roles/cloudtasks.enqueuer"
+  member  = "serviceAccount:${google_service_account.backend_sa.email}"
+}
+
+# Grant backend service account permission to invoke itself via Cloud Tasks
+# This allows Cloud Tasks to call the internal task endpoint on Cloud Run
+resource "google_project_iam_member" "run_invoker" {
+  project = google_project.project.project_id
+  role    = "roles/run.invoker"
+  member  = "serviceAccount:${google_service_account.backend_sa.email}"
 }

@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     STORAGE_TYPE: str = "local" # local or gcs
     UPLOAD_DIR: str = "uploads" # Directory for local storage
 
+    # Cloud Tasks Configuration
+    REGION: str = "us-central1"  # GCP region for Cloud Tasks
+    BACKEND_URL: str = ""  # Backend URL for Cloud Tasks callbacks (set in Cloud Run)
+
     # LangChain Configuration
     LANGCHAIN_TRACING_V2: bool = False
     LANGCHAIN_API_KEY: str = ""

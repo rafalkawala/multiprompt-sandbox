@@ -156,6 +156,8 @@ steps:
         echo "DB_USER: \"${_DB_USER}\"" >> deploy_env_vars.yaml
         echo "DB_NAME: \"${_DB_NAME}\"" >> deploy_env_vars.yaml
         echo "GCP_PROJECT_ID: \"$PROJECT_ID\"" >> deploy_env_vars.yaml
+        echo "REGION: \"${_REGION}\"" >> deploy_env_vars.yaml
+        echo "BACKEND_URL: \"$$BACKEND_URL\"" >> deploy_env_vars.yaml
         echo "FRONTEND_URL: \"$$FRONTEND_URL\"" >> deploy_env_vars.yaml
         echo "GOOGLE_REDIRECT_URI: \"$$BACKEND_URL/api/v1/auth/google/callback\"" >> deploy_env_vars.yaml
         echo "CORS_ALLOWED_ORIGINS: \"$$FRONTEND_URL\"" >> deploy_env_vars.yaml
@@ -224,15 +226,7 @@ steps:
         # Update environment variables with actual deployed URLs
         gcloud run services update multiprompt-backend \
           --region=${_REGION} \
-          --update-env-vars "FRONTEND_URL=$${FRONTEND_URL}"
-
-        gcloud run services update multiprompt-backend \
-          --region=${_REGION} \
-          --update-env-vars "GOOGLE_REDIRECT_URI=$${BACKEND_URL}/api/v1/auth/google/callback"
-
-        gcloud run services update multiprompt-backend \
-          --region=${_REGION} \
-          --update-env-vars "CORS_ALLOWED_ORIGINS=$${FRONTEND_URL}"
+          --update-env-vars "BACKEND_URL=$${BACKEND_URL},FRONTEND_URL=$${FRONTEND_URL},GOOGLE_REDIRECT_URI=$${BACKEND_URL}/api/v1/auth/google/callback,CORS_ALLOWED_ORIGINS=$${FRONTEND_URL}"
 
     waitFor: ['deploy-backend', 'deploy-frontend']
     id: 'update-urls'
