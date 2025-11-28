@@ -233,73 +233,116 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
                 </mat-chip-listbox>
               </div>
 
-              <!-- Results Table Panel -->
-              @if (results().length > 0 || hasMoreResults()) {
-                <mat-expansion-panel [expanded]="true">
-                  <mat-expansion-panel-header>
-                    <mat-panel-title>
-                      <mat-icon>table_chart</mat-icon>
-                      Results ({{ results().length }} loaded)
-                    </mat-panel-title>
-                  </mat-expansion-panel-header>
-                  <div class="results-table">
-                  <table mat-table [dataSource]="results()">
-                    <ng-container matColumnDef="image">
-                      <th mat-header-cell *matHeaderCellDef>Image</th>
-                      <td mat-cell *matCellDef="let row" class="clickable-cell" (click)="openResultDetail(row)">
-                        {{ row.image_filename }}
-                      </td>
-                    </ng-container>
-                    <ng-container matColumnDef="response">
-                      <th mat-header-cell *matHeaderCellDef>Response</th>
-                      <td mat-cell *matCellDef="let row" [matTooltip]="row.model_response || ''" class="clickable-cell" (click)="openResultDetail(row)">
-                        {{ row.parsed_answer?.value ?? '-' }}
-                      </td>
-                    </ng-container>
-                    <ng-container matColumnDef="ground_truth">
-                      <th mat-header-cell *matHeaderCellDef>Ground Truth</th>
-                      <td mat-cell *matCellDef="let row" class="clickable-cell" (click)="openResultDetail(row)">
-                        {{ row.ground_truth?.value ?? '-' }}
-                      </td>
-                    </ng-container>
-                    <ng-container matColumnDef="correct">
-                      <th mat-header-cell *matHeaderCellDef>Correct</th>
-                      <td mat-cell *matCellDef="let row" class="clickable-cell" (click)="openResultDetail(row)">
-                        @if (row.is_correct === true) {
-                          <mat-icon class="correct">check_circle</mat-icon>
-                        } @else if (row.is_correct === false) {
-                          <mat-icon class="incorrect">cancel</mat-icon>
-                        } @else {
-                          -
-                        }
-                      </td>
-                    </ng-container>
-                    <ng-container matColumnDef="latency">
-                      <th mat-header-cell *matHeaderCellDef>Latency</th>
-                      <td mat-cell *matCellDef="let row" class="clickable-cell" (click)="openResultDetail(row)">
-                        {{ row.latency_ms ? row.latency_ms + 'ms' : '-' }}
-                      </td>
-                    </ng-container>
-                    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-                    <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row"></tr>
+              <!-- Confusion Matrix for Binary Projects -->
+              @if (isBinaryProject() && confusionMatrix()) {
+                <div class="confusion-matrix-container">
+                  <h4>Confusion Matrix</h4>
+                  <table class="confusion-matrix">
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th colspan="2">Predicted</th>
+                      </tr>
+                      <tr>
+                        <th>Actual</th>
+                        <th>Yes</th>
+                        <th>No</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td class="label">Yes</td>
+                        <td class="tp">{{ confusionMatrix()!.tp }}</td>
+                        <td class="fn">{{ confusionMatrix()!.fn }}</td>
+                      </tr>
+                      <tr>
+                        <td class="label">No</td>
+                        <td class="fp">{{ confusionMatrix()!.fp }}</td>
+                        <td class="tn">{{ confusionMatrix()!.tn }}</td>
+                      </tr>
+                    </tbody>
                   </table>
-                  
-                  @if (hasMoreResults()) {
-                    <div class="load-more-container">
-                      <button mat-stroked-button (click)="loadMoreResults()" [disabled]="loadingResults()">
-                        @if (loadingResults()) {
-                          <mat-icon><mat-spinner diameter="18"></mat-spinner></mat-icon>
-                        } @else {
-                          <mat-icon>expand_more</mat-icon>
-                        }
-                        Load More Results
-                      </button>
-                    </div>
-                  }
                 </div>
-              </mat-expansion-panel>
-              } @else if (!loadingResults()) {
-                <div class="no-results">No results match the selected filter.</div>
+              }
+
+              <!-- Results Section -->
+              @if (showResults()) {
+                <!-- Results Table Panel -->
+                @if (results().length > 0 || hasMoreResults()) {
+                  <mat-expansion-panel [expanded]="true">
+                    <mat-expansion-panel-header>
+                      <mat-panel-title>
+                        <mat-icon>table_chart</mat-icon>
+                        Results ({{ results().length }} loaded)
+                      </mat-panel-title>
+                    </mat-expansion-panel-header>
+                    <div class="results-table">
+                    <table mat-table [dataSource]="results()">
+                      <ng-container matColumnDef="image">
+                        <th mat-header-cell *matHeaderCellDef>Image</th>
+                        <td mat-cell *matCellDef="let row" class="clickable-cell" (click)="openResultDetail(row)">
+                          {{ row.image_filename }}
+                        </td>
+                      </ng-container>
+                      <ng-container matColumnDef="response">
+                        <th mat-header-cell *matHeaderCellDef>Response</th>
+                        <td mat-cell *matCellDef="let row" [matTooltip]="row.model_response || ''" class="clickable-cell" (click)="openResultDetail(row)">
+                          {{ row.parsed_answer?.value ?? '-' }}
+                        </td>
+                      </ng-container>
+                      <ng-container matColumnDef="ground_truth">
+                        <th mat-header-cell *matHeaderCellDef>Ground Truth</th>
+                        <td mat-cell *matCellDef="let row" class="clickable-cell" (click)="openResultDetail(row)">
+                          {{ row.ground_truth?.value ?? '-' }}
+                        </td>
+                      </ng-container>
+                      <ng-container matColumnDef="correct">
+                        <th mat-header-cell *matHeaderCellDef>Correct</th>
+                        <td mat-cell *matCellDef="let row" class="clickable-cell" (click)="openResultDetail(row)">
+                          @if (row.is_correct === true) {
+                            <mat-icon class="correct">check_circle</mat-icon>
+                          } @else if (row.is_correct === false) {
+                            <mat-icon class="incorrect">cancel</mat-icon>
+                          } @else {
+                            -
+                          }
+                        </td>
+                      </ng-container>
+                      <ng-container matColumnDef="latency">
+                        <th mat-header-cell *matHeaderCellDef>Latency</th>
+                        <td mat-cell *matCellDef="let row" class="clickable-cell" (click)="openResultDetail(row)">
+                          {{ row.latency_ms ? row.latency_ms + 'ms' : '-' }}
+                        </td>
+                      </ng-container>
+                      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+                      <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row"></tr>
+                    </table>
+
+                    @if (hasMoreResults()) {
+                      <div class="load-more-container">
+                        <button mat-stroked-button (click)="loadMoreResults()" [disabled]="loadingResults()">
+                          @if (loadingResults()) {
+                            <mat-icon><mat-spinner diameter="18"></mat-spinner></mat-icon>
+                          } @else {
+                            <mat-icon>expand_more</mat-icon>
+                          }
+                          Load More Results
+                        </button>
+                      </div>
+                    }
+                  </div>
+                </mat-expansion-panel>
+                } @else if (!loadingResults()) {
+                  <div class="no-results">No results match the selected filter.</div>
+                }
+              } @else {
+                <!-- Unhide Results Button -->
+                <div class="unhide-results-container">
+                  <button mat-raised-button color="primary" (click)="showResults.set(true); loadMoreResults()">
+                    <mat-icon>visibility</mat-icon>
+                    Show Results
+                  </button>
+                </div>
               }
             }
           </mat-card>
@@ -618,6 +661,13 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
       border-radius: 4px;
       margin-top: 16px;
     }
+
+    .unhide-results-container {
+      display: flex;
+      justify-content: center;
+      padding: 24px;
+      margin-top: 16px;
+    }
     
     /* Overlay Modal Styles */
     .image-overlay-modal {
@@ -744,6 +794,7 @@ export class EvaluationsComponent implements OnInit {
   hasMoreResults = signal(false);
   confusionMatrix = signal<any>(null);
   activeFilter = signal<string>('all');
+  showResults = signal(false);
   readonly RESULTS_PAGE_SIZE = 50;
   
   // Overlay State
@@ -944,6 +995,7 @@ export class EvaluationsComponent implements OnInit {
       this.selectedEvaluation = null;
       this.results.set([]);
       this.confusionMatrix.set(null);
+      this.showResults.set(false);
       return;
     }
 
@@ -951,6 +1003,7 @@ export class EvaluationsComponent implements OnInit {
     this.currentResultOffset = 0;
     this.activeFilter.set('all'); // Reset filter
     this.results.set([]);
+    this.showResults.set(false); // Don't show results initially
 
     // Load full evaluation details (including prompts)
     this.evaluationsService.getEvaluation(evaluation.id).subscribe({
@@ -962,7 +1015,7 @@ export class EvaluationsComponent implements OnInit {
         } else {
           this.confusionMatrix.set(null);
         }
-        this.loadMoreResults();
+        // Don't load results automatically - wait for user to click filter or unhide button
       },
       error: (err) => {
         console.error('Failed to load evaluation details:', err);
@@ -1002,10 +1055,11 @@ export class EvaluationsComponent implements OnInit {
 
   setFilter(filter: string) {
     if (this.activeFilter() === filter) return;
-    
+
     this.activeFilter.set(filter);
     this.currentResultOffset = 0;
     this.results.set([]); // Clear current results
+    this.showResults.set(true); // Show results when filter is clicked
     this.loadMoreResults(); // Reload with new filter
   }
 

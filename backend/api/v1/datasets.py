@@ -1,7 +1,7 @@
 """
 Dataset and image management endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query, BackgroundTasks
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -728,6 +728,7 @@ async def delete_image(
 async def batch_upload_images(
     project_id: str,
     dataset_id: str,
+    background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     current_user: User = Depends(require_write_access),
     db: Session = Depends(get_db)
@@ -870,16 +871,39 @@ async def batch_upload_images(
         dataset.total_files = len(uploaded_images)
         db.commit()
 
-        # Enqueue Cloud Task for Phase 2 (thumbnail generation)
-        try:
-            from services.cloud_tasks_service import get_cloud_tasks_service
-            tasks_service = get_cloud_tasks_service()
-            task_name = tasks_service.enqueue_dataset_processing(project_id, dataset_id)
-            logger.info(f"Enqueued processing task: {task_name}")
-        except Exception as e:
-            logger.error(f"Failed to enqueue Cloud Task: {str(e)}", exc_info=True)
-            # Don't fail the request - images are uploaded, just log the error
-            # The user can manually trigger processing later if needed
+        # Phase 2: Enqueue background processing (Cloud Tasks or local)
+        if settings.USE_CLOUD_TASKS:
+            # Production: Use Google Cloud Tasks
+            try:
+                from services.cloud_tasks_service import get_cloud_tasks_service
+                tasks_service = get_cloud_tasks_service()
+                task_name = tasks_service.enqueue_dataset_processing(project_id, dataset_id)
+                logger.info(f"Enqueued Cloud Task: {task_name}")
+            except Exception as e:
+                logger.error(f"Failed to enqueue Cloud Task: {str(e)}", exc_info=True)
+                # Don't fail the request - images are uploaded, just log the error
+        else:
+            # Local development: Use FastAPI BackgroundTasks
+            try:
+                from services.image_processing_service import ImageProcessingService
+                from core.database import SessionLocal
+
+                def process_in_background():
+                    """Process dataset images in background thread"""
+                    db_session = SessionLocal()
+                    try:
+                        service = ImageProcessingService()
+                        import asyncio
+                        asyncio.run(service.process_dataset_images(dataset_id, db_session))
+                    except Exception as e:
+                        logger.error(f"Background processing failed: {str(e)}", exc_info=True)
+                    finally:
+                        db_session.close()
+
+                background_tasks.add_task(process_in_background)
+                logger.info(f"Added local background task for dataset {dataset_id}")
+            except Exception as e:
+                logger.error(f"Failed to enqueue background task: {str(e)}", exc_info=True)
 
         message = f"Successfully uploaded {len(uploaded_images)} of {len(files)} files to GCS. Thumbnail generation started in background."
         if errors:

@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     # Cloud Tasks Configuration
     REGION: str = "us-central1"  # GCP region for Cloud Tasks
     BACKEND_URL: str = ""  # Backend URL for Cloud Tasks callbacks (set in Cloud Run)
+    USE_CLOUD_TASKS: bool = False  # Use Cloud Tasks or local background processing
 
     # LangChain Configuration
     LANGCHAIN_TRACING_V2: bool = False
