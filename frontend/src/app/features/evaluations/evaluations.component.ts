@@ -1075,7 +1075,12 @@ export class EvaluationsComponent implements OnInit {
     this.selectedResult.set(null);
     this.selectedImageUrl.set(null);
   }
-  
+
+  isBinaryProject(): boolean {
+    const project = this.projects().find(p => p.id === this.selectedEvaluation?.project_id);
+    return project?.question_type === 'binary';
+  }
+
   // Helper for template
   get filterOptions() {
     return [
