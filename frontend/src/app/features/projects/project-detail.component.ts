@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -14,8 +14,10 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
-import { ProjectsService, Project, DatasetDetail, ImageItem } from '../../core/services/projects.service';
+import { ProjectsService, Project, DatasetDetail, ImageItem, ProcessingStatus } from '../../core/services/projects.service';
 import { EvaluationsService } from '../../core/services/evaluations.service';
+import { interval, Subscription } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
 
 @Component({
   selector: 'app-project-detail',
@@ -120,7 +122,28 @@ import { EvaluationsService } from '../../core/services/evaluations.service';
 
                 <!-- Upload Progress -->
                 @if (uploadingDatasetId === dataset.id) {
-                  <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+                  <div class="upload-status">
+                    <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+                    <p class="status-text">Uploading files to cloud storage...</p>
+                  </div>
+                }
+
+                <!-- Processing Status (Phase 2: Thumbnail Generation) -->
+                @if (processingStatus[dataset.id] && processingStatus[dataset.id]!.processing_status === 'processing') {
+                  <div class="processing-status">
+                    <div class="status-header">
+                      <mat-icon>image</mat-icon>
+                      <span>Generating thumbnails...</span>
+                    </div>
+                    <mat-progress-bar
+                      mode="determinate"
+                      [value]="processingStatus[dataset.id]!.progress_percent">
+                    </mat-progress-bar>
+                    <p class="status-text">
+                      {{ processingStatus[dataset.id]!.processed_files }} / {{ processingStatus[dataset.id]!.total_files }} images
+                      ({{ processingStatus[dataset.id]!.progress_percent }}%)
+                    </p>
+                  </div>
                 }
 
                 <!-- Image Grid -->
@@ -381,6 +404,39 @@ import { EvaluationsService } from '../../core/services/evaluations.service';
       }
     }
 
+    .upload-status, .processing-status {
+      margin-bottom: 16px;
+      padding: 16px;
+      background-color: #f8f9fa;
+      border-radius: 8px;
+
+      .status-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: #1967d2;
+
+        mat-icon {
+          font-size: 20px;
+          width: 20px;
+          height: 20px;
+        }
+      }
+
+      .status-text {
+        font-size: 14px;
+        color: #5f6368;
+        margin: 8px 0 0 0;
+        text-align: center;
+      }
+
+      mat-progress-bar {
+        margin-bottom: 8px;
+      }
+    }
+
     .image-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -615,7 +671,7 @@ import { EvaluationsService } from '../../core/services/evaluations.service';
     }
   `]
 })
-export class ProjectDetailComponent implements OnInit {
+export class ProjectDetailComponent implements OnInit, OnDestroy {
   project = signal<Project | null>(null);
   datasets = signal<DatasetDetail[]>([]);
   loading = signal(true);
@@ -624,16 +680,20 @@ export class ProjectDetailComponent implements OnInit {
   uploadingDatasetId: string | null = null;
   datasetImages: Record<string, ImageItem[]> = {};
   loadingImages: Record<string, boolean> = {};
-  
+
   // Pagination state
   datasetOffsets: Record<string, number> = {};
   hasMoreImages: Record<string, boolean> = {};
   readonly PAGE_SIZE = 50;
-  
+
   // Overlay State
   selectedImage = signal<ImageItem | null>(null);
   selectedDatasetId = signal<string>('');
   selectedImageUrl = signal<string | null>(null);
+
+  // Two-phase upload: Processing status tracking
+  processingStatus: Record<string, ProcessingStatus | null> = {};
+  pollingSubscriptions: Record<string, Subscription> = {};
 
   projectId = '';
 
@@ -660,6 +720,11 @@ export class ProjectDetailComponent implements OnInit {
         this.closeImageDetail();
       }
     });
+  }
+
+  ngOnDestroy() {
+    // Clean up all polling subscriptions
+    Object.values(this.pollingSubscriptions).forEach(sub => sub.unsubscribe());
   }
 
   loadProject() {
@@ -814,69 +879,91 @@ export class ProjectDetailComponent implements OnInit {
   }
 
   uploadFiles(datasetId: string, files: File[]) {
+    // Two-phase batch upload
     this.uploadingDatasetId = datasetId;
 
-    const uploadedImages: ImageItem[] = [];
-    const allErrors: string[] = [];
-    let completedCount = 0;
-    let errorCount = 0;
-
-    this.projectsService.uploadImagesInParallel(this.projectId, datasetId, files, 3).subscribe({
-      next: (status) => {
-        if (status.result && status.result.length > 0) {
-          // File upload completed
-          uploadedImages.push(...status.result);
-          completedCount++;
-
-          // Collect any errors from partial success
-          if (status.errors && status.errors.length > 0) {
-            allErrors.push(...status.errors);
-            errorCount += status.errors.length;
-          }
-        } else if (status.error) {
-          // File upload failed completely
-          console.error(`Failed to upload ${status.filename}:`, status.error);
-          allErrors.push(`${status.filename}: ${status.error}`);
-          errorCount++;
-        }
-      },
-      complete: () => {
-        // All uploads processed
+    // Phase 1: Upload to GCS
+    this.projectsService.uploadImagesBatch(this.projectId, datasetId, files).subscribe({
+      next: (response) => {
         this.uploadingDatasetId = null;
 
-        if (uploadedImages.length > 0) {
-          // Prepend new images to the list
-          this.datasetImages[datasetId] = [...uploadedImages, ...(this.datasetImages[datasetId] || [])];
-          
-          // Update dataset count
-          const datasets = this.datasets();
-          const idx = datasets.findIndex(d => d.id === datasetId);
-          if (idx !== -1) {
-            datasets[idx].image_count += uploadedImages.length;
-            this.datasets.set([...datasets]);
-          }
-        }
+        // Show upload result
+        let message = response.message;
+        const duration = response.errors && response.errors.length > 0 ? 8000 : 3000;
+        const snackBarRef = this.snackBar.open(
+          message,
+          response.errors && response.errors.length > 0 ? 'Show Errors' : 'Close',
+          { duration }
+        );
 
-        // Show summary with error details
-        let message = `${completedCount} of ${files.length} uploaded`;
-        if (errorCount > 0) {
-          message += ` (${errorCount} failed)`;
-        }
-
-        const duration = allErrors.length > 0 ? 8000 : 3000;
-        const snackBarRef = this.snackBar.open(message, allErrors.length > 0 ? 'Show Errors' : 'Close', { duration });
-
-        if (allErrors.length > 0) {
+        if (response.errors && response.errors.length > 0) {
           snackBarRef.onAction().subscribe(() => {
-            const errorMessage = 'Upload errors:\n\n' + allErrors.join('\n');
+            const errorMessage = 'Upload errors:\n\n' + response.errors!.join('\n');
             alert(errorMessage);
           });
         }
+
+        // Phase 2: Start polling for thumbnail generation progress
+        if (response.processing_status === 'processing') {
+          this.startProcessingStatusPolling(datasetId);
+        }
       },
       error: (err) => {
-        console.error('Upload error:', err);
+        console.error('Batch upload error:', err);
         this.uploadingDatasetId = null;
-        this.snackBar.open('Upload failed', 'Close', { duration: 3000 });
+        const errorDetail = err.error?.detail || err.message || 'Upload failed';
+        this.snackBar.open(errorDetail, 'Close', { duration: 5000 });
+      }
+    });
+  }
+
+  startProcessingStatusPolling(datasetId: string) {
+    // Clear any existing subscription
+    if (this.pollingSubscriptions[datasetId]) {
+      this.pollingSubscriptions[datasetId].unsubscribe();
+    }
+
+    // Poll every 2 seconds
+    this.pollingSubscriptions[datasetId] = interval(2000).pipe(
+      switchMap(() => this.projectsService.getProcessingStatus(this.projectId, datasetId))
+    ).subscribe({
+      next: (status) => {
+        this.processingStatus[datasetId] = status;
+
+        // Stop polling when completed or failed
+        if (status.processing_status === 'completed' || status.processing_status === 'failed') {
+          if (this.pollingSubscriptions[datasetId]) {
+            this.pollingSubscriptions[datasetId].unsubscribe();
+            delete this.pollingSubscriptions[datasetId];
+          }
+
+          // Refresh images to show thumbnails
+          this.loadImages(datasetId, true);
+
+          // Show completion message
+          if (status.processing_status === 'completed') {
+            this.snackBar.open(
+              `Processing complete: ${status.processed_files} images processed`,
+              'Close',
+              { duration: 3000 }
+            );
+          } else if (status.processing_status === 'failed') {
+            const message = `Processing failed: ${status.failed_files} errors`;
+            this.snackBar.open(message, status.errors ? 'Show Errors' : 'Close', { duration: 5000 })
+              .onAction().subscribe(() => {
+                if (status.errors) {
+                  alert('Processing errors:\n\n' + status.errors.join('\n'));
+                }
+              });
+          }
+        }
+      },
+      error: (err) => {
+        console.error('Error polling processing status:', err);
+        if (this.pollingSubscriptions[datasetId]) {
+          this.pollingSubscriptions[datasetId].unsubscribe();
+          delete this.pollingSubscriptions[datasetId];
+        }
       }
     });
   }

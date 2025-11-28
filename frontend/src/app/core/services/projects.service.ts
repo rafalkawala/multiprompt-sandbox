@@ -72,6 +72,27 @@ export interface DatasetDetail {
   images?: ImageItem[];
 }
 
+export interface BatchUploadResponse {
+  dataset_id: string;
+  uploaded_count: number;
+  failed_count: number;
+  processing_status: string;
+  errors?: string[];
+  message: string;
+}
+
+export interface ProcessingStatus {
+  dataset_id: string;
+  processing_status: string; // 'ready', 'uploading', 'processing', 'completed', 'failed'
+  total_files: number;
+  processed_files: number;
+  failed_files: number;
+  progress_percent: number;
+  processing_started_at?: string;
+  processing_completed_at?: string;
+  errors?: string[];
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -214,5 +235,23 @@ export class ProjectsService {
   // Get thumbnail URL (256x256 JPEG from database, no expiry)
   getImageThumbnailUrl(projectId: string, datasetId: string, imageId: string) {
     return `${this.API_URL}/projects/${projectId}/datasets/${datasetId}/images/${imageId}/thumbnail`;
+  }
+
+  // Two-phase batch upload: Upload to GCS + enqueue background processing
+  uploadImagesBatch(projectId: string, datasetId: string, files: File[]) {
+    const formData = new FormData();
+    files.forEach(file => formData.append('files', file));
+
+    return this.http.post<BatchUploadResponse>(
+      `${this.API_URL}/projects/${projectId}/datasets/${datasetId}/images/batch-upload`,
+      formData
+    );
+  }
+
+  // Get processing status for polling during Phase 2 (thumbnail generation)
+  getProcessingStatus(projectId: string, datasetId: string) {
+    return this.http.get<ProcessingStatus>(
+      `${this.API_URL}/projects/${projectId}/datasets/${datasetId}/processing-status`
+    );
   }
 }
