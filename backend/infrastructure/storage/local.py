@@ -23,8 +23,10 @@ class LocalStorageProvider(IStorageProvider):
 
         file_size = 0
 
-        if isinstance(file, UploadFile):
-            # Reset file pointer to beginning
+        # Check if it's an UploadFile by checking for the file attribute
+        # UploadFile has an async interface, BinaryIO has a sync interface
+        if isinstance(file, UploadFile) or hasattr(file, 'filename'):
+            # UploadFile: async read
             await file.seek(0)
             with open(full_path, "wb") as buffer:
                 while content := await file.read(1024 * 1024):  # 1MB chunks
@@ -36,11 +38,11 @@ class LocalStorageProvider(IStorageProvider):
                         raise HTTPException(status_code=413, detail=f"File too large (limit {settings.MAX_UPLOAD_SIZE} bytes)")
                     buffer.write(content)
         else:
-            # Assume BinaryIO
+            # BinaryIO: sync read
             with open(full_path, "wb") as buffer:
                 shutil.copyfileobj(file, buffer)
             file_size = os.path.getsize(full_path)
-        
+
         return destination_path, file_size
 
     async def delete(self, path: str) -> bool:

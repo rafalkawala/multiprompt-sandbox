@@ -62,3 +62,5 @@ The Terraform configuration includes:
 Important: for any database migration ALWAYS use Alembic
 
 Your terminal is running on Windows
+
+For every architectural decision taken create Git issue eg. [ADR-001] Background Job Infrastructure for Image Processing

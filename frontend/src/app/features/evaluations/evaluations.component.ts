@@ -164,38 +164,6 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
 
             <!-- Results Panel -->
             @if (selectedEvaluationId === evaluation.id) {
-              
-              <!-- Confusion Matrix -->
-              @if (confusionMatrix()) {
-                <div class="matrix-container">
-                  <h3 class="section-title">Confusion Matrix</h3>
-                  <div class="confusion-matrix">
-                    <div class="matrix-cell header"></div>
-                    <div class="matrix-cell header">Pred: True</div>
-                    <div class="matrix-cell header">Pred: False</div>
-                    
-                    <div class="matrix-cell header row-header">Actual: True</div>
-                    <div class="matrix-cell tp" matTooltip="True Positive: Correctly identified as True">
-                      <span class="value">{{ confusionMatrix().tp }}</span>
-                      <span class="label">TP</span>
-                    </div>
-                    <div class="matrix-cell fn" matTooltip="False Negative: Incorrectly identified as False">
-                      <span class="value">{{ confusionMatrix().fn }}</span>
-                      <span class="label">FN</span>
-                    </div>
-                    
-                    <div class="matrix-cell header row-header">Actual: False</div>
-                    <div class="matrix-cell fp" matTooltip="False Positive: Incorrectly identified as True">
-                      <span class="value">{{ confusionMatrix().fp }}</span>
-                      <span class="label">FP</span>
-                    </div>
-                    <div class="matrix-cell tn" matTooltip="True Negative: Correctly identified as False">
-                      <span class="value">{{ confusionMatrix().tn }}</span>
-                      <span class="label">TN</span>
-                    </div>
-                  </div>
-                </div>
-              }
 
               <!-- Prompts Panel -->
               @if (selectedEvaluation) {
