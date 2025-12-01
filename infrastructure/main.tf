@@ -128,6 +128,14 @@ resource "google_service_account_iam_member" "cloud_build_impersonate" {
   member             = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
 }
 
+# Allow backend service account to act as itself for Cloud Tasks OIDC token creation
+# This grants the "iam.serviceAccounts.actAs" permission needed for Cloud Tasks
+resource "google_service_account_iam_member" "backend_sa_self_impersonate" {
+  service_account_id = google_service_account.backend_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.backend_sa.email}"
+}
+
 # --- Cloud Storage (GCS) for image uploads ---
 
 resource "google_storage_bucket" "uploads" {
