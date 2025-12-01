@@ -795,23 +795,26 @@ async def batch_upload_images(
             detail="Project not found"
         )
 
-    # Check if dataset is already being uploaded by another request
-    # Allow uploads during 'processing' (background thumbnail generation) to support chunked batches
-    if dataset.processing_status == 'uploading':
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Dataset is currently being uploaded. Please wait for it to complete."
-        )
+    # Allow uploads during 'processing' or 'failed' to support retries and chunked batches
+    # Only block if truly in the middle of an upload (very brief window)
+    current_status = dataset.processing_status
+    logger.info(f"Starting batch upload of {len(files)} files to dataset {dataset_id} (current status: {current_status})")
 
-    logger.info(f"Starting batch upload of {len(files)} files to dataset {dataset_id}")
-
-    # Update dataset status to 'uploading'
-    # If already processing, we're adding to an existing batch (chunked upload)
-    is_continuation = dataset.processing_status == 'processing'
+    # Determine if this is a continuation or a new/retry upload
+    is_continuation = current_status == 'processing'
+    is_retry_after_failure = current_status == 'failed'
 
     dataset.processing_status = "uploading"
-    if not is_continuation:
+    if not is_continuation and not is_retry_after_failure:
         # New upload session - reset counters
+        dataset.processing_started_at = datetime.utcnow()
+        dataset.total_files = len(files)
+        dataset.processed_files = 0
+        dataset.failed_files = 0
+        dataset.processing_errors = []
+    elif is_retry_after_failure:
+        # Retry after failure - reset counters and clear old errors
+        logger.info(f"Retrying upload after previous failure for dataset {dataset_id}")
         dataset.processing_started_at = datetime.utcnow()
         dataset.total_files = len(files)
         dataset.processed_files = 0
@@ -929,19 +932,33 @@ async def batch_upload_images(
         # Phase 2: Enqueue background processing (Cloud Tasks or local)
         # Always enqueue a task for each batch to ensure all images get processed
         # The processing service queries for 'pending' images at task start time
+        task_enqueued = False
+        task_error = None
+
         if settings.USE_CLOUD_TASKS:
             # Production: Use Google Cloud Tasks
             try:
                 from services.cloud_tasks_service import get_cloud_tasks_service
                 tasks_service = get_cloud_tasks_service()
                 task_name = tasks_service.enqueue_dataset_processing(project_id, dataset_id)
+                task_enqueued = True
                 if is_continuation:
                     logger.info(f"Enqueued Cloud Task for continuation batch: {task_name}")
                 else:
                     logger.info(f"Enqueued Cloud Task: {task_name}")
             except Exception as e:
-                logger.error(f"Failed to enqueue Cloud Task: {str(e)}", exc_info=True)
-                # Don't fail the request - images are uploaded, just log the error
+                task_error = str(e)
+                logger.error(f"Failed to enqueue Cloud Task: {task_error}", exc_info=True)
+                # CRITICAL: Update status to failed so user can retry
+                dataset.processing_status = "failed"
+                dataset.processing_completed_at = datetime.utcnow()
+                dataset.processing_errors = [f"Failed to start background processing: {task_error}"]
+                db.commit()
+                # Return error to frontend instead of silently failing
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Images uploaded successfully, but failed to start thumbnail generation: {task_error}. You can retry the upload to trigger processing."
+                )
         else:
             # Local development: Use FastAPI BackgroundTasks
             try:

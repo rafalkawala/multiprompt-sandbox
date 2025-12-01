@@ -27,30 +27,43 @@ class CloudTasksService:
             Task name/ID
         """
         try:
+            # Validate configuration before attempting to create task
+            if not settings.BACKEND_URL:
+                raise ValueError("BACKEND_URL is not configured in environment")
+            if not self.project:
+                raise ValueError("GCP_PROJECT_ID is not configured in environment")
+
             # Build queue path
             parent = self.client.queue_path(self.project, self.location, self.queue)
+            target_url = f"{settings.BACKEND_URL}/api/v1/internal/tasks/process-dataset/{dataset_id}"
+            service_account = f"multiprompt-backend-sa@{self.project}.iam.gserviceaccount.com"
+
+            # Log configuration for debugging
+            logger.info(f"Creating Cloud Task for dataset {dataset_id}")
+            logger.info(f"  Queue: {parent}")
+            logger.info(f"  Target URL: {target_url}")
+            logger.info(f"  Service Account: {service_account}")
 
             # Build task
             task = {
                 "http_request": {
                     "http_method": tasks_v2.HttpMethod.POST,
-                    "url": f"{settings.BACKEND_URL}/api/v1/internal/tasks/process-dataset/{dataset_id}",
+                    "url": target_url,
                     "oidc_token": {
-                        "service_account_email": f"multiprompt-backend-sa@{self.project}.iam.gserviceaccount.com"
+                        "service_account_email": service_account
                     }
                 }
             }
 
-            logger.info(f"Enqueueing dataset processing task for dataset {dataset_id}")
-
             # Create the task
             response = self.client.create_task(request={"parent": parent, "task": task})
 
-            logger.info(f"Task created: {response.name}")
+            logger.info(f"✓ Cloud Task created successfully: {response.name}")
             return response.name
 
         except Exception as e:
-            logger.error(f"Failed to enqueue task for dataset {dataset_id}: {str(e)}", exc_info=True)
+            logger.error(f"✗ Failed to enqueue Cloud Task for dataset {dataset_id}: {str(e)}", exc_info=True)
+            logger.error(f"  Configuration: BACKEND_URL={settings.BACKEND_URL}, GCP_PROJECT_ID={self.project}, REGION={self.location}")
             raise
 
 
