@@ -163,6 +163,7 @@ steps:
         echo "CORS_ALLOWED_ORIGINS: \"$$FRONTEND_URL\"" >> deploy_env_vars.yaml
         echo "GCS_BUCKET_NAME: \"${_GCS_BUCKET}\"" >> deploy_env_vars.yaml
         echo "STORAGE_TYPE: \"gcs\"" >> deploy_env_vars.yaml
+        echo "USE_CLOUD_TASKS: \"true\"" >> deploy_env_vars.yaml
         echo "--- DEBUG: deploy_env_vars.yaml content ---"
         cat deploy_env_vars.yaml
         echo "--- END DEBUG ---"
@@ -226,7 +227,7 @@ steps:
         # Update environment variables with actual deployed URLs
         gcloud run services update multiprompt-backend \
           --region=${_REGION} \
-          --update-env-vars "BACKEND_URL=$${BACKEND_URL},FRONTEND_URL=$${FRONTEND_URL},GOOGLE_REDIRECT_URI=$${BACKEND_URL}/api/v1/auth/google/callback,CORS_ALLOWED_ORIGINS=$${FRONTEND_URL}"
+          --update-env-vars "BACKEND_URL=$${BACKEND_URL},FRONTEND_URL=$${FRONTEND_URL},GOOGLE_REDIRECT_URI=$${BACKEND_URL}/api/v1/auth/google/callback,CORS_ALLOWED_ORIGINS=$${FRONTEND_URL},USE_CLOUD_TASKS=true"
 
     waitFor: ['deploy-backend', 'deploy-frontend']
     id: 'update-urls'
