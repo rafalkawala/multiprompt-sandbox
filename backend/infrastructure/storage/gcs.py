@@ -35,7 +35,9 @@ class GCSStorageProvider(IStorageProvider):
     async def upload(self, file: Union[UploadFile, BinaryIO], destination_path: str) -> Tuple[str, int]:
         blob = self.bucket.blob(destination_path)
         
-        if isinstance(file, UploadFile):
+        # Check if it's an UploadFile using duck typing to be more robust
+        # (isinstance can fail with some import patterns or mocks)
+        if isinstance(file, UploadFile) or hasattr(file, "file"):
             await file.seek(0)
             # stream upload
             blob.upload_from_file(
