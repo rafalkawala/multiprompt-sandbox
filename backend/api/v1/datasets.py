@@ -740,7 +740,36 @@ async def batch_upload_images(
 
     This endpoint returns immediately after uploading to GCS.
     Use the processing-status endpoint to monitor thumbnail generation progress.
+
+    Security: Validates individual file sizes (10MB limit per file).
+    Frontend should chunk batches to stay under Cloud Run's 32MB request limit.
     """
+
+    # Validate individual file sizes (10MB limit)
+    oversized_files = []
+    for file in files:
+        # Get file size by reading content-length header or reading the file
+        file_size = 0
+        if hasattr(file, 'size') and file.size:
+            file_size = file.size
+        else:
+            # Read file to get size (will seek back to start)
+            await file.seek(0)
+            content = await file.read()
+            file_size = len(content)
+            await file.seek(0)
+
+        if file_size > settings.MAX_UPLOAD_SIZE:
+            oversized_files.append(f"{file.filename} ({file_size / (1024 * 1024):.1f}MB)")
+
+    if oversized_files:
+        error_msg = f"{len(oversized_files)} file(s) exceed {settings.MAX_UPLOAD_SIZE / (1024 * 1024):.0f}MB limit: {', '.join(oversized_files[:3])}"
+        if len(oversized_files) > 3:
+            error_msg += f" and {len(oversized_files) - 3} more"
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=error_msg
+        )
 
     # Verify dataset exists
     dataset = db.query(Dataset).filter(

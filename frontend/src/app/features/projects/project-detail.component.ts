@@ -887,42 +887,145 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
   }
 
   uploadFiles(datasetId: string, files: File[]) {
-    // Two-phase batch upload
+    // Validate individual file sizes (10MB limit per file)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    const oversizedFiles = files.filter(f => f.size > MAX_FILE_SIZE);
+
+    if (oversizedFiles.length > 0) {
+      const fileList = oversizedFiles.map(f => `${f.name} (${this.formatFileSize(f.size)})`).join('\n');
+      this.snackBar.open(
+        `${oversizedFiles.length} file(s) exceed 10MB limit and will be skipped`,
+        'Show Files',
+        { duration: 8000 }
+      ).onAction().subscribe(() => {
+        alert(`Files exceeding 10MB limit:\n\n${fileList}`);
+      });
+
+      // Filter out oversized files
+      files = files.filter(f => f.size <= MAX_FILE_SIZE);
+
+      if (files.length === 0) {
+        this.snackBar.open('No valid files to upload', 'Close', { duration: 3000 });
+        return;
+      }
+    }
+
+    // Chunk files into batches (max 25MB per batch to stay under Cloud Run 32MB limit)
+    const batches = this.chunkFilesBySize(files, 25 * 1024 * 1024);
+
+    if (batches.length > 1) {
+      this.snackBar.open(
+        `Uploading ${files.length} files in ${batches.length} batches...`,
+        'Close',
+        { duration: 3000 }
+      );
+    }
+
+    // Upload batches sequentially
+    this.uploadBatchesSequentially(datasetId, batches);
+  }
+
+  private chunkFilesBySize(files: File[], maxBatchSize: number): File[][] {
+    const batches: File[][] = [];
+    let currentBatch: File[] = [];
+    let currentSize = 0;
+
+    for (const file of files) {
+      // If adding this file would exceed the limit and we already have files, start new batch
+      if (currentSize + file.size > maxBatchSize && currentBatch.length > 0) {
+        batches.push(currentBatch);
+        currentBatch = [];
+        currentSize = 0;
+      }
+      currentBatch.push(file);
+      currentSize += file.size;
+    }
+
+    // Add the last batch if it has files
+    if (currentBatch.length > 0) {
+      batches.push(currentBatch);
+    }
+
+    return batches;
+  }
+
+  private async uploadBatchesSequentially(datasetId: string, batches: File[][]) {
     this.uploadingDatasetId = datasetId;
+    let totalUploaded = 0;
+    let totalFailed = 0;
+    let allErrors: string[] = [];
 
-    // Phase 1: Upload to GCS
-    this.projectsService.uploadImagesBatch(this.projectId, datasetId, files).subscribe({
-      next: (response) => {
-        this.uploadingDatasetId = null;
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i];
+      const batchSize = batch.reduce((sum, f) => sum + f.size, 0);
 
-        // Show upload result
-        let message = response.message;
-        const duration = response.errors && response.errors.length > 0 ? 8000 : 3000;
-        const snackBarRef = this.snackBar.open(
-          message,
-          response.errors && response.errors.length > 0 ? 'Show Errors' : 'Close',
-          { duration }
+      if (batches.length > 1) {
+        this.snackBar.open(
+          `Uploading batch ${i + 1}/${batches.length}: ${batch.length} files (${this.formatFileSize(batchSize)})`,
+          '',
+          { duration: 2000 }
         );
+      }
+
+      try {
+        // Upload this batch
+        const response = await new Promise<any>((resolve, reject) => {
+          this.projectsService.uploadImagesBatch(this.projectId, datasetId, batch).subscribe({
+            next: resolve,
+            error: reject
+          });
+        });
+
+        totalUploaded += response.uploaded_count;
+        totalFailed += response.failed_count;
 
         if (response.errors && response.errors.length > 0) {
-          snackBarRef.onAction().subscribe(() => {
-            const errorMessage = 'Upload errors:\n\n' + response.errors!.join('\n');
-            alert(errorMessage);
-          });
+          allErrors.push(...response.errors);
         }
 
-        // Phase 2: Start polling for thumbnail generation progress
-        if (response.processing_status === 'processing') {
+        // Start polling after first successful batch
+        if (i === 0 && response.processing_status === 'processing') {
           this.startProcessingStatusPolling(datasetId);
         }
-      },
-      error: (err) => {
-        console.error('Batch upload error:', err);
-        this.uploadingDatasetId = null;
+
+      } catch (err: any) {
+        console.error(`Batch ${i + 1}/${batches.length} failed:`, err);
         const errorDetail = err.error?.detail || err.message || 'Upload failed';
-        this.snackBar.open(errorDetail, 'Close', { duration: 5000 });
+        allErrors.push(`Batch ${i + 1}: ${errorDetail}`);
+        totalFailed += batch.length;
       }
-    });
+    }
+
+    this.uploadingDatasetId = null;
+
+    // Show final summary
+    const summary = totalUploaded > 0
+      ? `Successfully uploaded ${totalUploaded} file(s)` + (totalFailed > 0 ? ` (${totalFailed} failed)` : '')
+      : 'All uploads failed';
+
+    const snackBarRef = this.snackBar.open(
+      summary,
+      allErrors.length > 0 ? 'Show Errors' : 'Close',
+      { duration: allErrors.length > 0 ? 8000 : 3000 }
+    );
+
+    if (allErrors.length > 0) {
+      snackBarRef.onAction().subscribe(() => {
+        const errorMessage = 'Upload errors:\n\n' + allErrors.join('\n');
+        alert(errorMessage);
+      });
+    }
+
+    // Refresh dataset to show uploaded images
+    if (totalUploaded > 0) {
+      this.loadImages(datasetId, true);
+    }
+  }
+
+  private formatFileSize(bytes: number): string {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   }
 
   startProcessingStatusPolling(datasetId: string) {
