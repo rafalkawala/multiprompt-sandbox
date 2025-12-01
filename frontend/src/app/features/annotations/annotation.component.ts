@@ -173,7 +173,10 @@ import { ProjectsService, Project, ImageItem } from '../../core/services/project
               <mat-icon>arrow_back</mat-icon>
               Previous
             </button>
-            <span>{{ imageIndex + 1 }} / {{ allImages().length }}</span>
+            <span class="nav-counter">
+              <span class="annotated-count">Annotated: {{ stats()?.annotated || 0 }} / {{ stats()?.total_images || allImages().length }}</span>
+              <span class="image-position">Image {{ imageIndex + 1 }} / {{ allImages().length }}</span>
+            </span>
             <button mat-button (click)="loadNextImage()" [disabled]="imageIndex >= allImages().length - 1">
               Next
               <mat-icon>arrow_forward</mat-icon>
@@ -366,6 +369,24 @@ import { ProjectsService, Project, ImageItem } from '../../core/services/project
       align-items: center;
       gap: 16px;
       color: #5f6368;
+
+      .nav-counter {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+
+        .annotated-count {
+          font-weight: 500;
+          color: #202124;
+          font-size: 14px;
+        }
+
+        .image-position {
+          font-size: 12px;
+          color: #5f6368;
+        }
+      }
     }
   `]
 })
@@ -467,21 +488,17 @@ export class AnnotationComponent implements OnInit {
             this.currentImage.set(newImageItem);
             this.loadAnnotation();
           }
-        } else if (force) {
-           this.snackBar.open(res['message'] || 'All images annotated!', 'Close', { duration: 3000 });
-           if (!this.currentImage() && this.allImages().length > 0) {
-               // Fallback to first image if nothing selected
-               this.imageIndex = 0;
-               this.currentImage.set(this.allImages()[0]);
-               this.loadAnnotation();
-           }
         } else {
-            // Default behavior on load: Start at 0 if no unannotated found or just fallback
-            if (this.allImages().length > 0) {
-                this.imageIndex = 0;
-                this.currentImage.set(this.allImages()[0]);
-                this.loadAnnotation();
-            }
+          // All images annotated - enter review mode
+          if (force) {
+            this.snackBar.open('🎉 All images annotated! Use Previous/Next to review.', 'Close', { duration: 4000 });
+          }
+          // Stay on current image or go to first if none selected
+          if (!this.currentImage() && this.allImages().length > 0) {
+            this.imageIndex = 0;
+            this.currentImage.set(this.allImages()[0]);
+            this.loadAnnotation();
+          }
         }
       }
     });
@@ -536,8 +553,9 @@ export class AnnotationComponent implements OnInit {
     }).subscribe({
       next: () => {
         this.saving.set(false);
-        this.loadNextImage();
         this.refreshStats();
+        // Jump to next unannotated image
+        this.skipToUnannotated(true);
       },
       error: (err) => {
         console.error('Failed to save annotation:', err);
@@ -557,8 +575,9 @@ export class AnnotationComponent implements OnInit {
     }).subscribe({
       next: () => {
         this.saving.set(false);
-        this.loadNextImage();
         this.refreshStats();
+        // Jump to next unannotated image
+        this.skipToUnannotated(true);
       },
       error: (err) => {
         console.error('Failed to skip:', err);
@@ -574,9 +593,6 @@ export class AnnotationComponent implements OnInit {
       this.imageIndex++;
       this.currentImage.set(images[this.imageIndex]);
       this.loadAnnotation();
-    } else {
-      // End of dataset - try to find next unannotated
-      this.skipToUnannotated(true);
     }
   }
 
