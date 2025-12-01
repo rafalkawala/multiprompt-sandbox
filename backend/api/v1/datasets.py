@@ -846,6 +846,19 @@ async def batch_upload_images(
                     await file.close()
                     return None
 
+                # Check for duplicate filename in this dataset
+                existing_image = db.query(Image).filter(
+                    Image.dataset_id == dataset_id,
+                    Image.filename == file.filename
+                ).first()
+
+                if existing_image:
+                    error_msg = "Duplicate file (already exists in dataset)"
+                    errors.append(f"{file.filename}: {error_msg}")
+                    logger.warning(f"Skipping {file.filename}: {error_msg}")
+                    await file.close()
+                    return None
+
                 # Generate unique filename
                 ext = os.path.splitext(file.filename)[1]
                 unique_filename = f"{uuid.uuid4()}{ext}"
@@ -914,42 +927,46 @@ async def batch_upload_images(
         db.commit()
 
         # Phase 2: Enqueue background processing (Cloud Tasks or local)
-        # Only enqueue for the first batch - subsequent batches will be processed by the same task
-        if not is_continuation:
-            if settings.USE_CLOUD_TASKS:
-                # Production: Use Google Cloud Tasks
-                try:
-                    from services.cloud_tasks_service import get_cloud_tasks_service
-                    tasks_service = get_cloud_tasks_service()
-                    task_name = tasks_service.enqueue_dataset_processing(project_id, dataset_id)
+        # Always enqueue a task for each batch to ensure all images get processed
+        # The processing service queries for 'pending' images at task start time
+        if settings.USE_CLOUD_TASKS:
+            # Production: Use Google Cloud Tasks
+            try:
+                from services.cloud_tasks_service import get_cloud_tasks_service
+                tasks_service = get_cloud_tasks_service()
+                task_name = tasks_service.enqueue_dataset_processing(project_id, dataset_id)
+                if is_continuation:
+                    logger.info(f"Enqueued Cloud Task for continuation batch: {task_name}")
+                else:
                     logger.info(f"Enqueued Cloud Task: {task_name}")
-                except Exception as e:
-                    logger.error(f"Failed to enqueue Cloud Task: {str(e)}", exc_info=True)
-                    # Don't fail the request - images are uploaded, just log the error
-            else:
-                # Local development: Use FastAPI BackgroundTasks
-                try:
-                    from services.image_processing_service import ImageProcessingService
-                    from core.database import SessionLocal
-
-                    def process_in_background():
-                        """Process dataset images in background thread"""
-                        db_session = SessionLocal()
-                        try:
-                            service = ImageProcessingService()
-                            import asyncio
-                            asyncio.run(service.process_dataset_images(dataset_id, db_session))
-                        except Exception as e:
-                            logger.error(f"Background processing failed: {str(e)}", exc_info=True)
-                        finally:
-                            db_session.close()
-
-                    background_tasks.add_task(process_in_background)
-                    logger.info(f"Added local background task for dataset {dataset_id}")
-                except Exception as e:
-                    logger.error(f"Failed to enqueue background task: {str(e)}", exc_info=True)
+            except Exception as e:
+                logger.error(f"Failed to enqueue Cloud Task: {str(e)}", exc_info=True)
+                # Don't fail the request - images are uploaded, just log the error
         else:
-            logger.info(f"Continuing chunked upload - processing task already queued")
+            # Local development: Use FastAPI BackgroundTasks
+            try:
+                from services.image_processing_service import ImageProcessingService
+                from core.database import SessionLocal
+
+                def process_in_background():
+                    """Process dataset images in background thread"""
+                    db_session = SessionLocal()
+                    try:
+                        service = ImageProcessingService()
+                        import asyncio
+                        asyncio.run(service.process_dataset_images(dataset_id, db_session))
+                    except Exception as e:
+                        logger.error(f"Background processing failed: {str(e)}", exc_info=True)
+                    finally:
+                        db_session.close()
+
+                background_tasks.add_task(process_in_background)
+                if is_continuation:
+                    logger.info(f"Added local background task for continuation batch (dataset {dataset_id})")
+                else:
+                    logger.info(f"Added local background task for dataset {dataset_id}")
+            except Exception as e:
+                logger.error(f"Failed to enqueue background task: {str(e)}", exc_info=True)
 
         message = f"Successfully uploaded {len(uploaded_images)} of {len(files)} files to GCS. Thumbnail generation started in background."
         if errors:
