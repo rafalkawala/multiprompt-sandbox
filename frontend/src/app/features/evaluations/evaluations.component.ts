@@ -165,6 +165,38 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
             <!-- Results Panel -->
             @if (selectedEvaluationId === evaluation.id) {
 
+              <!-- Confusion Matrix for Binary Projects -->
+              @if (isBinaryProject() && confusionMatrix()) {
+                <div class="confusion-matrix-container">
+                  <h4>Confusion Matrix</h4>
+                  <table class="confusion-matrix">
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th colspan="2">Predicted</th>
+                      </tr>
+                      <tr>
+                        <th>Actual</th>
+                        <th>Yes</th>
+                        <th>No</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td class="label">Yes</td>
+                        <td class="tp">{{ confusionMatrix()!.tp }}</td>
+                        <td class="fn">{{ confusionMatrix()!.fn }}</td>
+                      </tr>
+                      <tr>
+                        <td class="label">No</td>
+                        <td class="fp">{{ confusionMatrix()!.fp }}</td>
+                        <td class="tn">{{ confusionMatrix()!.tn }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              }
+
               <!-- Prompts Panel -->
               @if (selectedEvaluation) {
                 <mat-expansion-panel class="prompts-panel">
@@ -200,38 +232,6 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
                   }
                 </mat-chip-listbox>
               </div>
-
-              <!-- Confusion Matrix for Binary Projects -->
-              @if (isBinaryProject() && confusionMatrix()) {
-                <div class="confusion-matrix-container">
-                  <h4>Confusion Matrix</h4>
-                  <table class="confusion-matrix">
-                    <thead>
-                      <tr>
-                        <th></th>
-                        <th colspan="2">Predicted</th>
-                      </tr>
-                      <tr>
-                        <th>Actual</th>
-                        <th>Yes</th>
-                        <th>No</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td class="label">Yes</td>
-                        <td class="tp">{{ confusionMatrix()!.tp }}</td>
-                        <td class="fn">{{ confusionMatrix()!.fn }}</td>
-                      </tr>
-                      <tr>
-                        <td class="label">No</td>
-                        <td class="fp">{{ confusionMatrix()!.fp }}</td>
-                        <td class="tn">{{ confusionMatrix()!.tn }}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              }
 
               <!-- Results Section -->
               @if (showResults()) {
@@ -552,52 +552,72 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
       }
     }
     
-    .matrix-container {
+    .confusion-matrix-container {
+      margin: 16px 0;
       padding: 16px;
-      background: #fafafa;
-      border-radius: 4px;
-      margin-bottom: 16px;
-      border: 1px solid #eee;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid #e0e0e0;
+
+      h4 {
+        margin: 0 0 12px 0;
+        font-size: 14px;
+        font-weight: 500;
+        color: #202124;
+      }
     }
-    
+
     .confusion-matrix {
-      display: grid;
-      grid-template-columns: auto 1fr 1fr;
-      gap: 8px;
-      max-width: 400px;
-      
-      .matrix-cell {
-        padding: 12px;
+      border-collapse: separate;
+      border-spacing: 4px;
+      margin: 0;
+
+      th {
+        font-weight: 500;
+        font-size: 12px;
+        color: #5f6368;
+        text-align: center;
+        padding: 8px 12px;
+
+        &:first-child {
+          text-align: left;
+        }
+      }
+
+      td {
+        text-align: center;
+        padding: 12px 16px;
+        font-size: 16px;
+        font-weight: 500;
         border-radius: 4px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        
-        &.header {
+
+        &.label {
+          font-size: 12px;
           font-weight: 500;
           color: #5f6368;
           background: transparent;
-        }
-        
-        &.row-header {
-          justify-content: flex-start;
+          text-align: left;
           padding-left: 0;
         }
-        
-        &.tp { background-color: #e6f4ea; color: #137333; }
-        &.tn { background-color: #e6f4ea; color: #137333; }
-        &.fp { background-color: #fce8e6; color: #c5221f; }
-        &.fn { background-color: #fce8e6; color: #c5221f; }
-        
-        .value {
-          font-size: 18px;
-          font-weight: bold;
+
+        &.tp {
+          background-color: #e6f4ea;
+          color: #137333;
         }
-        
-        .label {
-          font-size: 10px;
-          opacity: 0.7;
+
+        &.tn {
+          background-color: #e6f4ea;
+          color: #137333;
+        }
+
+        &.fp {
+          background-color: #fce8e6;
+          color: #c5221f;
+        }
+
+        &.fn {
+          background-color: #fce8e6;
+          color: #c5221f;
         }
       }
     }

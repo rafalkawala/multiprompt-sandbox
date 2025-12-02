@@ -298,6 +298,27 @@ import { switchMap } from 'rxjs/operators';
         </div>
       </div>
     }
+
+    <!-- Upload Blocker Overlay -->
+    @if (showUploadBlocker()) {
+      <div class="upload-blocker-overlay" (click)="cancelUpload()">
+        <div class="upload-blocker-content" (click)="$event.stopPropagation()">
+          <button mat-icon-button class="close-button" (click)="cancelUpload()" matTooltip="Cancel Upload (ESC)">
+            <mat-icon>close</mat-icon>
+          </button>
+          <mat-spinner diameter="80"></mat-spinner>
+          <h2>Uploading Files...</h2>
+          <p class="upload-message">{{ uploadProgress().message }}</p>
+          @if (uploadProgress().total > 0) {
+            <div class="upload-progress-details">
+              <span>{{ uploadProgress().current }} of {{ uploadProgress().total }}</span>
+              <mat-progress-bar mode="determinate" [value]="(uploadProgress().current / uploadProgress().total) * 100"></mat-progress-bar>
+            </div>
+          }
+          <p class="cancel-hint">Press ESC or click × to cancel</p>
+        </div>
+      </div>
+    }
   `,
   styles: [
     `
@@ -677,12 +698,80 @@ import { switchMap } from 'rxjs/operators';
       display: flex;
       justify-content: center;
     }
+
+    .upload-blocker-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      backdrop-filter: blur(4px);
+    }
+
+    .upload-blocker-content {
+      background: white;
+      border-radius: 12px;
+      padding: 48px;
+      min-width: 400px;
+      max-width: 600px;
+      text-align: center;
+      position: relative;
+      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.3);
+
+      .close-button {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        color: #5f6368;
+
+        &:hover {
+          color: #202124;
+          background: rgba(0, 0, 0, 0.05);
+        }
+      }
+
+      h2 {
+        margin: 24px 0 12px;
+        color: #202124;
+        font-size: 24px;
+      }
+
+      .upload-message {
+        color: #5f6368;
+        margin: 8px 0 24px;
+        font-size: 16px;
+      }
+
+      .upload-progress-details {
+        margin: 16px 0;
+
+        span {
+          display: block;
+          margin-bottom: 8px;
+          color: #202124;
+          font-weight: 500;
+        }
+      }
+
+      .cancel-hint {
+        margin-top: 24px;
+        color: #80868b;
+        font-size: 14px;
+      }
+    }
   `]
 })
 export class ProjectDetailComponent implements OnInit, OnDestroy {
   project = signal<Project | null>(null);
   datasets = signal<DatasetDetail[]>([]);
   loading = signal(true);
+  showUploadBlocker = signal(false);
+  uploadProgress = signal({ current: 0, total: 0, message: '' });
   newDatasetName = '';
   dragOverDatasetId: string | null = null;
   uploadingDatasetId: string | null = null;
@@ -722,10 +811,14 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
       this.router.navigate(['/projects']);
     }
     
-    // Listen for ESC key to close overlay
+    // Listen for ESC key to close overlays
     window.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && this.selectedImage()) {
-        this.closeImageDetail();
+      if (event.key === 'Escape') {
+        if (this.showUploadBlocker()) {
+          this.cancelUpload();
+        } else if (this.selectedImage()) {
+          this.closeImageDetail();
+        }
       }
     });
   }
@@ -733,6 +826,15 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     // Clean up all polling subscriptions
     Object.values(this.pollingSubscriptions).forEach(sub => sub.unsubscribe());
+  }
+
+  private uploadCancelled = false;
+
+  cancelUpload() {
+    this.uploadCancelled = true;
+    this.showUploadBlocker.set(false);
+    this.uploadingDatasetId = null;
+    this.snackBar.open('Upload cancelled', 'Close', { duration: 3000 });
   }
 
   loadProject() {
@@ -951,21 +1053,32 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
 
   private async uploadBatchesSequentially(datasetId: string, batches: File[][]) {
     this.uploadingDatasetId = datasetId;
+    this.uploadCancelled = false;
+
+    // Show blocking overlay
+    this.showUploadBlocker.set(true);
+
     let totalUploaded = 0;
     let totalFailed = 0;
     let allErrors: string[] = [];
+    const totalBatches = batches.length;
 
     for (let i = 0; i < batches.length; i++) {
+      // Check if upload was cancelled
+      if (this.uploadCancelled) {
+        allErrors.push('Upload cancelled by user');
+        break;
+      }
+
       const batch = batches[i];
       const batchSize = batch.reduce((sum, f) => sum + f.size, 0);
 
-      if (batches.length > 1) {
-        this.snackBar.open(
-          `Uploading batch ${i + 1}/${batches.length}: ${batch.length} files (${this.formatFileSize(batchSize)})`,
-          '',
-          { duration: 2000 }
-        );
-      }
+      // Update progress
+      this.uploadProgress.set({
+        current: i + 1,
+        total: totalBatches,
+        message: `Uploading batch ${i + 1} of ${totalBatches} (${batch.length} files, ${this.formatFileSize(batchSize)})`
+      });
 
       try {
         // Upload this batch
@@ -996,6 +1109,8 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
       }
     }
 
+    // Hide blocking overlay
+    this.showUploadBlocker.set(false);
     this.uploadingDatasetId = null;
 
     // Show final summary

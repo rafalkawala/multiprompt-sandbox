@@ -236,9 +236,12 @@ async def run_evaluation_task(evaluation_id: str):
         concurrency = getattr(model_config, 'concurrency', 3)
         semaphore = asyncio.Semaphore(concurrency)
 
+        # Track completed images (not index-based, to avoid race conditions in parallel processing)
+        completed_count = 0
+
         # Process images in parallel with concurrency limit
         async def process_image(i: int, image):
-            nonlocal correct_count, failed_count, error_messages
+            nonlocal correct_count, failed_count, error_messages, completed_count
 
             async with semaphore:  # Limit concurrent API calls
                 try:
@@ -297,9 +300,10 @@ async def run_evaluation_task(evaluation_id: str):
                     )
                     db.add(result)
 
-                # Update progress
-                evaluation.processed_images = i + 1
-                evaluation.progress = int((i + 1) / len(images) * 100)
+                # Update progress atomically (increment count, not use index)
+                completed_count += 1
+                evaluation.processed_images = completed_count
+                evaluation.progress = int((completed_count / len(images)) * 100)
                 db.commit()
 
         # Run all images in parallel with concurrency limit
