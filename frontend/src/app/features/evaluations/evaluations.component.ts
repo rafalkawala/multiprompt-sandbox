@@ -1066,7 +1066,7 @@ export class EvaluationsComponent implements OnInit {
 
   isFormValid(): boolean {
     const basicFieldsValid = !!(this.newEval.name && this.newEval.project_id && this.newEval.dataset_id && this.newEval.model_config_id);
-    const hasPromptChain = this.newEval.prompt_chain && this.newEval.prompt_chain.length > 0;
+    const hasPromptChain = !!(this.newEval.prompt_chain && this.newEval.prompt_chain.length > 0);
     return basicFieldsValid && hasPromptChain;
   }
 
