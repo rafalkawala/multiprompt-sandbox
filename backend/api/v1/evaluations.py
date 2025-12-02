@@ -3,8 +3,8 @@ Evaluation API endpoints with LLM integrations
 """
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from typing import Optional, List
+from pydantic import BaseModel, field_validator
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 import httpx
 import base64
@@ -17,6 +17,7 @@ import threading
 
 from core.database import SessionLocal
 from core.prompt_config import get_system_prompt
+from core.prompt_utils import substitute_variables, validate_variable_references
 from models.evaluation import ModelConfig, Evaluation, EvaluationResult
 from models.project import Project, Dataset
 from models.image import Image, Annotation
@@ -44,8 +45,42 @@ class EvaluationCreate(BaseModel):
     project_id: str
     dataset_id: str
     model_config_id: str
+
+    # Legacy single-prompt (optional, for backward compatibility)
     system_message: Optional[str] = None
     question_text: Optional[str] = None
+
+    # New multi-phase prompting (optional)
+    # Structure: [{"step_number": 1, "system_message": "...", "prompt": "..."}, ...]
+    prompt_chain: Optional[List[Dict[str, Any]]] = None
+
+    @field_validator('prompt_chain')
+    @classmethod
+    def validate_chain(cls, v):
+        """Validate prompt chain structure and constraints"""
+        if v is not None:
+            if not isinstance(v, list):
+                raise ValueError('prompt_chain must be a list')
+
+            if len(v) < 1 or len(v) > 5:
+                raise ValueError('Prompt chain must have 1-5 steps')
+
+            for i, step in enumerate(v):
+                if not isinstance(step, dict):
+                    raise ValueError(f'Step {i+1} must be a dictionary')
+
+                # Validate required fields
+                if 'step_number' not in step:
+                    raise ValueError(f'Step {i+1} missing required field: step_number')
+                if 'prompt' not in step:
+                    raise ValueError(f'Step {i+1} missing required field: prompt')
+
+                # Validate step_number is correct
+                expected_step = i + 1
+                if step['step_number'] != expected_step:
+                    raise ValueError(f'Step {i+1} has incorrect step_number: expected {expected_step}, got {step["step_number"]}')
+
+        return v
 
 class EvaluationResponse(BaseModel):
     id: str
@@ -62,6 +97,7 @@ class EvaluationResponse(BaseModel):
     results_summary: Optional[dict] = None
     system_message: Optional[str]
     question_text: Optional[str]
+    prompt_chain: Optional[List[Dict[str, Any]]] = None  # Multi-phase prompting
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
     created_at: datetime
@@ -202,21 +238,35 @@ async def run_evaluation_task(evaluation_id: str):
             db.commit()
             return
 
-        # Use saved prompts if available, otherwise fall back to project defaults
-        if evaluation.system_message:
-            system_message = evaluation.system_message
+        # Load prompt chain (multi-phase) or fallback to legacy single prompt
+        if evaluation.prompt_chain and len(evaluation.prompt_chain) > 0:
+            # Multi-phase prompting: use prompt_chain
+            steps = evaluation.prompt_chain
+            logger.info(f"Evaluation {evaluation_id}: Using multi-phase prompting with {len(steps)} steps")
         else:
-            # Get system prompt from config based on question type
-            system_message = get_system_prompt(
-                project.question_type,
-                project.question_options if project.question_type == 'multiple_choice' else None
-            )
+            # Legacy single-prompt: convert to single-step chain
+            if evaluation.system_message:
+                system_message = evaluation.system_message
+            else:
+                # Get system prompt from config based on question type
+                system_message = get_system_prompt(
+                    project.question_type,
+                    project.question_options if project.question_type == 'multiple_choice' else None
+                )
 
-        # Build user prompt (just the question)
-        if evaluation.question_text:
-            prompt = evaluation.question_text
-        else:
-            prompt = project.question_text
+            # Build user prompt (just the question)
+            if evaluation.question_text:
+                prompt = evaluation.question_text
+            else:
+                prompt = project.question_text
+
+            # Create single-step chain for backward compatibility
+            steps = [{
+                "step_number": 1,
+                "system_message": system_message,
+                "prompt": prompt
+            }]
+            logger.info(f"Evaluation {evaluation_id}: Using legacy single-prompt mode")
 
         # Preload all images in parallel for faster processing
         logger.info(f"Evaluation {evaluation_id}: Preloading {len(images)} images...")
@@ -252,40 +302,77 @@ async def run_evaluation_task(evaluation_id: str):
 
                     image_data, mime_type = cached_data
 
-                    # Call LLM Service
-                    llm_service = get_llm_service()
-                    response_text, latency = await llm_service.generate_content(
-                        provider_name=model_config.provider,
-                        api_key=model_config.api_key,
-                        model_name=model_config.model_name,
-                        image_data=image_data,
-                        mime_type=mime_type,
-                        prompt=prompt,
-                        system_message=system_message,
-                        temperature=model_config.temperature,
-                        max_tokens=model_config.max_tokens
-                    )
+                    # Execute steps sequentially for this image
+                    step_results = []
+                    outputs = {}  # {step_number: output_text}
+                    total_latency = 0
+
+                    for step in steps:
+                        step_num = step["step_number"]
+                        step_system = step.get("system_message", "")
+                        step_prompt = step["prompt"]
+
+                        # Substitute variables from previous outputs
+                        resolved_prompt = substitute_variables(step_prompt, outputs)
+
+                        # Validate that all referenced variables are available
+                        is_valid, error_msg = validate_variable_references(step_prompt, step_num, outputs)
+                        if not is_valid:
+                            raise Exception(f"Step {step_num} validation error: {error_msg}")
+
+                        # Call LLM Service
+                        llm_service = get_llm_service()
+                        response_text, latency = await llm_service.generate_content(
+                            provider_name=model_config.provider,
+                            api_key=model_config.api_key,
+                            model_name=model_config.model_name,
+                            image_data=image_data,
+                            mime_type=mime_type,
+                            prompt=resolved_prompt,
+                            system_message=step_system,
+                            temperature=model_config.temperature,
+                            max_tokens=model_config.max_tokens
+                        )
+
+                        # Store output for next steps
+                        outputs[step_num] = response_text
+                        total_latency += latency
+
+                        # Record step result
+                        step_results.append({
+                            "step_number": step_num,
+                            "raw_output": response_text,
+                            "latency_ms": latency,
+                            "error": None
+                        })
+
+                        logger.debug(f"Evaluation {evaluation_id}: Image {i+1} Step {step_num} completed - Output: {response_text[:50]}...")
+
+                    # Use final step's output for accuracy calculation
+                    final_step_num = steps[-1]["step_number"]
+                    final_output = outputs[final_step_num]
 
                     # Parse and check
-                    parsed = parse_answer(response_text, project.question_type)
+                    parsed = parse_answer(final_output, project.question_type)
                     ground_truth = image.annotation.answer_value
                     is_correct = check_answer(parsed, ground_truth, project.question_type)
 
                     if is_correct:
                         correct_count += 1
 
-                    # Save result
+                    # Save result with step_results
                     result = EvaluationResult(
                         evaluation_id=evaluation.id,
                         image_id=image.id,
-                        model_response=response_text,
+                        model_response=final_output,  # Final step's output
                         parsed_answer=parsed,
                         ground_truth=ground_truth,
                         is_correct=is_correct,
-                        latency_ms=latency
+                        step_results=step_results,  # NEW: Store intermediate results
+                        latency_ms=total_latency  # Sum of all steps
                     )
                     db.add(result)
-                    logger.info(f"Evaluation {evaluation_id}: Processed image {i+1}/{len(images)} - Correct: {is_correct}")
+                    logger.info(f"Evaluation {evaluation_id}: Processed image {i+1}/{len(images)} ({len(steps)} steps) - Correct: {is_correct}")
 
                 except Exception as e:
                     failed_count += 1
@@ -296,7 +383,8 @@ async def run_evaluation_task(evaluation_id: str):
                     result = EvaluationResult(
                         evaluation_id=evaluation.id,
                         image_id=image.id,
-                        error=str(e)
+                        error=str(e),
+                        step_results=step_results if step_results else None  # Save partial results if any steps succeeded
                     )
                     db.add(result)
 
@@ -457,6 +545,7 @@ async def create_evaluation(
         model_config_id=data.model_config_id,
         system_message=data.system_message,
         question_text=data.question_text,
+        prompt_chain=data.prompt_chain,  # Multi-phase prompting
         created_by_id=current_user.id
     )
     db.add(evaluation)

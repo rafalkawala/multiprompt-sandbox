@@ -14,7 +14,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTableModule } from '@angular/material/table';
 import { MatExpansionModule } from '@angular/material/expansion';
-import { EvaluationsService, EvaluationListItem, ModelConfigListItem, CreateEvaluation, EvaluationResult, Evaluation } from '../../core/services/evaluations.service';
+import { EvaluationsService, EvaluationListItem, ModelConfigListItem, CreateEvaluation, EvaluationResult, Evaluation, PromptStep } from '../../core/services/evaluations.service';
 import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../core/services/projects.service';
 
 @Component({
@@ -81,22 +81,78 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
             </mat-form-field>
           </div>
 
-          <!-- Editable Prompts -->
+          <!-- Prompt Chain Builder -->
           @if (newEval.project_id) {
             <div class="prompts-section">
-              <h3 class="section-title">Evaluation Prompts (editable)</h3>
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>System Message</mat-label>
-                <textarea matInput [(ngModel)]="newEval.system_message" rows="3"
-                  placeholder="Instructions for the model"></textarea>
-                <mat-hint>System-level instructions for the model</mat-hint>
-              </mat-form-field>
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Question Text</mat-label>
-                <input matInput [(ngModel)]="newEval.question_text"
-                  placeholder="What question should the model answer?">
-                <mat-hint>The question to ask about each image</mat-hint>
-              </mat-form-field>
+              <div class="section-header">
+                <h3 class="section-title">Prompt Chain ({{ (newEval.prompt_chain || []).length }}/5 steps)</h3>
+                <button mat-raised-button (click)="addStep()" [disabled]="!canAddStep()">
+                  <mat-icon>add</mat-icon>
+                  Add Step
+                </button>
+              </div>
+
+              <!-- If no steps, show prompt -->
+              @if (!newEval.prompt_chain || newEval.prompt_chain.length === 0) {
+                <mat-card class="empty-chain">
+                  <p>No prompt steps yet. Click "Add Step" to begin.</p>
+                </mat-card>
+              }
+
+              <!-- Step Accordion -->
+              @if (newEval.prompt_chain && newEval.prompt_chain.length > 0) {
+                <mat-accordion multi>
+                  @for (step of newEval.prompt_chain; track step.step_number; let i = $index) {
+                    <mat-expansion-panel [expanded]="i === newEval.prompt_chain.length - 1">
+                      <mat-expansion-panel-header>
+                        <mat-panel-title>
+                          Step {{ step.step_number }}
+                          @if (step.prompt && step.prompt.length > 0) {
+                            <span class="step-preview">: {{ step.prompt.substring(0, 50) }}{{ step.prompt.length > 50 ? '...' : '' }}</span>
+                          }
+                        </mat-panel-title>
+                      </mat-expansion-panel-header>
+
+                      <div class="step-content">
+                        <!-- System Message -->
+                        <mat-form-field appearance="outline" class="full-width">
+                          <mat-label>System Message</mat-label>
+                          <textarea matInput [(ngModel)]="step.system_message" rows="3"
+                            placeholder="Instructions for the model"></textarea>
+                          @if (step.step_number === 1) {
+                            <mat-hint>This will be copied to subsequent steps</mat-hint>
+                          } @else {
+                            <mat-hint>Copied from Step 1 (editable)</mat-hint>
+                          }
+                        </mat-form-field>
+
+                        <!-- Prompt -->
+                        <mat-form-field appearance="outline" class="full-width">
+                          <mat-label>Prompt</mat-label>
+                          <textarea matInput [(ngModel)]="step.prompt" rows="2"
+                            placeholder="Enter your prompt here"></textarea>
+                          @if (step.step_number > 1 && getAvailableVariables(step.step_number).length > 0) {
+                            <mat-hint>
+                              Available variables:
+                              @for (variable of getAvailableVariables(step.step_number); track variable) {
+                                <code class="variable-hint">{{ variable }}</code>
+                              }
+                            </mat-hint>
+                          }
+                        </mat-form-field>
+
+                        <!-- Remove Button -->
+                        <div class="step-actions">
+                          <button mat-stroked-button color="warn" (click)="removeStep(i)">
+                            <mat-icon>delete</mat-icon>
+                            Remove Step
+                          </button>
+                        </div>
+                      </div>
+                    </mat-expansion-panel>
+                  }
+                </mat-accordion>
+              }
             </div>
           }
         </mat-card-content>
@@ -767,6 +823,56 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
       &.correct .value { color: #34a853; }
       &.incorrect .value { color: #ea4335; }
     }
+
+    /* Multi-phase prompting styles */
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .empty-chain {
+      padding: 24px;
+      text-align: center;
+      color: #5f6368;
+      background: #f8f9fa;
+      margin-bottom: 16px;
+    }
+
+    .step-content {
+      padding: 16px 0;
+    }
+
+    .step-preview {
+      color: #5f6368;
+      font-size: 14px;
+      margin-left: 8px;
+    }
+
+    .step-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 8px;
+    }
+
+    .variable-hint {
+      background: #e8f0fe;
+      color: #1967d2;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-right: 4px;
+      font-family: 'Courier New', monospace;
+    }
+
+    mat-accordion {
+      margin-bottom: 16px;
+    }
+
+    mat-expansion-panel {
+      margin-bottom: 8px !important;
+    }
   `]
 })
 export class EvaluationsComponent implements OnInit {
@@ -799,8 +905,7 @@ export class EvaluationsComponent implements OnInit {
     project_id: '',
     dataset_id: '',
     model_config_id: '',
-    system_message: '',
-    question_text: ''
+    prompt_chain: []  // Multi-phase prompting
   };
 
   selectedProject: Project | null = null;
@@ -887,13 +992,56 @@ export class EvaluationsComponent implements OnInit {
       this.projectsService.getProject(this.newEval.project_id).subscribe({
         next: (project) => {
           this.selectedProject = project;
-          // Pre-populate system message and question text
-          this.newEval.system_message = this.getSystemPrompt(project.question_type, project.question_options);
-          this.newEval.question_text = project.question_text;
+          // Initialize with first step if prompt_chain is empty
+          if (!this.newEval.prompt_chain || this.newEval.prompt_chain.length === 0) {
+            this.newEval.prompt_chain = [{
+              step_number: 1,
+              system_message: this.getSystemPrompt(project.question_type, project.question_options),
+              prompt: project.question_text
+            }];
+          }
         },
         error: (err) => console.error('Failed to load project:', err)
       });
     }
+  }
+
+  // Multi-phase prompting methods
+  addStep() {
+    if (!this.newEval.prompt_chain) {
+      this.newEval.prompt_chain = [];
+    }
+
+    const stepNum = this.newEval.prompt_chain.length + 1;
+    const step: PromptStep = {
+      step_number: stepNum,
+      // Auto-copy system message from step 1 if exists
+      system_message: stepNum === 1 ? '' : (this.newEval.prompt_chain[0]?.system_message || ''),
+      prompt: ''
+    };
+    this.newEval.prompt_chain.push(step);
+  }
+
+  removeStep(index: number) {
+    if (!this.newEval.prompt_chain) return;
+
+    this.newEval.prompt_chain.splice(index, 1);
+    // Renumber remaining steps
+    this.newEval.prompt_chain.forEach((step, i) => {
+      step.step_number = i + 1;
+    });
+  }
+
+  canAddStep(): boolean {
+    return !this.newEval.prompt_chain || this.newEval.prompt_chain.length < 5;
+  }
+
+  getAvailableVariables(stepNum: number): string[] {
+    const vars: string[] = [];
+    for (let i = 1; i < stepNum; i++) {
+      vars.push(`{output${i}}`);
+    }
+    return vars;
   }
 
   getSystemPrompt(questionType: string, options: string[] | null = null): string {
@@ -917,7 +1065,9 @@ export class EvaluationsComponent implements OnInit {
   }
 
   isFormValid(): boolean {
-    return !!(this.newEval.name && this.newEval.project_id && this.newEval.dataset_id && this.newEval.model_config_id);
+    const basicFieldsValid = !!(this.newEval.name && this.newEval.project_id && this.newEval.dataset_id && this.newEval.model_config_id);
+    const hasPromptChain = this.newEval.prompt_chain && this.newEval.prompt_chain.length > 0;
+    return basicFieldsValid && hasPromptChain;
   }
 
   getStatusColor(status: string): string {

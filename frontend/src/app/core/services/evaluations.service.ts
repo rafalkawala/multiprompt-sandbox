@@ -36,6 +36,20 @@ export interface CreateModelConfig {
   additional_params?: any;
 }
 
+// Multi-phase prompting interfaces
+export interface PromptStep {
+  step_number: number;
+  system_message: string;
+  prompt: string;
+}
+
+export interface StepResult {
+  step_number: number;
+  raw_output: string;
+  latency_ms: number;
+  error: string | null;
+}
+
 export interface Evaluation {
   id: string;
   name: string;
@@ -51,6 +65,7 @@ export interface Evaluation {
   error_message: string | null;
   system_message: string | null;
   question_text: string | null;
+  prompt_chain: PromptStep[] | null;  // Multi-phase prompting
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
@@ -79,6 +94,7 @@ export interface EvaluationResult {
   ground_truth: any;
   is_correct: boolean | null;
   latency_ms: number | null;
+  step_results?: StepResult[];  // Multi-phase prompting results
 }
 
 export interface CreateEvaluation {
@@ -86,8 +102,11 @@ export interface CreateEvaluation {
   project_id: string;
   dataset_id: string;
   model_config_id: string;
+  // Legacy single-prompt (optional)
   system_message?: string;
   question_text?: string;
+  // Multi-phase prompting (optional)
+  prompt_chain?: PromptStep[];
 }
 
 export interface AnnotationStats {

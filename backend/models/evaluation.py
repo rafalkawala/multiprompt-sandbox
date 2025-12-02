@@ -50,6 +50,10 @@ class Evaluation(Base):
     system_message = Column(Text, nullable=True)
     question_text = Column(Text, nullable=True)
 
+    # Multi-phase prompting support (new)
+    # Structure: [{"step_number": 1, "system_message": "...", "prompt": "..."}, ...]
+    prompt_chain = Column(JSON, nullable=True)
+
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
@@ -72,6 +76,10 @@ class EvaluationResult(Base):
     parsed_answer = Column(JSON, nullable=True)
     ground_truth = Column(JSON, nullable=True)
     is_correct = Column(Boolean, nullable=True)
+
+    # Multi-phase prompting: intermediate results for each step
+    # Structure: [{"step_number": 1, "raw_output": "...", "latency_ms": 234, "error": null}, ...]
+    step_results = Column(JSON, nullable=True)
 
     latency_ms = Column(Integer, nullable=True)
     token_count = Column(Integer, nullable=True)
