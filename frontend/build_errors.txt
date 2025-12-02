@@ -1,0 +1,28 @@
+- Generating browser application bundles (phase: setup)...
+✔ Browser application bundle generation complete.
+✔ Browser application bundle generation complete.
+- Copying assets...
+✔ Copying assets complete.
+- Generating index html...
+✔ Index html generation complete.
+
+./src/app/features/projects/project-detail.component.ts-3.css?ngResource!=!./node_modules/@ngtools/webpack/src/loaders/inline-resource.js!./src/app/features/projects/project-detail.component.ts - Warning: Module Warning (from ./node_modules/postcss-loader/dist/cjs.js):
+(175:9) from "autoprefixer" plugin: start value has mixed support, consider using flex-start instead
+
+Code:
+  align-items: start
+
+
+Warning: src/app/features/annotations/annotations-list.component.ts:58:48 - warning NG8107: The left side of this optional chain operation does not include 'null' or 'undefined' in its type, therefore the '?.' operator can be replaced with the '.' operator.
+
+58               @if (projectsData()[project.id]?.datasets?.length) {
+                                                  ~~~~~~~~
+
+
+Warning: src/app/features/projects/project-detail.component.ts:150:49 - warning NG8107: The left side of this optional chain operation does not include 'null' or 'undefined' in its type, therefore the '?.' operator can be replaced with the '.' operator.
+
+150                 @if (datasetImages[dataset.id]?.length) {
+                                                    ~~~~~~
+
+
+

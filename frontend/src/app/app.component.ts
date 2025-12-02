@@ -42,7 +42,8 @@ export class AppComponent {
     { icon: 'dashboard', label: 'Dashboard', route: '/home', adminOnly: false },
     { icon: 'folder', label: 'Projects', route: '/projects', adminOnly: false },
     { icon: 'edit_note', label: 'Annotations', route: '/annotations', adminOnly: false },
-    { icon: 'science', label: 'Evaluations', route: '/evaluations', adminOnly: false }
+    { icon: 'science', label: 'Evaluations', route: '/evaluations', adminOnly: false },
+    { icon: 'work_outline', label: 'Labelling Jobs', route: '/labelling-jobs', adminOnly: false }
   ];
 
   sidenavCollapsed = false;

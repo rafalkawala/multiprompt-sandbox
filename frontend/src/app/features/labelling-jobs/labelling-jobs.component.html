@@ -1,0 +1,269 @@
+<div class="labelling-jobs-container">
+  <div class="header">
+    <div>
+      <h1>Labelling Jobs</h1>
+      <p class="subtitle">Automated labeling with GCS monitoring</p>
+    </div>
+    <button mat-raised-button color="primary" (click)="showCreateForm.set(!showCreateForm())">
+      <mat-icon>{{showCreateForm() ? 'close' : 'add'}}</mat-icon>
+      {{showCreateForm() ? 'Cancel' : 'New Job'}}
+    </button>
+  </div>
+
+  <!-- Create Job Form -->
+  @if (showCreateForm()) {
+    <mat-card class="create-card">
+      <mat-card-header>
+        <mat-card-title>Create Labelling Job</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="form-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Job Name *</mat-label>
+            <input matInput [(ngModel)]="newJob.name" placeholder="Production Labeling">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Project *</mat-label>
+            <mat-select [(ngModel)]="newJob.project_id" (selectionChange)="onProjectChange()">
+              @for (project of projects(); track project.id) {
+                <mat-option [value]="project.id">{{ project.name }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Evaluation (source prompts) *</mat-label>
+            <mat-select [(ngModel)]="newJob.evaluation_id" [disabled]="!newJob.project_id">
+              @for (eval of evaluations(); track eval.id) {
+                <mat-option [value]="eval.id">{{ eval.name }}</mat-option>
+              }
+            </mat-select>
+            <mat-hint>Prompts will be copied from this evaluation</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>GCS Folder Path *</mat-label>
+            <input matInput [(ngModel)]="newJob.gcs_folder_path" placeholder="gs://my-bucket/images/">
+            <mat-hint>Path to monitor for new images (e.g., gs://bucket/folder/)</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Frequency (minutes)</mat-label>
+            <input matInput type="number" [(ngModel)]="newJob.frequency_minutes" min="5" max="1440">
+            <mat-hint>How often to check for new files</mat-hint>
+          </mat-form-field>
+
+          <div class="toggle-field">
+            <mat-slide-toggle [(ngModel)]="newJob.is_active" color="primary">
+              Start Active
+            </mat-slide-toggle>
+          </div>
+        </div>
+
+        <div class="info-box">
+          <mat-icon>info</mat-icon>
+          <div>
+            <strong>Note:</strong> A dedicated dataset named "Job Output: [Job Name]" will be automatically created.
+            The job will monitor the GCS folder and process new images as they appear.
+          </div>
+        </div>
+
+        <div class="actions">
+          <button mat-raised-button color="primary" (click)="createJob()" [disabled]="loading()">
+            <mat-icon>add</mat-icon>
+            Create Job
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  <!-- Loading Spinner -->
+  @if (loading()) {
+    <div class="loading-container">
+      <mat-spinner></mat-spinner>
+    </div>
+  }
+
+  <!-- Jobs List -->
+  @if (!loading() && jobs().length === 0) {
+    <mat-card class="empty-state">
+      <mat-card-content>
+        <mat-icon>work_outline</mat-icon>
+        <h3>No labelling jobs yet</h3>
+        <p>Create your first automated labelling job to process images from GCS</p>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  @if (!loading() && jobs().length > 0) {
+    <div class="jobs-grid">
+      @for (job of jobs(); track job.id) {
+        <mat-card class="job-card">
+          <mat-card-header>
+            <mat-card-title>
+              <div class="job-title">
+                {{ job.name }}
+                <mat-chip [color]="getStatusColor(job.status)">{{ job.status }}</mat-chip>
+              </div>
+            </mat-card-title>
+            <mat-card-subtitle>
+              Dataset: {{ job.dataset_name || 'Creating...' }}
+            </mat-card-subtitle>
+          </mat-card-header>
+
+          <mat-card-content>
+            <div class="job-info">
+              <div class="info-row">
+                <mat-icon>folder</mat-icon>
+                <span class="label">GCS Path:</span>
+                <span class="value">{{ job.gcs_folder_path }}</span>
+              </div>
+
+              <div class="info-row">
+                <mat-icon>schedule</mat-icon>
+                <span class="label">Frequency:</span>
+                <span class="value">Every {{ job.frequency_minutes }} minutes</span>
+              </div>
+
+              <div class="info-row">
+                <mat-icon>event</mat-icon>
+                <span class="label">Last Run:</span>
+                <span class="value">{{ formatDate(job.last_run_at) }}</span>
+              </div>
+
+              <div class="info-row">
+                <mat-icon>event_upcoming</mat-icon>
+                <span class="label">Next Run:</span>
+                <span class="value">{{ formatDate(job.next_run_at) }}</span>
+              </div>
+            </div>
+
+            <div class="stats-grid">
+              <div class="stat">
+                <div class="stat-value">{{ job.total_runs }}</div>
+                <div class="stat-label">Runs</div>
+              </div>
+              <div class="stat">
+                <div class="stat-value">{{ job.total_images_processed }}</div>
+                <div class="stat-label">Processed</div>
+              </div>
+              <div class="stat">
+                <div class="stat-value">{{ job.total_images_labeled }}</div>
+                <div class="stat-label">Labeled</div>
+              </div>
+              <div class="stat">
+                <div class="stat-value">{{ calculateSuccessRate(job) }}%</div>
+                <div class="stat-label">Success</div>
+              </div>
+            </div>
+          </mat-card-content>
+
+          <mat-card-actions>
+            <button mat-button (click)="viewJobDetails(job)">
+              <mat-icon>visibility</mat-icon>
+              Details
+            </button>
+            <button mat-button (click)="triggerJob(job)" [disabled]="job.status === 'running'"
+                    matTooltip="Run job now">
+              <mat-icon>play_arrow</mat-icon>
+              Run Now
+            </button>
+            <button mat-button (click)="toggleJobActive(job)"
+                    [color]="job.is_active ? 'accent' : 'default'"
+                    [matTooltip]="job.is_active ? 'Deactivate scheduled runs' : 'Activate scheduled runs'">
+              <mat-icon>{{ job.is_active ? 'pause' : 'play_arrow' }}</mat-icon>
+              {{ job.is_active ? 'Active' : 'Inactive' }}
+            </button>
+            <button mat-button (click)="deleteJob(job)" color="warn">
+              <mat-icon>delete</mat-icon>
+              Delete
+            </button>
+          </mat-card-actions>
+        </mat-card>
+      }
+    </div>
+  }
+
+  <!-- Job Details Panel -->
+  @if (selectedJob()) {
+    <mat-card class="details-card">
+      <mat-card-header>
+        <mat-card-title>
+          <div class="details-header">
+            <span>Run History: {{ selectedJob()!.name }}</span>
+            <button mat-icon-button (click)="selectedJob.set(null)">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+        </mat-card-title>
+      </mat-card-header>
+
+      <mat-card-content>
+        @if (jobRuns().length === 0) {
+          <p class="no-runs">No runs yet</p>
+        } @else {
+          <table mat-table [dataSource]="jobRuns()" class="runs-table">
+            <!-- Trigger Type -->
+            <ng-container matColumnDef="trigger">
+              <th mat-header-cell *matHeaderCellDef>Trigger</th>
+              <td mat-cell *matCellDef="let run">
+                <mat-chip size="small">{{ run.trigger_type }}</mat-chip>
+              </td>
+            </ng-container>
+
+            <!-- Status -->
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>Status</th>
+              <td mat-cell *matCellDef="let run">
+                <mat-chip [color]="getRunStatusColor(run.status)" size="small">
+                  {{ run.status }}
+                </mat-chip>
+              </td>
+            </ng-container>
+
+            <!-- Discovered -->
+            <ng-container matColumnDef="discovered">
+              <th mat-header-cell *matHeaderCellDef>Discovered</th>
+              <td mat-cell *matCellDef="let run">{{ run.images_discovered }}</td>
+            </ng-container>
+
+            <!-- Ingested -->
+            <ng-container matColumnDef="ingested">
+              <th mat-header-cell *matHeaderCellDef>Ingested</th>
+              <td mat-cell *matCellDef="let run">{{ run.images_ingested }}</td>
+            </ng-container>
+
+            <!-- Labeled -->
+            <ng-container matColumnDef="labeled">
+              <th mat-header-cell *matHeaderCellDef>Labeled</th>
+              <td mat-cell *matCellDef="let run">{{ run.images_labeled }}</td>
+            </ng-container>
+
+            <!-- Failed -->
+            <ng-container matColumnDef="failed">
+              <th mat-header-cell *matHeaderCellDef>Failed</th>
+              <td mat-cell *matCellDef="let run">{{ run.images_failed }}</td>
+            </ng-container>
+
+            <!-- Duration -->
+            <ng-container matColumnDef="duration">
+              <th mat-header-cell *matHeaderCellDef>Duration</th>
+              <td mat-cell *matCellDef="let run">{{ formatDuration(run.duration_seconds) }}</td>
+            </ng-container>
+
+            <!-- Started At -->
+            <ng-container matColumnDef="started">
+              <th mat-header-cell *matHeaderCellDef>Started</th>
+              <td mat-cell *matCellDef="let run">{{ formatDate(run.started_at) }}</td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="['trigger', 'status', 'discovered', 'ingested', 'labeled', 'failed', 'duration', 'started']"></tr>
+            <tr mat-row *matRowDef="let row; columns: ['trigger', 'status', 'discovered', 'ingested', 'labeled', 'failed', 'duration', 'started']"></tr>
+          </table>
+        }
+      </mat-card-content>
+    </mat-card>
+  }
+</div>
