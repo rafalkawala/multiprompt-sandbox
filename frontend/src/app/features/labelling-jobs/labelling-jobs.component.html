@@ -183,6 +183,11 @@
               <mat-icon>{{ job.is_active ? 'pause' : 'play_arrow' }}</mat-icon>
               {{ job.is_active ? 'Active' : 'Inactive' }}
             </button>
+            <button mat-button (click)="editJobFrequency(job)"
+                    matTooltip="Edit schedule frequency">
+              <mat-icon>edit</mat-icon>
+              Edit
+            </button>
             <button mat-button (click)="deleteJob(job)" color="warn">
               <mat-icon>delete</mat-icon>
               Delete

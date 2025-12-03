@@ -67,7 +67,8 @@ export class LabellingJobsComponent implements OnInit {
     private labellingJobsService: LabellingJobsService,
     private projectsService: ProjectsService,
     private evaluationsService: EvaluationsService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private dialog: MatDialog
   ) {}
 
   ngOnInit(): void {
@@ -196,6 +197,36 @@ export class LabellingJobsComponent implements OnInit {
       error: (error) => {
         this.snackBar.open('Failed to delete job', 'Close', { duration: 3000 });
         console.error('Error deleting job:', error);
+      }
+    });
+  }
+
+  editJobFrequency(job: LabellingJob): void {
+    const newFrequency = prompt(
+      `Edit schedule frequency for "${job.name}" (in minutes):`,
+      job.frequency_minutes.toString()
+    );
+
+    if (newFrequency === null) {
+      return; // User cancelled
+    }
+
+    const frequencyNum = parseInt(newFrequency, 10);
+    if (isNaN(frequencyNum) || frequencyNum < 5 || frequencyNum > 1440) {
+      this.snackBar.open('Please enter a valid frequency between 5 and 1440 minutes', 'Close', { duration: 5000 });
+      return;
+    }
+
+    this.labellingJobsService.updateLabellingJob(job.id, {
+      frequency_minutes: frequencyNum
+    }).subscribe({
+      next: () => {
+        this.snackBar.open(`Frequency updated to ${frequencyNum} minutes`, 'Close', { duration: 3000 });
+        this.loadJobs();
+      },
+      error: (error) => {
+        this.snackBar.open('Failed to update frequency', 'Close', { duration: 3000 });
+        console.error('Error updating job:', error);
       }
     });
   }

@@ -107,9 +107,9 @@ class LabellingJobService:
                 db.commit()
                 return run
 
-            # Step 4: Wait for thumbnail generation
-            logger.info(f"Waiting for thumbnail generation for {len(images)} images...")
-            await self._wait_for_thumbnails(images, db)
+            # Step 4: Skip waiting for thumbnails - labelling works on full images
+            # Thumbnails are generated asynchronously by Cloud Tasks for UI preview only
+            logger.info(f"Thumbnail generation enqueued (async). Proceeding with labelling...")
 
             # Step 5: Generate labels
             logger.info(f"Generating labels for {len(images)} images...")
