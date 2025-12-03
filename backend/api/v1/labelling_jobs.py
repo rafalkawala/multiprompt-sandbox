@@ -486,7 +486,25 @@ async def get_job_runs(
         LabellingJobRun.labelling_job_id == job_id
     ).order_by(LabellingJobRun.started_at.desc()).limit(limit).offset(offset).all()
 
-    return runs
+    # Convert to response objects with proper UUID->string conversion
+    return [
+        LabellingJobRunResponse(
+            id=str(run.id),
+            labelling_job_id=str(run.labelling_job_id),
+            status=run.status,
+            trigger_type=run.trigger_type,
+            images_discovered=run.images_discovered,
+            images_ingested=run.images_ingested,
+            images_labeled=run.images_labeled,
+            images_failed=run.images_failed,
+            started_at=run.started_at,
+            completed_at=run.completed_at,
+            duration_seconds=run.duration_seconds,
+            error_message=run.error_message,
+            created_at=run.created_at
+        )
+        for run in runs
+    ]
 
 
 @router.get("/labelling-jobs/{job_id}/results", response_model=List[LabellingResultResponse])
@@ -521,4 +539,20 @@ async def get_job_results(
 
     results = query.order_by(LabellingResult.created_at.desc()).limit(limit).offset(offset).all()
 
-    return results
+    # Convert to response objects with proper UUID->string conversion
+    return [
+        LabellingResultResponse(
+            id=str(result.id),
+            labelling_job_id=str(result.labelling_job_id),
+            labelling_job_run_id=str(result.labelling_job_run_id),
+            image_id=str(result.image_id),
+            model_response=result.model_response,
+            parsed_answer=result.parsed_answer,
+            confidence_score=result.confidence_score,
+            latency_ms=result.latency_ms,
+            error=result.error,
+            gcs_source_path=result.gcs_source_path,
+            created_at=result.created_at
+        )
+        for result in results
+    ]
