@@ -162,6 +162,7 @@ class LabellingJobService:
         dataset = Dataset(
             name=f"Job Output: {job.name}",
             project_id=job.project_id,
+            created_by_id=job.created_by_id,
             processing_status='ready'
         )
         db.add(dataset)

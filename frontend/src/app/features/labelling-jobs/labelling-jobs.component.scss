@@ -118,6 +118,21 @@
         align-items: center;
         gap: 0.5rem;
       }
+
+      .dataset-creating {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: rgba(0, 0, 0, 0.6);
+        font-style: italic;
+
+        mat-icon {
+          font-size: 16px;
+          width: 16px;
+          height: 16px;
+          color: #ff9800;
+        }
+      }
     }
 
     mat-card-content {
@@ -256,6 +271,16 @@
     }
 
     .job-card {
+      mat-card-header {
+        .dataset-creating {
+          color: rgba(255, 255, 255, 0.7);
+
+          mat-icon {
+            color: #ffb74d;
+          }
+        }
+      }
+
       mat-card-content {
         .job-info .info-row {
           mat-icon {

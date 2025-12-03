@@ -109,7 +109,14 @@
               </div>
             </mat-card-title>
             <mat-card-subtitle>
-              Dataset: {{ job.dataset_name || 'Creating...' }}
+              @if (job.dataset_name) {
+                Dataset: {{ job.dataset_name }}
+              } @else {
+                <span class="dataset-creating">
+                  <mat-icon class="spinning">hourglass_empty</mat-icon>
+                  Dataset will be created on first run
+                </span>
+              }
             </mat-card-subtitle>
           </mat-card-header>
 
