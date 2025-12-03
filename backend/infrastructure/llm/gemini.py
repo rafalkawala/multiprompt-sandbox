@@ -64,20 +64,34 @@ class GeminiProvider(ILLMProvider):
         """Call Gemini via Vertex AI using service account credentials (ADC)"""
         import google.auth
         import google.auth.transport.requests
+        import logging
 
-        # Get credentials and project from ADC
-        credentials, project = google.auth.default()
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Get credentials and project from ADC
+            credentials, project = google.auth.default()
+            logger.info(f"Loaded credentials for project: {project}")
+        except Exception as e:
+            logger.error(f"Failed to load default credentials: {str(e)}")
+            raise Exception(f"Failed to load Google Cloud credentials. Ensure service account is properly configured. Error: {str(e)}")
 
         # Get project from environment if not in credentials
         if not project:
-            project = os.environ.get('GOOGLE_CLOUD_PROJECT') or os.environ.get('GCP_PROJECT')
+            project = os.environ.get('GOOGLE_CLOUD_PROJECT') or os.environ.get('GCP_PROJECT') or os.environ.get('GCP_PROJECT_ID')
+            logger.info(f"Using project from environment: {project}")
 
         if not project:
             raise Exception("No GCP project found. Set GOOGLE_CLOUD_PROJECT environment variable.")
 
         # Refresh credentials to get access token
-        auth_req = google.auth.transport.requests.Request()
-        credentials.refresh(auth_req)
+        try:
+            auth_req = google.auth.transport.requests.Request()
+            credentials.refresh(auth_req)
+            logger.info("Successfully refreshed credentials")
+        except Exception as e:
+            logger.error(f"Failed to refresh credentials: {str(e)}")
+            raise Exception(f"Failed to refresh Google Cloud credentials. Ensure the service account has aiplatform.endpoints.predict permission. Error: {str(e)}")
 
         # Vertex AI endpoint
         location = os.environ.get('VERTEX_AI_LOCATION', 'us-central1')

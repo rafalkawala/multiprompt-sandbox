@@ -156,6 +156,7 @@ steps:
         echo "DB_USER: \"${_DB_USER}\"" >> deploy_env_vars.yaml
         echo "DB_NAME: \"${_DB_NAME}\"" >> deploy_env_vars.yaml
         echo "GCP_PROJECT_ID: \"$PROJECT_ID\"" >> deploy_env_vars.yaml
+        echo "GOOGLE_CLOUD_PROJECT: \"$PROJECT_ID\"" >> deploy_env_vars.yaml
         echo "REGION: \"${_REGION}\"" >> deploy_env_vars.yaml
         echo "BACKEND_URL: \"$$BACKEND_URL\"" >> deploy_env_vars.yaml
         echo "FRONTEND_URL: \"$$FRONTEND_URL\"" >> deploy_env_vars.yaml

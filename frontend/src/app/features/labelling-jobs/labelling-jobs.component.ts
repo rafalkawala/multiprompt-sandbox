@@ -133,6 +133,7 @@ export class LabellingJobsComponent implements OnInit {
     this.loading.set(true);
     this.labellingJobsService.createLabellingJob(this.newJob).subscribe({
       next: (job) => {
+        this.loading.set(false);
         this.snackBar.open('Labelling job created successfully!', 'Close', { duration: 3000 });
         this.loadJobs();
         this.showCreateForm.set(false);
