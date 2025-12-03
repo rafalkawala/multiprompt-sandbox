@@ -95,12 +95,15 @@ class LabellingJobService:
             logger.info(f"Found {len(files)} new files to process")
 
             # Step 3: Ingest images
+            logger.info(f"Starting ingestion of {len(files)} discovered files...")
             images = await self._ingest_images(job, dataset, files, run, db)
             run.images_ingested = len(images)
             db.commit()
 
+            logger.info(f"Ingestion result: {len(images)} images ingested, {run.images_failed} failed")
+
             if not images:
-                logger.warning(f"No images were successfully ingested for job {job_id}")
+                logger.warning(f"No images were successfully ingested for job {job_id}. Check logs above for errors.")
                 run.status = 'completed'
                 run.completed_at = datetime.utcnow()
                 run.duration_seconds = int((datetime.utcnow() - start_time).total_seconds())
@@ -194,6 +197,8 @@ class LabellingJobService:
 
         for file_info in files:
             try:
+                logger.info(f"Starting ingestion of {file_info.filename} from {file_info.full_path}")
+
                 # Handle duplicate filenames by appending UUID
                 filename = file_info.filename
                 if filename in existing_filenames:
@@ -203,18 +208,24 @@ class LabellingJobService:
 
                 # Destination path in project/dataset structure
                 destination_path = f"projects/{job.project_id}/datasets/{dataset.id}/{filename}"
+                logger.info(f"Destination path: {destination_path}")
 
                 # Copy blob from source to destination
                 if settings.STORAGE_TYPE == 'gcs':
                     # Use GCS copy
+                    logger.info(f"Using GCS storage, copying from {file_info.full_path}")
                     bucket_name = self.gcs_scanner.client.bucket(settings.GCS_BUCKET_NAME).name
-                    _, size = self.gcs_scanner.copy_blob(
+                    logger.info(f"Destination bucket: {bucket_name}")
+
+                    destination_full_path, size = self.gcs_scanner.copy_blob(
                         file_info.full_path,
                         bucket_name,
                         destination_path
                     )
+                    logger.info(f"✓ Copied to {destination_full_path}, size: {size} bytes")
                 else:
                     # For local storage, download and re-upload
+                    logger.info(f"Using local storage")
                     file_data = await self.storage.download(file_info.blob_name)
                     destination_path, size = await self.storage.upload(file_data, destination_path)
 
@@ -232,13 +243,16 @@ class LabellingJobService:
                 ingested_images.append(image)
                 existing_filenames.add(filename)
 
-                logger.info(f"Ingested image {image.id}: {filename} ({size} bytes)")
+                logger.info(f"✓ Successfully ingested image {image.id}: {filename} ({size} bytes)")
 
             except Exception as e:
-                logger.error(f"Failed to ingest {file_info.filename}: {str(e)}")
+                logger.error(f"✗ Failed to ingest {file_info.filename}: {str(e)}", exc_info=True)
                 run.images_failed += 1
 
         db.commit()
+
+        # Log ingestion summary
+        logger.info(f"Ingestion complete: {len(ingested_images)} succeeded, {run.images_failed} failed out of {len(files)} total")
 
         # Enqueue Cloud Task for thumbnail generation if images were ingested
         if ingested_images and settings.USE_CLOUD_TASKS:

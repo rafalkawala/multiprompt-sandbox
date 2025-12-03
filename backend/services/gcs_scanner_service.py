@@ -159,28 +159,44 @@ class GCSScannerService:
         Returns:
             Tuple of (destination_path, size_in_bytes)
         """
-        # Parse source path
-        source_bucket_name, source_blob_name = self.parse_gcs_path(source_path)
+        try:
+            # Parse source path
+            source_bucket_name, source_blob_name = self.parse_gcs_path(source_path)
+            logger.info(f"Copying from bucket: {source_bucket_name}, blob: {source_blob_name}")
 
-        # Get buckets
-        source_bucket = self.client.bucket(source_bucket_name)
-        destination_bucket = self.client.bucket(destination_bucket_name)
+            # Get buckets
+            source_bucket = self.client.bucket(source_bucket_name)
+            destination_bucket = self.client.bucket(destination_bucket_name)
 
-        # Get source blob
-        source_blob = source_bucket.blob(source_blob_name)
+            # Get source blob
+            source_blob = source_bucket.blob(source_blob_name)
 
-        if not source_blob.exists():
-            raise FileNotFoundError(f"Source blob not found: {source_path}")
+            # Check if blob exists (this requires read permission)
+            try:
+                if not source_blob.exists():
+                    raise FileNotFoundError(f"Source blob not found: {source_path}")
+            except Exception as perm_error:
+                logger.error(f"Permission or access error checking blob existence: {str(perm_error)}")
+                raise PermissionError(
+                    f"Cannot access {source_path}. "
+                    f"Ensure the service account has 'Storage Object Viewer' permission on bucket '{source_bucket_name}'"
+                ) from perm_error
 
-        # Copy to destination
-        destination_blob = source_bucket.copy_blob(
-            source_blob,
-            destination_bucket,
-            destination_blob_name
-        )
+            # Copy to destination
+            destination_blob = source_bucket.copy_blob(
+                source_blob,
+                destination_bucket,
+                destination_blob_name
+            )
 
-        logger.info(f"Copied {source_path} to gs://{destination_bucket_name}/{destination_blob_name}")
-        return f"gs://{destination_bucket_name}/{destination_blob_name}", destination_blob.size
+            logger.info(f"✓ Copied {source_path} to gs://{destination_bucket_name}/{destination_blob_name}")
+            return f"gs://{destination_bucket_name}/{destination_blob_name}", destination_blob.size
+
+        except PermissionError:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to copy blob: {str(e)}", exc_info=True)
+            raise Exception(f"GCS copy failed for {source_path}: {str(e)}") from e
 
     def _get_file_extension(self, filename: str) -> str:
         """Extract file extension from filename"""
