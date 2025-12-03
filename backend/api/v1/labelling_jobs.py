@@ -212,8 +212,25 @@ async def create_labelling_job(
 
     # Build response
     response = LabellingJobResponse(
-        **job.__dict__,
-        dataset_name=None
+        id=str(job.id),
+        name=job.name,
+        project_id=str(job.project_id),
+        dataset_id=str(job.dataset_id) if job.dataset_id else None,
+        dataset_name=None,
+        gcs_folder_path=job.gcs_folder_path,
+        last_processed_timestamp=job.last_processed_timestamp,
+        frequency_minutes=job.frequency_minutes,
+        is_active=job.is_active,
+        status=job.status,
+        last_run_at=job.last_run_at,
+        next_run_at=job.next_run_at,
+        total_runs=job.total_runs,
+        total_images_processed=job.total_images_processed,
+        total_images_labeled=job.total_images_labeled,
+        total_errors=job.total_errors,
+        created_by_id=str(job.created_by_id),
+        created_at=job.created_at,
+        updated_at=job.updated_at
     )
     return response
 
@@ -239,8 +256,25 @@ async def list_labelling_jobs(
     for job in jobs:
         dataset_name = job.dataset.name if job.dataset else None
         response = LabellingJobResponse(
-            **job.__dict__,
-            dataset_name=dataset_name
+            id=str(job.id),
+            name=job.name,
+            project_id=str(job.project_id),
+            dataset_id=str(job.dataset_id) if job.dataset_id else None,
+            dataset_name=dataset_name,
+            gcs_folder_path=job.gcs_folder_path,
+            last_processed_timestamp=job.last_processed_timestamp,
+            frequency_minutes=job.frequency_minutes,
+            is_active=job.is_active,
+            status=job.status,
+            last_run_at=job.last_run_at,
+            next_run_at=job.next_run_at,
+            total_runs=job.total_runs,
+            total_images_processed=job.total_images_processed,
+            total_images_labeled=job.total_images_labeled,
+            total_errors=job.total_errors,
+            created_by_id=str(job.created_by_id),
+            created_at=job.created_at,
+            updated_at=job.updated_at
         )
         responses.append(response)
 
@@ -267,8 +301,25 @@ async def get_labelling_job(
 
     dataset_name = job.dataset.name if job.dataset else None
     response = LabellingJobResponse(
-        **job.__dict__,
-        dataset_name=dataset_name
+        id=str(job.id),
+        name=job.name,
+        project_id=str(job.project_id),
+        dataset_id=str(job.dataset_id) if job.dataset_id else None,
+        dataset_name=dataset_name,
+        gcs_folder_path=job.gcs_folder_path,
+        last_processed_timestamp=job.last_processed_timestamp,
+        frequency_minutes=job.frequency_minutes,
+        is_active=job.is_active,
+        status=job.status,
+        last_run_at=job.last_run_at,
+        next_run_at=job.next_run_at,
+        total_runs=job.total_runs,
+        total_images_processed=job.total_images_processed,
+        total_images_labeled=job.total_images_labeled,
+        total_errors=job.total_errors,
+        created_by_id=str(job.created_by_id),
+        created_at=job.created_at,
+        updated_at=job.updated_at
     )
     return response
 
@@ -320,8 +371,25 @@ async def update_labelling_job(
 
     dataset_name = job.dataset.name if job.dataset else None
     response = LabellingJobResponse(
-        **job.__dict__,
-        dataset_name=dataset_name
+        id=str(job.id),
+        name=job.name,
+        project_id=str(job.project_id),
+        dataset_id=str(job.dataset_id) if job.dataset_id else None,
+        dataset_name=dataset_name,
+        gcs_folder_path=job.gcs_folder_path,
+        last_processed_timestamp=job.last_processed_timestamp,
+        frequency_minutes=job.frequency_minutes,
+        is_active=job.is_active,
+        status=job.status,
+        last_run_at=job.last_run_at,
+        next_run_at=job.next_run_at,
+        total_runs=job.total_runs,
+        total_images_processed=job.total_images_processed,
+        total_images_labeled=job.total_images_labeled,
+        total_errors=job.total_errors,
+        created_by_id=str(job.created_by_id),
+        created_at=job.created_at,
+        updated_at=job.updated_at
     )
     return response
 
