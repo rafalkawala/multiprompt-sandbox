@@ -1,6 +1,6 @@
 from typing import List, Optional, Tuple
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from google.cloud import storage
 import logging
 import re
@@ -117,10 +117,13 @@ class GCSScannerService:
                 logger.debug(f"Skipping {blob.name}: extension {ext} not allowed")
                 continue
 
-            # Check timestamp
-            if cutoff_time and blob.time_created <= cutoff_time:
-                logger.debug(f"Skipping {blob.name}: created at {blob.time_created}, cutoff is {cutoff_time}")
-                continue
+            # Check timestamp (ensure cutoff_time is timezone-aware for comparison)
+            if cutoff_time:
+                # Make cutoff_time timezone-aware if it isn't already
+                cutoff_aware = cutoff_time.replace(tzinfo=timezone.utc) if cutoff_time.tzinfo is None else cutoff_time
+                if blob.time_created <= cutoff_aware:
+                    logger.debug(f"Skipping {blob.name}: created at {blob.time_created}, cutoff is {cutoff_aware}")
+                    continue
 
             # Extract filename from blob name
             filename = blob.name.split('/')[-1]

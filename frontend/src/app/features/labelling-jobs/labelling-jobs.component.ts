@@ -16,9 +16,10 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
-import { LabellingJobsService, LabellingJob, CreateLabellingJob, LabellingJobRun } from '../../core/services/labelling-jobs.service';
+import { LabellingJobsService, LabellingJob, CreateLabellingJob, LabellingJobRun, LabellingResult } from '../../core/services/labelling-jobs.service';
 import { ProjectsService, ProjectListItem } from '../../core/services/projects.service';
 import { EvaluationsService, EvaluationListItem } from '../../core/services/evaluations.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-labelling-jobs',
@@ -50,6 +51,14 @@ export class LabellingJobsComponent implements OnInit {
   evaluations = signal<EvaluationListItem[]>([]);
   selectedJob = signal<LabellingJob | null>(null);
   jobRuns = signal<LabellingJobRun[]>([]);
+
+  // Results viewer
+  selectedRun = signal<LabellingJobRun | null>(null);
+  jobResults = signal<LabellingResult[]>([]);
+  loadingResults = signal(false);
+  resultsOffset = 0;
+  resultsLimit = 20;
+  totalResults = 0;
 
   loading = signal(false);
   showCreateForm = signal(false);
@@ -295,5 +304,49 @@ export class LabellingJobsComponent implements OnInit {
   calculateSuccessRate(job: LabellingJob): number {
     if (job.total_images_processed === 0) return 0;
     return Math.round((job.total_images_labeled / job.total_images_processed) * 100);
+  }
+
+  viewRunResults(run: LabellingJobRun): void {
+    this.selectedRun.set(run);
+    this.jobResults.set([]);
+    this.resultsOffset = 0;
+    this.totalResults = run.images_labeled;
+    this.loadResults();
+  }
+
+  loadResults(): void {
+    if (!this.selectedRun() || !this.selectedJob()) return;
+
+    this.loadingResults.set(true);
+    this.labellingJobsService.getJobResults(
+      this.selectedJob()!.id,
+      this.selectedRun()!.id,
+      this.resultsLimit,
+      this.resultsOffset
+    ).subscribe({
+      next: (results) => {
+        this.jobResults.set([...this.jobResults(), ...results]);
+        this.loadingResults.set(false);
+      },
+      error: (error) => {
+        this.snackBar.open('Failed to load results', 'Close', { duration: 3000 });
+        console.error('Error loading results:', error);
+        this.loadingResults.set(false);
+      }
+    });
+  }
+
+  loadMoreResults(): void {
+    this.resultsOffset += this.resultsLimit;
+    this.loadResults();
+  }
+
+  hasMoreResults(): boolean {
+    return this.jobResults().length < this.totalResults;
+  }
+
+  getImageUrl(imageId: string): string {
+    // Generate thumbnail URL
+    return `${environment.apiUrl}/images/${imageId}/thumbnail`;
   }
 }

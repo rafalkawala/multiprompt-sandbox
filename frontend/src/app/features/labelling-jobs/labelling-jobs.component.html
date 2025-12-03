@@ -271,11 +271,92 @@
               <td mat-cell *matCellDef="let run">{{ formatDate(run.started_at) }}</td>
             </ng-container>
 
-            <tr mat-header-row *matHeaderRowDef="['trigger', 'status', 'discovered', 'ingested', 'labeled', 'failed', 'duration', 'started']"></tr>
-            <tr mat-row *matRowDef="let row; columns: ['trigger', 'status', 'discovered', 'ingested', 'labeled', 'failed', 'duration', 'started']"></tr>
+            <!-- Actions -->
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef>Actions</th>
+              <td mat-cell *matCellDef="let run">
+                <button mat-button (click)="viewRunResults(run)" [disabled]="run.images_labeled === 0">
+                  <mat-icon>visibility</mat-icon>
+                  Results
+                </button>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="['trigger', 'status', 'discovered', 'ingested', 'labeled', 'failed', 'duration', 'started', 'actions']"></tr>
+            <tr mat-row *matRowDef="let row; columns: ['trigger', 'status', 'discovered', 'ingested', 'labeled', 'failed', 'duration', 'started', 'actions']"></tr>
           </table>
         }
       </mat-card-content>
     </mat-card>
+
+    <!-- Results Viewer -->
+    @if (selectedRun()) {
+      <mat-card class="results-card">
+        <mat-card-header>
+          <mat-card-title>
+            <div class="details-header">
+              <span>Labelling Results ({{ jobResults().length }} of {{ selectedRun()!.images_labeled }})</span>
+              <button mat-icon-button (click)="selectedRun.set(null); jobResults.set([])">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          </mat-card-title>
+        </mat-card-header>
+
+        <mat-card-content>
+          @if (loadingResults()) {
+            <div class="loading-container">
+              <mat-spinner diameter="40"></mat-spinner>
+              <p>Loading results...</p>
+            </div>
+          } @else if (jobResults().length === 0) {
+            <p class="no-runs">No results found</p>
+          } @else {
+            <div class="results-grid">
+              @for (result of jobResults(); track result.id) {
+                <mat-card class="result-card">
+                  <img [src]="getImageUrl(result.image_id)"
+                       alt="Image"
+                       class="result-image"
+                       loading="lazy">
+                  <mat-card-content>
+                    <div class="result-info">
+                      <div class="label-badge" [class.has-error]="result.error">
+                        @if (result.error) {
+                          <mat-icon color="warn">error</mat-icon>
+                          <span>Error</span>
+                        } @else {
+                          <mat-icon color="primary">check_circle</mat-icon>
+                          <span>{{ result.parsed_answer | json }}</span>
+                        }
+                      </div>
+                      @if (result.confidence_score) {
+                        <div class="confidence">
+                          Confidence: {{ (result.confidence_score * 100).toFixed(1) }}%
+                        </div>
+                      }
+                      @if (result.latency_ms) {
+                        <div class="latency">
+                          {{ result.latency_ms }}ms
+                        </div>
+                      }
+                    </div>
+                  </mat-card-content>
+                </mat-card>
+              }
+            </div>
+
+            @if (hasMoreResults()) {
+              <div class="load-more">
+                <button mat-raised-button color="primary" (click)="loadMoreResults()" [disabled]="loadingResults()">
+                  <mat-icon>expand_more</mat-icon>
+                  Load More
+                </button>
+              </div>
+            }
+          }
+        </mat-card-content>
+      </mat-card>
+    }
   }
 </div>
