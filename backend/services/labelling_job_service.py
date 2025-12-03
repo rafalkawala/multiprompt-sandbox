@@ -146,6 +146,12 @@ class LabellingJobService:
         except Exception as e:
             logger.error(f"✗ Job {job_id} failed: {str(e)}", exc_info=True)
 
+            # Rollback any pending transaction before updating
+            db.rollback()
+
+            # Reload objects from database
+            db.expire_all()
+
             # Update run status
             run.status = 'failed'
             run.error_message = str(e)
@@ -235,6 +241,7 @@ class LabellingJobService:
                     filename=filename,
                     storage_path=destination_path,
                     file_size=size,
+                    uploaded_by_id=job.created_by_id,  # Set to job creator
                     processing_status='pending'  # Will be processed for thumbnails
                 )
                 db.add(image)
