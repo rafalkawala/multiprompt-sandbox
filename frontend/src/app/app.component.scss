@@ -1,139 +1,96 @@
+@import '../styles/breakpoints';
+
 .auth-loading {
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  height: 100vh;
+  background-color: #f5f5f5;
 
   p {
     margin-top: 16px;
-    font-size: 14px;
+    color: #666;
+    font-size: 1.1rem;
   }
 }
 
 .app-container {
   height: 100vh;
-  width: 100vw;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-sidenav {
-  width: 256px;
-  border-right: 1px solid #e8eaed;
+  width: 250px;
   background-color: #f8f9fa;
   transition: width 0.3s ease;
+
+  // Mobile: full-width overlay drawer
+  @include mobile {
+    width: 280px !important;
+  }
 
   &.collapsed {
     width: 64px;
 
     .sidenav-header {
-      padding: 12px;
       justify-content: center;
-    }
-
-    mat-nav-list a.mat-mdc-list-item {
-      justify-content: center;
-      padding: 0 8px;
-
-      mat-icon {
-        margin-right: 0;
-      }
-    }
-
-    .sidenav-footer a.mat-mdc-list-item {
-      justify-content: center;
-      padding: 0 8px;
-
-      mat-icon {
-        margin-right: 0;
-      }
+      padding: 16px 0;
     }
   }
+}
 
-  .sidenav-header {
-    display: flex;
-    align-items: center;
-    padding: 20px 16px;
-    gap: 12px;
-    border-bottom: 1px solid #e8eaed;
-    background-color: white;
+.sidenav-header {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  background-color: white;
+  border-bottom: 1px solid #e0e0e0;
 
-    .logo-icon {
-      color: #1967d2;
-      font-size: 32px;
-      width: 32px;
-      height: 32px;
-    }
-
-    .app-title {
-      margin: 0;
-      font-size: 18px;
-      font-weight: 500;
-      color: #202124;
-    }
-
-    .collapse-btn {
-      margin-left: auto;
-    }
+  .logo-icon {
+    color: #1a73e8;
+    margin-right: 8px;
   }
 
-  mat-nav-list {
-    padding-top: 8px;
-
-    a.mat-mdc-list-item {
-      color: #5f6368;
-      height: 40px;
-      margin: 0 8px 4px 8px;
-      border-radius: 4px;
-      transition: all 0.2s ease;
-
-      &:hover {
-        background-color: #e8eaed;
-      }
-
-      &.active {
-        background-color: #e8f0fe;
-        color: #1967d2;
-        font-weight: 500;
-
-        mat-icon {
-          color: #1967d2;
-        }
-      }
-
-      mat-icon {
-        color: #5f6368;
-        margin-right: 12px;
-      }
-    }
+  .logo-text {
+    font-size: 20px;
+    font-weight: 500;
+    color: #444;
   }
+}
 
-  .sidenav-footer {
-    position: absolute;
-    bottom: 0;
-    width: 100%;
-    padding: 8px 0;
-    background-color: #f8f9fa;
+.mat-nav-list {
+  padding-top: 0;
 
-    mat-divider {
-      margin-bottom: 8px;
+  .mat-list-item {
+    height: 48px;
+    color: #5f6368;
+    margin: 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+
+    // Touch-friendly height on mobile
+    @include mobile {
+      height: 48px;
     }
 
-    a.mat-mdc-list-item {
-      color: #5f6368;
-      height: 40px;
-      margin: 0 8px 4px 8px;
-      border-radius: 4px;
+    &:hover {
+      background-color: #e8eaed;
+    }
 
-      &:hover {
-        background-color: #e8eaed;
-      }
+    &.active {
+      background-color: #e8f0fe;
+      color: #1a73e8;
 
-      mat-icon {
-        color: #5f6368;
-        margin-right: 12px;
+      .mat-icon {
+        color: #1a73e8;
       }
+    }
+
+    .mat-icon {
+      margin-right: 16px;
     }
   }
 }
@@ -141,18 +98,29 @@
 .app-content {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .app-toolbar {
-  background-color: #1967d2;
-  color: white;
-  height: 64px;
+  background-color: white !important;
+  color: #202124 !important;
+  border-bottom: 1px solid #e0e0e0;
   box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
   z-index: 10;
 
+  // Mobile: shorter toolbar, less padding
+  @include mobile {
+    height: 56px;
+    padding: 0 8px;
+  }
+
   button {
     color: white;
+  }
+
+  .menu-button {
+    margin-right: 8px;
   }
 
   .user-avatar {
@@ -160,59 +128,40 @@
     height: 32px;
     border-radius: 50%;
     object-fit: cover;
+
+    // Smaller avatar on mobile
+    @include mobile {
+      width: 28px;
+      height: 28px;
+    }
   }
 
   .user-menu-btn {
     display: flex;
     align-items: center;
-    min-width: auto;
-    padding: 0 8px;
+    padding: 4px 8px;
+    border-radius: 20px;
 
     .user-name {
       margin: 0 8px;
       font-size: 14px;
+
+      // Hide user name on mobile to save space
+      @include mobile {
+        display: none;
+      }
     }
 
     .dropdown-arrow {
-      margin-left: 4px;
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+    }
+
+    &:hover {
+      background-color: rgba(0, 0, 0, 0.04);
     }
   }
-}
-
-.user-menu-header {
-  padding: 12px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-
-  strong {
-    font-weight: 500;
-  }
-
-  small {
-    color: rgba(0, 0, 0, 0.6);
-    font-size: 12px;
-  }
-
-  .user-role-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    background-color: #e8f0fe;
-    color: #1967d2;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 500;
-    text-transform: uppercase;
-    margin-top: 4px;
-    width: fit-content;
-  }
-}
-
-.spacer {
-  flex: 1;
 }
 
 .main-content {
@@ -220,4 +169,13 @@
   overflow-y: auto;
   padding: 24px;
   background-color: #f8f9fa;
+
+  // Reduced padding on mobile
+  @include mobile {
+    padding: 16px;
+  }
+
+  @include mobile-small {
+    padding: 12px;
+  }
 }
