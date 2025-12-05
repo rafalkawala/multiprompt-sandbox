@@ -81,22 +81,46 @@ export class AuthService {
   }
 
   async handleCallback(tokenFromHash: string | null = null): Promise<void> {
+    console.log('[Auth Service] handleCallback called', {
+      hasTokenFromHash: !!tokenFromHash,
+      tokenLength: tokenFromHash?.length,
+      hasLocalStorageToken: !!localStorage.getItem('dev_access_token'),
+      userAgent: navigator.userAgent,
+      timestamp: new Date().toISOString()
+    });
+
     this.errorSignal.set(null);
 
     // If a token is provided in the hash (dev environment workaround)
     if (tokenFromHash) {
-      localStorage.setItem('dev_access_token', tokenFromHash);
-      // Remove the token from the URL hash to clean up the URL
-      this.router.navigate([], { replaceUrl: true, fragment: undefined });
+      try {
+        localStorage.setItem('dev_access_token', tokenFromHash);
+        console.log('[Auth Service] Token stored in localStorage successfully');
+        // Remove the token from the URL hash to clean up the URL
+        this.router.navigate([], { replaceUrl: true, fragment: undefined });
+      } catch (error) {
+        console.error('[Auth Service] Failed to store token in localStorage:', error);
+        this.errorSignal.set({
+          message: 'Failed to store authentication token. Please check browser settings.',
+          code: 'STORAGE_FAILED'
+        });
+        return;
+      }
     }
 
     // Attempt to load the user (will now also check localStorage token if available)
+    console.log('[Auth Service] Attempting to load user...');
     await this.loadUser();
 
     if (this.userSignal()) {
+      console.log('[Auth Service] User loaded successfully, redirecting to /home');
       this.router.navigate(['/home']);
     } else {
       // If no user after callback, something went wrong
+      console.error('[Auth Service] User not loaded after callback', {
+        hadToken: !!tokenFromHash,
+        hasStoredToken: !!localStorage.getItem('dev_access_token')
+      });
       this.errorSignal.set({
         message: 'Authentication failed. Please try again.',
         code: 'CALLBACK_FAILED'
@@ -108,6 +132,14 @@ export class AuthService {
   async loadUser(): Promise<void> {
     this.loadingSignal.set(true);
     this.errorSignal.set(null);
+
+    const hasToken = !!localStorage.getItem('dev_access_token');
+    console.log('[Auth Service] loadUser - starting', {
+      apiUrl: this.API_URL,
+      hasToken,
+      userAgent: navigator.userAgent
+    });
+
     try {
       // Token is automatically added by auth interceptor
       const user = await this.http.get<User>(
@@ -116,16 +148,32 @@ export class AuthService {
       ).toPromise();
 
       if (user) {
+        console.log('[Auth Service] loadUser - success', {
+          userId: user.id,
+          email: user.email,
+          role: user.role
+        });
         this.userSignal.set(user);
+      } else {
+        console.warn('[Auth Service] loadUser - no user returned');
       }
     } catch (error) {
-      console.error('Failed to load user:', error);
+      console.error('[Auth Service] loadUser - failed', {
+        error,
+        hasToken,
+        errorStatus: error instanceof HttpErrorResponse ? error.status : 'unknown',
+        errorMessage: error instanceof HttpErrorResponse ? error.message : String(error),
+        userAgent: navigator.userAgent
+      });
+
       if (error instanceof HttpErrorResponse) {
         if (error.status === 401) {
           // Not authenticated - this is normal for logged out users
+          console.log('[Auth Service] loadUser - 401 Unauthorized (expected for logged out users)');
           this.userSignal.set(null);
         } else if (error.status === 400) {
           // User is deactivated
+          console.log('[Auth Service] loadUser - 400 Bad Request (account deactivated)');
           this.userSignal.set(null);
           this.errorSignal.set({
             message: 'Your account has been deactivated. Please contact an administrator.',
@@ -133,6 +181,11 @@ export class AuthService {
           });
         } else {
           // Network or server error
+          console.error('[Auth Service] loadUser - Network/server error', {
+            status: error.status,
+            statusText: error.statusText,
+            url: error.url
+          });
           this.errorSignal.set({
             message: 'Unable to connect to server. Please check your connection.',
             code: 'CONNECTION_ERROR'
@@ -145,16 +198,28 @@ export class AuthService {
   }
 
   async logout(): Promise<void> {
+    console.log('[Auth Service] logout - starting');
     try {
       await this.http.post(
         `${this.API_URL}/auth/logout`,
         {},
         { withCredentials: true }
       ).toPromise();
+      console.log('[Auth Service] logout - backend call successful');
     } catch (error) {
-      console.error('Logout failed:', error);
+      console.error('[Auth Service] logout - backend call failed:', error);
     }
+
+    // Clear localStorage token
+    try {
+      localStorage.removeItem('dev_access_token');
+      console.log('[Auth Service] logout - localStorage cleared');
+    } catch (error) {
+      console.error('[Auth Service] logout - failed to clear localStorage:', error);
+    }
+
     this.userSignal.set(null);
     this.errorSignal.set(null);
+    console.log('[Auth Service] logout - complete');
   }
 }

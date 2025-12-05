@@ -67,29 +67,53 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
+    # Log authentication attempt for debugging mobile issues
+    user_agent = request.headers.get("user-agent", "unknown")
+    has_cookie = bool(auth_token)
+    has_auth_header = "Authorization" in request.headers
+
+    logger.debug(
+        f"Auth attempt - Cookie: {has_cookie}, Header: {has_auth_header}, "
+        f"UA: {user_agent[:100]}"
+    )
+
     # Try to get token from cookie first, then fall back to Authorization header
     token = auth_token
+    token_source = "cookie"
     if not token:
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header[7:]
+            token_source = "header"
 
     if not token:
+        logger.warning(
+            f"No token found - Cookie: {has_cookie}, Header: {has_auth_header}, "
+            f"UA: {user_agent[:100]}"
+        )
         raise credentials_exception
+
+    logger.debug(f"Token found in {token_source}")
 
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         email: str = payload.get("sub")
         if email is None:
+            logger.warning(f"No email in token payload, source: {token_source}")
             raise credentials_exception
-    except JWTError:
+    except JWTError as e:
+        logger.warning(f"JWT decode error: {str(e)}, source: {token_source}")
         raise credentials_exception
 
     user = db.query(User).filter(User.email == email).first()
     if user is None:
+        logger.warning(f"User not found in DB: {email}")
         raise credentials_exception
     if not user.is_active:
+        logger.warning(f"Inactive user attempted login: {email}")
         raise HTTPException(status_code=400, detail="Inactive user")
+
+    logger.debug(f"Auth successful for {email} via {token_source}")
     return user
 
 
@@ -236,10 +260,17 @@ async def get_me(current_user: User = Depends(get_current_user)):
 async def logout():
     """Logout endpoint - clears the auth cookie"""
     response = Response(content='{"message": "Logged out successfully"}', media_type="application/json")
+
+    # Match the cookie settings used during login to ensure proper deletion
+    is_production = settings.ENVIRONMENT == "production"
     response.delete_cookie(
         key="auth_token",
         path="/",
         httponly=True,
-        samesite="lax"
+        secure=is_production,
+        samesite="none" if is_production else "lax"
     )
+
+    # Also clear the token from localStorage on the frontend side
+    # (Note: This is handled by frontend, backend just clears the cookie)
     return response

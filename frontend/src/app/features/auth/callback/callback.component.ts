@@ -43,10 +43,47 @@ export class CallbackComponent implements OnInit {
     // Extract token from URL hash if present
     let token: string | null = null;
     const hash = window.location.hash;
+
+    console.log('[Auth Callback] Processing callback', {
+      hasHash: !!hash,
+      hashLength: hash?.length,
+      userAgent: navigator.userAgent,
+      timestamp: new Date().toISOString()
+    });
+
     if (hash && hash.includes('token=')) {
-      token = hash.split('token=')[1];
-      // Clean the URL
-      window.history.replaceState(null, '', window.location.pathname);
+      try {
+        // Remove leading # if present
+        const hashParams = hash.startsWith('#') ? hash.substring(1) : hash;
+
+        // Parse the hash parameters more robustly
+        const params = new URLSearchParams(hashParams);
+        token = params.get('token');
+
+        if (!token) {
+          // Fallback to simple split if URLSearchParams didn't work
+          const parts = hashParams.split('token=');
+          if (parts.length > 1) {
+            // Take everything after 'token=' and before any & or end
+            token = parts[1].split('&')[0];
+          }
+        }
+
+        console.log('[Auth Callback] Token extracted', {
+          tokenPresent: !!token,
+          tokenLength: token?.length
+        });
+
+        // Clean the URL
+        window.history.replaceState(null, '', window.location.pathname);
+      } catch (error) {
+        console.error('[Auth Callback] Error extracting token from hash:', error, {
+          hash,
+          userAgent: navigator.userAgent
+        });
+      }
+    } else {
+      console.log('[Auth Callback] No token in hash, relying on cookie authentication');
     }
 
     await this.authService.handleCallback(token);
