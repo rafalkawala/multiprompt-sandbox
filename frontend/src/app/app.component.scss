@@ -1,3 +1,5 @@
+@import '../styles/breakpoints';
+
 .auth-loading {
   display: flex;
   flex-direction: column;
@@ -23,6 +25,11 @@
   border-right: 1px solid #e8eaed;
   background-color: #f8f9fa;
   transition: width 0.3s ease;
+
+  // Mobile: full-width overlay drawer
+  @include mobile {
+    width: 280px !important;
+  }
 
   &.collapsed {
     width: 64px;
@@ -88,6 +95,11 @@
       border-radius: 4px;
       transition: all 0.2s ease;
 
+      // Touch-friendly height on mobile
+      @include mobile {
+        height: 48px;
+      }
+
       &:hover {
         background-color: #e8eaed;
       }
@@ -151,8 +163,18 @@
   box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
   z-index: 10;
 
+  // Mobile: shorter toolbar, less padding
+  @include mobile {
+    height: 56px;
+    padding: 0 8px;
+  }
+
   button {
     color: white;
+  }
+
+  .menu-button {
+    margin-right: 8px;
   }
 
   .user-avatar {
@@ -160,6 +182,12 @@
     height: 32px;
     border-radius: 50%;
     object-fit: cover;
+
+    // Smaller avatar on mobile
+    @include mobile {
+      width: 28px;
+      height: 28px;
+    }
   }
 
   .user-menu-btn {
@@ -171,6 +199,11 @@
     .user-name {
       margin: 0 8px;
       font-size: 14px;
+
+      // Hide user name on mobile to save space
+      @include mobile {
+        display: none;
+      }
     }
 
     .dropdown-arrow {
@@ -220,4 +253,13 @@
   overflow-y: auto;
   padding: 24px;
   background-color: #f8f9fa;
+
+  // Reduced padding on mobile
+  @include mobile {
+    padding: 16px;
+  }
+
+  @include mobile-small {
+    padding: 12px;
+  }
 }

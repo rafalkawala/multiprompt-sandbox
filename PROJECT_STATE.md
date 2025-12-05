@@ -1,6 +1,6 @@
 # Project State
 
-> **Last Updated**: 2025-11-22
+> **Last Updated**: 2025-11-30
 > **For**: AI Agents and New Developers
 > **Purpose**: Single source of truth for current technical state
 
@@ -283,9 +283,9 @@ npm test
 **Repository**: https://github.com/rafalkawala/multiprompt-sandbox.git
 **Current Branch**: `main`
 **Recent Commits**:
-- d7c5039 - Add Angular Material with GCP-like design
-- 8c01314 - Update README with actual product vision
-- 8e8b722 - Add product requirements document
+- 86491b5 - Fix local batch upload and remove duplicate confusion matrix
+- 84ab163 - Add missing isBinaryProject method to evaluations component
+- a56ac6a - Add UI improvements and local development support
 
 **Modified Files** (as of last check):
 - `backend/api/v1/__init__.py` (agents disabled)

@@ -64,3 +64,7 @@ Important: for any database migration ALWAYS use Alembic
 Your terminal is running on Windows
 
 For every architectural decision taken create Git issue eg. [ADR-001] Background Job Infrastructure for Image Processing
+
+## Github Issue Management
+
+Always ensure that you use the 'codebase_investigator' tool to analyze the implementation status of features before generating a temporary file for user verification when dealing with GitHub issues.
