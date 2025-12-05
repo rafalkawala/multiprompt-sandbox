@@ -131,6 +131,3 @@ infrastructure/terraform.tfvars
 # Gemini recommendation files
 GEMINI-*.md
 backend/uploads/
-
-.gemini/
-gha-creds-*.json

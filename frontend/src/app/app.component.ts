@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -10,7 +10,6 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { BreakpointObserver } from '@angular/cdk/layout';
 import { AuthService } from './core/services/auth.service';
 import { LoginComponent } from './features/auth/login/login.component';
 
@@ -48,32 +47,8 @@ export class AppComponent {
   ];
 
   sidenavCollapsed = false;
-  isMobile = signal(false);
-  isTablet = signal(false);
 
-  constructor(
-    public authService: AuthService,
-    private breakpointObserver: BreakpointObserver
-  ) {
-    // Observe mobile and tablet breakpoints
-    this.breakpointObserver.observe([
-      '(max-width: 767px)',
-      '(min-width: 768px) and (max-width: 1023px)'
-    ]).subscribe(result => {
-      this.isMobile.set(result.breakpoints['(max-width: 767px)']);
-      this.isTablet.set(result.breakpoints['(min-width: 768px) and (max-width: 1023px)']);
-    });
-  }
-
-  // Sidenav should be 'over' mode on mobile, 'side' on desktop
-  get sidenavMode(): 'side' | 'over' {
-    return this.isMobile() ? 'over' : 'side';
-  }
-
-  // Sidenav should be closed by default on mobile, open on desktop
-  get sidenavOpened(): boolean {
-    return !this.isMobile();
-  }
+  constructor(public authService: AuthService) {}
 
   toggleSidenav() {
     this.sidenavCollapsed = !this.sidenavCollapsed;

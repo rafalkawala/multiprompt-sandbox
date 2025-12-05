@@ -46,13 +46,7 @@
       "Bash(timeout 10 docker logs:*)",
       "Bash(bash:*)",
       "Bash(docker build:*)",
-      "Bash(docker ps:*)",
-      "Bash(nul)",
-      "Bash(gh issue create:*)",
-      "Bash(/tmp/terraform.exe plan:*)",
-      "Bash(gcloud tasks queues describe:*)",
-      "Bash(npm run build:*)",
-      "Bash(gh issue view:*)"
+      "Bash(docker ps:*)"
     ],
     "deny": [],
     "ask": []

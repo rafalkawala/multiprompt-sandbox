@@ -11,12 +11,7 @@
   <!-- Main application when authenticated -->
   <mat-sidenav-container class="app-container">
     <!-- Side Navigation -->
-    <mat-sidenav
-      [mode]="sidenavMode"
-      [opened]="sidenavOpened"
-      #sidenav
-      class="app-sidenav"
-      [class.collapsed]="sidenavCollapsed">
+    <mat-sidenav mode="side" opened class="app-sidenav" [class.collapsed]="sidenavCollapsed">
       <div class="sidenav-header">
         @if (!sidenavCollapsed) {
           <mat-icon class="logo-icon">science</mat-icon>
@@ -75,11 +70,6 @@
     <mat-sidenav-content class="app-content">
       <!-- Top Toolbar -->
       <mat-toolbar color="primary" class="app-toolbar">
-        @if (isMobile()) {
-          <button mat-icon-button (click)="sidenav.toggle()" class="menu-button">
-            <mat-icon>menu</mat-icon>
-          </button>
-        }
         <span>{{ title }}</span>
         <span class="spacer"></span>
         <button mat-icon-button>
