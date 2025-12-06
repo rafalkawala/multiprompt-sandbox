@@ -32,6 +32,9 @@ COPY nginx.conf /etc/nginx/templates/nginx.conf.template
 # Copy built application from build stage
 COPY --from=build /app/dist/multiprompt-sandbox /usr/share/nginx/html
 
+# Copy static auth callback HTML for iOS Safari compatibility
+COPY src/auth-callback.html /usr/share/nginx/html/auth-callback.html
+
 # Expose port (Cloud Run uses PORT env var)
 EXPOSE 8080
 
