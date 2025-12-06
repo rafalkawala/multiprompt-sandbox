@@ -162,7 +162,8 @@ export class AuthService {
     } catch (error) {
       console.error('[Auth Service] loadUser - failed', {
         error,
-        hasToken,
+        hasLocalStorageToken,
+        hasSessionStorageToken,
         errorStatus: error instanceof HttpErrorResponse ? error.status : 'unknown',
         errorMessage: error instanceof HttpErrorResponse ? error.message : String(error),
         userAgent: navigator.userAgent
