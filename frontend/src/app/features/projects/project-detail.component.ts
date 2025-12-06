@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, OnDestroy } from '@angular/core';
+import { Component, OnInit, signal, OnDestroy, Inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -13,11 +13,85 @@ import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatDialogModule, MatDialog } from '@angular/material/dialog';
+import { MatDialogModule, MatDialog, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
+import { MatSelectModule } from '@angular/material/select';
 import { ProjectsService, Project, DatasetDetail, ImageItem, ProcessingStatus } from '../../core/services/projects.service';
 import { EvaluationsService } from '../../core/services/evaluations.service';
 import { interval, Subscription } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
+
+@Component({
+  selector: 'app-edit-project-dialog',
+  standalone: true,
+  imports: [
+    CommonModule, 
+    FormsModule, 
+    MatButtonModule, 
+    MatInputModule, 
+    MatFormFieldModule, 
+    MatDialogModule,
+    MatSelectModule
+  ],
+  template: `
+    <h2 mat-dialog-title>Edit Project</h2>
+    <mat-dialog-content>
+      <div class="edit-form">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Project Name</mat-label>
+          <input matInput [(ngModel)]="data.name" required>
+        </mat-form-field>
+        
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Description</mat-label>
+          <textarea matInput [(ngModel)]="data.description" rows="3"></textarea>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Question</mat-label>
+          <input matInput [(ngModel)]="data.question_text" required>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Question Type</mat-label>
+          <mat-select [(ngModel)]="data.question_type" required>
+            <mat-option value="binary">Binary (Yes/No)</mat-option>
+            <mat-option value="multiple_choice">Multiple Choice</mat-option>
+            <mat-option value="text">Free Text</mat-option>
+            <mat-option value="count">Count</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+      <button mat-button mat-dialog-close>Cancel</button>
+      <button mat-raised-button color="primary" [mat-dialog-close]="data" [disabled]="!data.name || !data.question_text">Save</button>
+    </mat-dialog-actions>
+  `,
+  styles: [`
+    .edit-form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 400px;
+      padding-top: 8px;
+    }
+    .full-width {
+      width: 100%;
+    }
+    @media (max-width: 600px) {
+      .edit-form {
+        min-width: unset;
+        width: 100%;
+      }
+    }
+  `]
+})
+export class EditProjectDialogComponent {
+  constructor(
+    public dialogRef: MatDialogRef<EditProjectDialogComponent>,
+    @Inject(MAT_DIALOG_DATA) public data: any
+  ) {}
+}
 
 @Component({
   selector: 'app-project-detail',
@@ -37,7 +111,8 @@ import { switchMap } from 'rxjs/operators';
     MatFormFieldModule,
     MatExpansionModule,
     MatProgressBarModule,
-    MatDialogModule
+    MatDialogModule,
+    MatSelectModule
   ],
   template: `
     <div class="project-detail-container">
@@ -54,6 +129,9 @@ import { switchMap } from 'rxjs/operators';
                 <mat-icon>arrow_back</mat-icon>
               </button>
               {{ project()!.name }}
+              <button mat-icon-button color="primary" (click)="openEditDialog()" matTooltip="Edit Project Details" class="edit-btn">
+                <mat-icon>edit</mat-icon>
+              </button>
             </mat-card-title>
             <mat-card-subtitle>{{ project()!.description || 'No description' }}</mat-card-subtitle>
           </mat-card-header>
@@ -341,6 +419,11 @@ import { switchMap } from 'rxjs/operators';
         display: flex;
         align-items: center;
         gap: 8px;
+        
+        .edit-btn {
+          margin-left: 8px;
+          transform: scale(0.9);
+        }
       }
     }
 
@@ -835,6 +918,41 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
     this.showUploadBlocker.set(false);
     this.uploadingDatasetId = null;
     this.snackBar.open('Upload cancelled', 'Close', { duration: 3000 });
+  }
+
+  openEditDialog() {
+    const project = this.project();
+    if (!project) return;
+
+    const dialogRef = this.dialog.open(EditProjectDialogComponent, {
+      width: '500px',
+      maxWidth: '95vw',
+      data: {
+        name: project.name,
+        description: project.description,
+        question_text: project.question_text,
+        question_type: project.question_type
+      }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.updateProject(result);
+      }
+    });
+  }
+
+  updateProject(data: any) {
+    this.projectsService.updateProject(this.projectId, data).subscribe({
+      next: (updatedProject) => {
+        this.project.set(updatedProject);
+        this.snackBar.open('Project updated successfully', 'Close', { duration: 3000 });
+      },
+      error: (err) => {
+        console.error('Failed to update project:', err);
+        this.snackBar.open('Failed to update project', 'Close', { duration: 3000 });
+      }
+    });
   }
 
   loadProject() {
