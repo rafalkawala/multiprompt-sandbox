@@ -9,17 +9,24 @@
   <app-login></app-login>
 } @else {
   <!-- Main application when authenticated -->
-  <mat-sidenav-container class="app-container">
+  <mat-sidenav-container class="app-container" fullscreen>
     <!-- Side Navigation -->
-    <mat-sidenav mode="side" opened class="app-sidenav" [class.collapsed]="sidenavCollapsed">
+    <mat-sidenav
+      [mode]="sidenavMode"
+      [opened]="sidenavOpened"
+      #sidenav
+      class="app-sidenav"
+      [class.collapsed]="sidenavCollapsed">
       <div class="sidenav-header">
         @if (!sidenavCollapsed) {
           <mat-icon class="logo-icon">science</mat-icon>
           <h2 class="app-title">MLLM Platform</h2>
         }
-        <button mat-icon-button (click)="toggleSidenav()" class="collapse-btn">
-          <mat-icon>{{ sidenavCollapsed ? 'chevron_right' : 'chevron_left' }}</mat-icon>
-        </button>
+        @if (!isMobile()) {
+          <button mat-icon-button (click)="toggleSidenav()" class="collapse-btn">
+            <mat-icon>{{ sidenavCollapsed ? 'chevron_right' : 'chevron_left' }}</mat-icon>
+          </button>
+        }
       </div>
 
       <mat-nav-list>
@@ -70,6 +77,11 @@
     <mat-sidenav-content class="app-content">
       <!-- Top Toolbar -->
       <mat-toolbar color="primary" class="app-toolbar">
+        @if (isMobile()) {
+          <button mat-icon-button (click)="sidenav.toggle()" class="menu-button">
+            <mat-icon>menu</mat-icon>
+          </button>
+        }
         <span>{{ title }}</span>
         <span class="spacer"></span>
         <button mat-icon-button>

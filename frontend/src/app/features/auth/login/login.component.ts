@@ -62,12 +62,7 @@ import { AuthService } from '../../../core/services/auth.service';
       align-items: center;
       min-height: 100vh;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      z-index: 1000;
+      width: 100%;
       padding: 16px; /* Handles safe spacing from edges on mobile */
     }
 

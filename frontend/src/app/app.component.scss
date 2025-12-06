@@ -16,7 +16,6 @@
 }
 
 .app-container {
-  height: 100vh;
   display: flex;
   flex-direction: column;
 }
@@ -98,8 +97,6 @@
 .app-content {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
 }
 
 .app-toolbar {
@@ -121,6 +118,23 @@
 
   .menu-button {
     margin-right: 8px;
+
+    @include mobile {
+      // Make hamburger menu more prominent on mobile
+      background-color: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+
+      mat-icon {
+        font-size: 28px;
+        width: 28px;
+        height: 28px;
+        line-height: 28px;
+      }
+
+      &:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+      }
+    }
   }
 
   .user-avatar {
