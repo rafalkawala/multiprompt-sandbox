@@ -47,11 +47,6 @@ export class CallbackComponent implements OnInit {
     const hash = window.location.hash;
     const fullUrl = window.location.href;
 
-    // DEBUGGING: Show alert to confirm code is running
-    const debugInfo = `URL: ${fullUrl.substring(0, 80)}...\nHas query: ${!!window.location.search}`;
-    console.log('[Auth Callback] Processing callback - DEBUGGING ENABLED');
-    console.log(debugInfo);
-
     console.log('[Auth Callback] Processing callback', {
       hasQuery: !!window.location.search,
       hasHash: !!hash,
@@ -128,8 +123,6 @@ export class CallbackComponent implements OnInit {
         alert('Authentication Error:\n\nBrowser storage is blocked. Please:\n1. Disable Private Browsing mode\n2. Check Safari privacy settings\n3. Allow cookies and site data\n\nIf using Safari, go to Settings > Safari > Disable "Prevent Cross-Site Tracking"');
       } else {
         console.log(`[Auth Callback] Token successfully stored using ${storageMethod}`);
-        // DEBUGGING: Confirm storage worked
-        alert(`DEBUG: Token stored successfully using ${storageMethod}!\nToken length: ${token.length}\nWill redirect to /home...`);
       }
 
       // Clean URL immediately to remove token from browser history

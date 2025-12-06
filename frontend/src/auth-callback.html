@@ -40,7 +40,8 @@
     <div class="container">
         <div class="spinner"></div>
         <p id="status">Completing sign in...</p>
-        <p id="debug" style="font-size: 0.8em; color: #666; margin-top: 1rem;"></p>
+        <!-- Debug messages hidden by default, visible in console -->
+        <p id="debug" style="font-size: 0.8em; color: #666; margin-top: 1rem; display: none;"></p>
     </div>
 
     <script>
@@ -106,10 +107,8 @@
             log('Success! Stored using ' + storageMethod);
             status.textContent = 'Success! Redirecting...';
 
-            // Clean URL and redirect
-            setTimeout(() => {
-                window.location.href = '/home';
-            }, 1000);
+            // Clean URL and redirect (immediate for better UX)
+            window.location.href = '/home';
         })();
     </script>
 </body>
