@@ -68,12 +68,13 @@ import { AuthService } from '../../../core/services/auth.service';
       right: 0;
       bottom: 0;
       z-index: 1000;
+      padding: 16px; /* Handles safe spacing from edges on mobile */
     }
 
     .login-card {
       max-width: 400px;
       width: 100%;
-      margin: 16px;
+      /* margin: 16px; -- REMOVED: Caused overflow on mobile (100% + 32px) */
       padding: 24px;
     }
 
