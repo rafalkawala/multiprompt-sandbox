@@ -11,6 +11,9 @@ from datetime import datetime, timedelta
 from typing import Optional
 import httpx
 import logging
+import base64
+import json
+from urllib.parse import urlparse
 
 from core.config import settings
 from core.database import SessionLocal
@@ -118,9 +121,38 @@ async def get_current_user(
 
 
 @router.get("/google/login")
-async def google_login():
-    """Initiate Google OAuth login"""
-    # Build the Google OAuth URL
+async def google_login(request: Request, next: Optional[str] = None):
+    """Initiate Google OAuth login with dynamic redirect support"""
+
+    # Determine return URL (priority: next param > referer > FRONTEND_URL)
+    frontend_url = settings.FRONTEND_URL
+
+    if next:
+        frontend_url = next
+    elif request.headers.get("referer"):
+        referer = request.headers.get("referer")
+        parsed = urlparse(referer)
+        frontend_url = f"{parsed.scheme}://{parsed.netloc}"
+
+    # Validate against ALLOWED_ORIGINS to prevent open redirects
+    allowed_origins = settings.ALLOWED_ORIGINS
+    # Normalize URLs for comparison (remove trailing slash)
+    normalized_url = frontend_url.rstrip('/')
+    normalized_origins = [origin.rstrip('/') for origin in allowed_origins]
+
+    if normalized_url not in normalized_origins:
+        logger.warning(
+            f"Potential open redirect blocked: {frontend_url} not in allowed origins"
+        )
+        frontend_url = settings.FRONTEND_URL
+
+    # Create state parameter with return URL
+    state_data = {"return_url": frontend_url}
+    state = base64.urlsafe_b64encode(json.dumps(state_data).encode()).decode()
+
+    logger.info(f"OAuth login initiated, return_url: {frontend_url}")
+
+    # Build the Google OAuth URL with state
     google_auth_url = (
         f"https://accounts.google.com/o/oauth2/v2/auth?"
         f"client_id={settings.GOOGLE_CLIENT_ID}&"
@@ -128,14 +160,15 @@ async def google_login():
         f"response_type=code&"
         f"scope=openid%20email%20profile&"
         f"access_type=offline&"
-        f"prompt=consent"
+        f"prompt=consent&"
+        f"state={state}"
     )
     return {"auth_url": google_auth_url}
 
 
 @router.get("/google/callback")
-async def google_callback(code: str, db: Session = Depends(get_db)):
-    """Handle Google OAuth callback"""
+async def google_callback(code: str, state: Optional[str] = None, db: Session = Depends(get_db)):
+    """Handle Google OAuth callback with dynamic redirect"""
     try:
         # Exchange code for tokens
         async with httpx.AsyncClient() as client:
@@ -216,8 +249,32 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
             data={"sub": user.email, "role": user.role}
         )
 
+        # Determine redirect base URL from state
+        redirect_base = settings.FRONTEND_URL
+        if state:
+            try:
+                state_data = json.loads(base64.urlsafe_b64decode(state).decode())
+                if "return_url" in state_data:
+                    candidate_url = state_data["return_url"]
+
+                    # Validate against ALLOWED_ORIGINS
+                    allowed_origins = settings.ALLOWED_ORIGINS
+                    normalized_url = candidate_url.rstrip('/')
+                    normalized_origins = [origin.rstrip('/') for origin in allowed_origins]
+
+                    if normalized_url in normalized_origins:
+                        redirect_base = candidate_url
+                        logger.info(f"Using dynamic redirect: {redirect_base}")
+                    else:
+                        logger.warning(
+                            f"State redirect URL {candidate_url} not in allowed origins, "
+                            f"using default {settings.FRONTEND_URL}"
+                        )
+            except Exception as e:
+                logger.warning(f"Failed to decode state parameter: {e}")
+
         # Redirect to frontend with token in URL hash (avoids third-party cookie issues)
-        redirect_url = f"{settings.FRONTEND_URL}/auth/callback#token={jwt_token}"
+        redirect_url = f"{redirect_base}/auth/callback#token={jwt_token}"
         response = RedirectResponse(url=redirect_url)
 
         # Also set cookie as fallback for same-origin setups

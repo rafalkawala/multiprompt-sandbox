@@ -74,8 +74,7 @@ export class CallbackComponent implements OnInit {
           tokenLength: token?.length
         });
 
-        // Clean the URL
-        window.history.replaceState(null, '', window.location.pathname);
+        // URL cleanup is handled by AuthService via Angular Router
       } catch (error) {
         console.error('[Auth Callback] Error extracting token from hash:', error, {
           hash,
