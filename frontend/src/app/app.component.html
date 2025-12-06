@@ -98,8 +98,8 @@
         </button>
         <mat-menu #userMenu="matMenu">
           <div class="user-menu-header">
-            <strong>{{ authService.user()?.name || authService.user()?.email }}</strong>
-            <small>{{ authService.user()?.email }}</small>
+            <h4>{{ authService.user()?.name || 'User' }}</h4>
+            <p class="email">{{ authService.user()?.email }}</p>
             <span class="user-role-badge">{{ authService.user()?.role }}</span>
           </div>
           <mat-divider></mat-divider>

@@ -190,6 +190,40 @@
   }
 }
 
+.user-menu-header {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  outline: none; // Remove focus outline on click
+
+  h4 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+    color: #202124;
+  }
+
+  .email {
+    margin: 0;
+    font-size: 14px;
+    color: #5f6368;
+  }
+
+  .user-role-badge {
+    margin-top: 8px;
+    display: inline-block;
+    padding: 2px 8px;
+    background-color: #e8f0fe;
+    color: #1a73e8;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+  }
+}
+
 .main-content {
   flex: 1;
   overflow-y: auto;
