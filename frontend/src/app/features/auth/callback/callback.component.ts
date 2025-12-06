@@ -40,67 +40,54 @@ export class CallbackComponent implements OnInit {
   }
 
   private async handleCallback(): Promise<void> {
-    // Extract token from URL hash if present
+    // Extract token from URL (query param or hash)
     let token: string | null = null;
 
-    // Wait a moment for browser to fully process the URL (especially on mobile)
-    await new Promise(resolve => setTimeout(resolve, 100));
-
+    const searchParams = new URLSearchParams(window.location.search);
     const hash = window.location.hash;
-    const href = window.location.href;
+    const fullUrl = window.location.href;
 
     console.log('[Auth Callback] Processing callback', {
+      hasQuery: !!window.location.search,
       hasHash: !!hash,
-      hashLength: hash?.length,
-      fullUrl: href,
+      fullUrl: fullUrl,
       userAgent: navigator.userAgent,
       timestamp: new Date().toISOString()
     });
 
-    // Try multiple methods to extract the token (mobile browsers can be tricky)
-    if (hash && hash.includes('token=')) {
-      try {
-        // Remove leading # if present
-        const hashParams = hash.startsWith('#') ? hash.substring(1) : hash;
+    // Try query parameter first (new mobile-friendly approach)
+    token = searchParams.get('token');
+    if (token) {
+      console.log('[Auth Callback] Token extracted from query param', {
+        tokenLength: token.length
+      });
+    }
 
-        // Parse the hash parameters more robustly
+    // Fallback: Try hash fragment (legacy approach)
+    if (!token && hash && hash.includes('token=')) {
+      try {
+        const hashParams = hash.startsWith('#') ? hash.substring(1) : hash;
         const params = new URLSearchParams(hashParams);
         token = params.get('token');
 
         if (!token) {
-          // Fallback to simple split if URLSearchParams didn't work
           const parts = hashParams.split('token=');
           if (parts.length > 1) {
-            // Take everything after 'token=' and before any & or end
             token = parts[1].split('&')[0];
           }
         }
 
-        console.log('[Auth Callback] Token extracted from hash', {
-          tokenPresent: !!token,
-          tokenLength: token?.length
-        });
-      } catch (error) {
-        console.error('[Auth Callback] Error extracting token from hash:', error, {
-          hash,
-          userAgent: navigator.userAgent
-        });
-      }
-    } else if (href.includes('#token=')) {
-      // Fallback: extract from full URL if hash isn't populated
-      try {
-        const urlParts = href.split('#token=');
-        if (urlParts.length > 1) {
-          token = urlParts[1].split('&')[0];
-          console.log('[Auth Callback] Token extracted from href', {
-            tokenPresent: !!token,
-            tokenLength: token?.length
+        if (token) {
+          console.log('[Auth Callback] Token extracted from hash', {
+            tokenLength: token.length
           });
         }
       } catch (error) {
-        console.error('[Auth Callback] Error extracting token from href:', error);
+        console.error('[Auth Callback] Error extracting token from hash:', error);
       }
-    } else {
+    }
+
+    if (!token) {
       console.log('[Auth Callback] No token in URL, relying on cookie authentication');
     }
 
@@ -108,9 +95,12 @@ export class CallbackComponent implements OnInit {
     if (token) {
       try {
         localStorage.setItem('dev_access_token', token);
-        console.log('[Auth Callback] Token pre-stored in localStorage');
+        console.log('[Auth Callback] Token stored in localStorage');
+
+        // Clean URL immediately to remove token from browser history
+        window.history.replaceState({}, document.title, window.location.pathname);
       } catch (error) {
-        console.error('[Auth Callback] Failed to pre-store token:', error);
+        console.error('[Auth Callback] Failed to store token:', error);
       }
     }
 

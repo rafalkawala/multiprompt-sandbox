@@ -273,8 +273,11 @@ async def google_callback(code: str, state: Optional[str] = None, db: Session = 
             except Exception as e:
                 logger.warning(f"Failed to decode state parameter: {e}")
 
-        # Redirect to frontend with token in URL hash (avoids third-party cookie issues)
-        redirect_url = f"{redirect_base}/auth/callback#token={jwt_token}"
+        # Redirect to frontend with token in query parameter (mobile-friendly)
+        # Note: Hash fragments (#) are not sent in HTTP redirects on mobile browsers
+        redirect_url = f"{redirect_base}/auth/callback?token={jwt_token}"
+        logger.info(f"Redirecting to: {redirect_url}")
+        logger.info(f"Token (first 20 chars): {jwt_token[:20]}...")
         response = RedirectResponse(url=redirect_url)
 
         # Also set cookie as fallback for same-origin setups
