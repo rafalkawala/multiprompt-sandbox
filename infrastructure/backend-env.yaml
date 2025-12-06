@@ -1,0 +1,33 @@
+# Backend Cloud Run environment variables
+# Use with: gcloud run services update multiprompt-backend --region=us-central1 --flags-file=backend-env.yaml
+# IMPORTANT: Using --set-env-vars with ALL variables to ensure database config is included
+
+--set-env-vars:
+  # Environment
+  ENVIRONMENT: production
+
+  # Database connection (Cloud SQL private IP)
+  DB_HOST: 10.205.0.3
+  DB_PORT: "5432"
+  DB_USER: mllm_sandbox_user
+  DB_NAME: mllm_sandbox_db
+
+  # GCP Configuration
+  GCP_PROJECT_ID: prompting-sandbox-mvp
+  GOOGLE_CLOUD_PROJECT: prompting-sandbox-mvp
+  REGION: us-central1
+
+  # URLs - Updated to new Cloud Run URLs
+  BACKEND_URL: https://multiprompt-backend-595703335416.us-central1.run.app
+  FRONTEND_URL: https://multiprompt-frontend-595703335416.us-central1.run.app
+  GOOGLE_REDIRECT_URI: https://multiprompt-backend-595703335416.us-central1.run.app/api/v1/auth/google/callback
+
+  # CORS - Multiple frontend URLs (this is why we use YAML!)
+  CORS_ALLOWED_ORIGINS: https://multiprompt-frontend-595703335416.us-central1.run.app,https://multiprompt-frontend-h7qqrpma-uc.a.run.app
+
+  # Storage
+  GCS_BUCKET_NAME: multiprompt-sandbox-uploads
+  STORAGE_TYPE: gcs
+
+  # Background processing
+  USE_CLOUD_TASKS: "true"

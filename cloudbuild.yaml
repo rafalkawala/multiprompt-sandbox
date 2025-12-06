@@ -210,28 +210,21 @@ steps:
     waitFor: ['push-frontend']
     id: 'deploy-frontend'
 
-  # Update backend with actual URLs after both services are deployed
+  # Update backend with CORS configuration from YAML flags file
   - name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        BACKEND_URL=$$(gcloud run services describe multiprompt-backend \
-          --region=${_REGION} --format='value(status.url)' --project=$PROJECT_ID | tr -d '\n\r')
-        FRONTEND_URL=$$(gcloud run services describe multiprompt-frontend \
-          --region=${_REGION} --format='value(status.url)' --project=$PROJECT_ID | tr -d '\n\r')
+        echo "--- Updating backend with CORS configuration from infrastructure/backend-env.yaml ---"
 
-        echo "--- DEBUG: update-urls step ---"
-        echo "FRONTEND_URL: '$${FRONTEND_URL}'"
-        echo "BACKEND_URL: '$${BACKEND_URL}'"
-
-        # Update environment variables with actual deployed URLs
+        # Use the flags file to set all env vars including CORS (avoids escaping issues!)
         gcloud run services update multiprompt-backend \
           --region=${_REGION} \
-          --update-env-vars "BACKEND_URL=$${BACKEND_URL},FRONTEND_URL=$${FRONTEND_URL},GOOGLE_REDIRECT_URI=$${BACKEND_URL}/api/v1/auth/google/callback,CORS_ALLOWED_ORIGINS=$${FRONTEND_URL},USE_CLOUD_TASKS=true"
+          --flags-file=infrastructure/backend-env.yaml
 
     waitFor: ['deploy-backend', 'deploy-frontend']
-    id: 'update-urls'
+    id: 'update-cors'
 
 images:
   - '${_REGION}-docker.pkg.dev/$PROJECT_ID/multiprompt/backend:$COMMIT_SHA'
