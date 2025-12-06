@@ -273,15 +273,24 @@ async def google_callback(code: str, state: Optional[str] = None, db: Session = 
             except Exception as e:
                 logger.warning(f"Failed to decode state parameter: {e}")
 
-        # Redirect to frontend with token in query parameter (mobile-friendly)
-        # Note: Hash fragments (#) are not sent in HTTP redirects on mobile browsers
+        # Set cookie first (iOS Safari needs this before redirect)
+        is_production = settings.ENVIRONMENT == "production"
+
+        # For mobile Safari with tracking prevention, we MUST use lax instead of none
+        # This requires frontend and backend to be on same domain, OR use a different approach
+        # Since we have different domains, we'll pass token in URL AND cookie
+
+        # Redirect to frontend with token in query parameter for localStorage
+        # AND set cookie for browsers that support it
         redirect_url = f"{redirect_base}/auth/callback?token={jwt_token}"
         logger.info(f"Redirecting to: {redirect_url}")
         logger.info(f"Token (first 20 chars): {jwt_token[:20]}...")
+        logger.info(f"Cookie SameSite setting: {'none' if is_production else 'lax'}")
+
         response = RedirectResponse(url=redirect_url)
 
-        # Also set cookie as fallback for same-origin setups
-        is_production = settings.ENVIRONMENT == "production"
+        # Set cookie with appropriate SameSite
+        # Note: SameSite=None requires Secure=True (HTTPS)
         response.set_cookie(
             key="auth_token",
             value=jwt_token,
@@ -289,8 +298,11 @@ async def google_callback(code: str, state: Optional[str] = None, db: Session = 
             secure=is_production,
             samesite="none" if is_production else "lax",
             max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            path="/"
+            path="/",
+            domain=None  # Let browser determine domain
         )
+
+        logger.info("Cookie set with HttpOnly, Secure, and SameSite attributes")
 
         return response
 
