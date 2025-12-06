@@ -93,14 +93,44 @@ export class CallbackComponent implements OnInit {
 
     // Store token immediately if found (before calling handleCallback)
     if (token) {
+      let stored = false;
+      let storageMethod = 'none';
+
+      // Try localStorage first
       try {
         localStorage.setItem('dev_access_token', token);
         console.log('[Auth Callback] Token stored in localStorage');
-
-        // Clean URL immediately to remove token from browser history
-        window.history.replaceState({}, document.title, window.location.pathname);
+        stored = true;
+        storageMethod = 'localStorage';
       } catch (error) {
-        console.error('[Auth Callback] Failed to store token:', error);
+        console.warn('[Auth Callback] localStorage blocked or unavailable:', error);
+      }
+
+      // Fallback to sessionStorage if localStorage failed
+      if (!stored) {
+        try {
+          sessionStorage.setItem('dev_access_token', token);
+          console.log('[Auth Callback] Token stored in sessionStorage (localStorage blocked)');
+          stored = true;
+          storageMethod = 'sessionStorage';
+        } catch (error) {
+          console.error('[Auth Callback] sessionStorage also blocked:', error);
+        }
+      }
+
+      if (!stored) {
+        console.error('[Auth Callback] CRITICAL: Cannot store token - all storage methods blocked!');
+        alert('Authentication Error:\n\nBrowser storage is blocked. Please:\n1. Disable Private Browsing mode\n2. Check Safari privacy settings\n3. Allow cookies and site data');
+      } else {
+        console.log(`[Auth Callback] Token successfully stored using ${storageMethod}`);
+      }
+
+      // Clean URL immediately to remove token from browser history
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+        console.log('[Auth Callback] URL cleaned');
+      } catch (error) {
+        console.error('[Auth Callback] Failed to clean URL:', error);
       }
     }
 

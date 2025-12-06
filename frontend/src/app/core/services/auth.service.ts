@@ -133,10 +133,12 @@ export class AuthService {
     this.loadingSignal.set(true);
     this.errorSignal.set(null);
 
-    const hasToken = !!localStorage.getItem('dev_access_token');
+    const hasLocalStorageToken = !!localStorage.getItem('dev_access_token');
+    const hasSessionStorageToken = !!sessionStorage.getItem('dev_access_token');
     console.log('[Auth Service] loadUser - starting', {
       apiUrl: this.API_URL,
-      hasToken,
+      hasLocalStorageToken,
+      hasSessionStorageToken,
       userAgent: navigator.userAgent
     });
 
