@@ -18,6 +18,18 @@
 .app-container {
   display: flex;
   flex-direction: column;
+
+  // When container is marked as collapsed (desktop only), adjust content margin
+  &.container-collapsed {
+    .mat-sidenav-content {
+      margin-left: 64px !important; // Match the collapsed sidebar width
+    }
+  }
+}
+
+// Add transition to content for smooth resize
+.mat-sidenav-content {
+  transition: margin-left 0.3s ease;
 }
 
 .app-sidenav {
@@ -113,7 +125,7 @@
   }
 
   button {
-    color: white;
+    color: #5f6368;
   }
 
   .menu-button {

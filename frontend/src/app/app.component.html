@@ -9,7 +9,7 @@
   <app-login></app-login>
 } @else {
   <!-- Main application when authenticated -->
-  <mat-sidenav-container class="app-container" fullscreen>
+  <mat-sidenav-container class="app-container" [class.container-collapsed]="sidenavCollapsed" fullscreen>
     <!-- Side Navigation -->
     <mat-sidenav
       [mode]="sidenavMode"
