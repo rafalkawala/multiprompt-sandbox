@@ -14,6 +14,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTableModule } from '@angular/material/table';
 import { MatExpansionModule } from '@angular/material/expansion';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { EvaluationsService, EvaluationListItem, ModelConfigListItem, CreateEvaluation, EvaluationResult, Evaluation, PromptStep } from '../../core/services/evaluations.service';
 import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../core/services/projects.service';
 
@@ -438,6 +439,10 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
       padding: 24px;
       max-width: 1200px;
       margin: 0 auto;
+
+      @media (max-width: 767px) { /* $mobile-max from _breakpoints.scss */
+        padding: 16px;
+      }
     }
 
     h1 {
@@ -461,6 +466,15 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
 
       mat-form-field {
         flex: 1;
+      }
+
+      @media (max-width: 767px) { /* $mobile-max from _breakpoints.scss */
+        flex-direction: column;
+        gap: 12px;
+
+        mat-form-field {
+          width: 100%;
+        }
       }
     }
 
@@ -547,6 +561,31 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
 
       table {
         width: 100%;
+      }
+
+      @media (max-width: 767px) { /* $mobile-max from _breakpoints.scss */
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin: 0 -16px;
+        padding: 0 16px;
+
+        th, td {
+          white-space: nowrap;
+          min-width: 100px;
+          padding: 12px 8px;
+
+          &:first-child {
+            min-width: 120px;
+            position: sticky;
+            left: 0;
+            background: white;
+            z-index: 1;
+          }
+        }
+
+        th:first-child {
+          background: #fafafa;
+        }
       }
     }
     
@@ -880,7 +919,8 @@ export class EvaluationsComponent implements OnInit {
   projects = signal<ProjectListItem[]>([]);
   datasets = signal<DatasetDetail[]>([]);
   modelConfigs = signal<ModelConfigListItem[]>([]);
-  
+  isMobile = signal(false);
+
   // Results State
   results = signal<EvaluationResult[]>([]);
   currentResultOffset = 0;
@@ -890,11 +930,11 @@ export class EvaluationsComponent implements OnInit {
   activeFilter = signal<string>('all');
   showResults = signal(false);
   readonly RESULTS_PAGE_SIZE = 50;
-  
+
   // Overlay State
   selectedResult = signal<EvaluationResult | null>(null);
   selectedImageUrl = signal<string | null>(null);
-  
+
   loading = signal(true);
   selectedEvaluationId: string | null = null;
 
@@ -916,8 +956,13 @@ export class EvaluationsComponent implements OnInit {
   constructor(
     private evaluationsService: EvaluationsService,
     private projectsService: ProjectsService,
-    private snackBar: MatSnackBar
-  ) {}
+    private snackBar: MatSnackBar,
+    private breakpointObserver: BreakpointObserver
+  ) {
+    // Observe mobile breakpoint
+    this.breakpointObserver.observe(['(max-width: 767px)'])
+      .subscribe(result => this.isMobile.set(result.matches));
+  }
 
   ngOnInit() {
     this.loadData();

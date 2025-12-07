@@ -14,6 +14,7 @@ import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { ProjectsService, ProjectListItem, CreateProjectRequest } from '../../core/services/projects.service';
 
 @Component({
@@ -81,7 +82,14 @@ import { ProjectsService, ProjectListItem, CreateProjectRequest } from '../../co
               <p>No projects yet. Create your first project above.</p>
             </div>
           } @else {
-            <table mat-table [dataSource]="projects()" class="projects-table">
+            @if (isMobile()) {
+              <div class="scroll-hint">
+                <mat-icon>swipe</mat-icon>
+                <span>Swipe to see more columns</span>
+              </div>
+            }
+            <div class="table-wrapper">
+              <table mat-table [dataSource]="projects()" class="projects-table">
               <ng-container matColumnDef="name">
                 <th mat-header-cell *matHeaderCellDef>Name</th>
                 <td mat-cell *matCellDef="let project">
@@ -129,7 +137,8 @@ import { ProjectsService, ProjectListItem, CreateProjectRequest } from '../../co
 
               <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
               <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-            </table>
+              </table>
+            </div>
           }
         </mat-card-content>
       </mat-card>
@@ -140,6 +149,10 @@ import { ProjectsService, ProjectListItem, CreateProjectRequest } from '../../co
       padding: 24px;
       max-width: 1200px;
       margin: 0 auto;
+
+      @media (max-width: 767px) { /* $mobile-max from _breakpoints.scss */
+        padding: 16px;
+      }
     }
 
     .loading-container {
@@ -172,6 +185,29 @@ import { ProjectsService, ProjectListItem, CreateProjectRequest } from '../../co
       background: #f5f5f5;
       margin: 0 -16px;
       flex-wrap: wrap;
+
+      @media (max-width: 767px) { /* $mobile-max from _breakpoints.scss */
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px;
+
+        mat-form-field {
+          width: 100%;
+          min-width: unset !important;
+        }
+
+        .name-field,
+        .question-field,
+        .type-field {
+          width: 100%;
+          min-width: unset !important;
+          flex: unset;
+        }
+
+        button {
+          width: 100%;
+        }
+      }
     }
 
     .name-field {
@@ -188,8 +224,57 @@ import { ProjectsService, ProjectListItem, CreateProjectRequest } from '../../co
       width: 180px;
     }
 
+    /* Scroll hint for mobile */
+    .scroll-hint {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: #e8f0fe;
+      color: #1967d2;
+      font-size: 13px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+
+      mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+      }
+    }
+
+    /* Table wrapper for horizontal scroll */
+    .table-wrapper {
+      @media (max-width: 767px) { /* $mobile-max from _breakpoints.scss */
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin: 0 -16px;
+        padding: 0 16px;
+      }
+    }
+
     .projects-table {
       width: 100%;
+
+      @media (max-width: 767px) { /* $mobile-max from _breakpoints.scss */
+        th, td {
+          white-space: nowrap;
+          min-width: 120px;
+          padding: 12px 8px;
+
+          &:first-child {
+            min-width: 150px;
+            position: sticky;
+            left: 0;
+            background: white;
+            z-index: 1;
+          }
+        }
+
+        th:first-child {
+          background: #fafafa;
+        }
+      }
     }
 
     .project-link {
@@ -215,6 +300,7 @@ import { ProjectsService, ProjectListItem, CreateProjectRequest } from '../../co
 export class ProjectsComponent implements OnInit {
   projects = signal<ProjectListItem[]>([]);
   loading = signal(true);
+  isMobile = signal(false);
   displayedColumns = ['name', 'description', 'question_type', 'dataset_count', 'created_at', 'actions'];
 
   newProject: CreateProjectRequest = {
@@ -225,8 +311,13 @@ export class ProjectsComponent implements OnInit {
 
   constructor(
     private projectsService: ProjectsService,
-    private snackBar: MatSnackBar
-  ) {}
+    private snackBar: MatSnackBar,
+    private breakpointObserver: BreakpointObserver
+  ) {
+    // Observe mobile breakpoint
+    this.breakpointObserver.observe(['(max-width: 767px)'])
+      .subscribe(result => this.isMobile.set(result.matches));
+  }
 
   ngOnInit() {
     this.loadProjects();

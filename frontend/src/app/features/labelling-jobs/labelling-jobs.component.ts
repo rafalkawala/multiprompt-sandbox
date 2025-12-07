@@ -15,6 +15,7 @@ import { MatExpansionModule } from '@angular/material/expansion';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { BreakpointObserver } from '@angular/cdk/layout';
 
 import { LabellingJobsService, LabellingJob, CreateLabellingJob, LabellingJobRun, LabellingResult } from '../../core/services/labelling-jobs.service';
 import { ProjectsService, ProjectListItem } from '../../core/services/projects.service';
@@ -51,6 +52,7 @@ export class LabellingJobsComponent implements OnInit {
   evaluations = signal<EvaluationListItem[]>([]);
   selectedJob = signal<LabellingJob | null>(null);
   jobRuns = signal<LabellingJobRun[]>([]);
+  isMobile = signal(false);
 
   // Results viewer
   selectedRun = signal<LabellingJobRun | null>(null);
@@ -77,8 +79,13 @@ export class LabellingJobsComponent implements OnInit {
     private projectsService: ProjectsService,
     private evaluationsService: EvaluationsService,
     private snackBar: MatSnackBar,
-    private dialog: MatDialog
-  ) {}
+    private dialog: MatDialog,
+    private breakpointObserver: BreakpointObserver
+  ) {
+    // Observe mobile breakpoint
+    this.breakpointObserver.observe(['(max-width: 767px)'])
+      .subscribe(result => this.isMobile.set(result.matches));
+  }
 
   ngOnInit(): void {
     this.loadProjects();

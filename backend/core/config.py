@@ -5,6 +5,8 @@ from pydantic_settings import BaseSettings
 from pydantic import field_validator
 from typing import List
 import os
+import yaml
+from pathlib import Path
 
 
 class Settings(BaseSettings):
@@ -23,15 +25,37 @@ class Settings(BaseSettings):
 
     @property
     def ALLOWED_ORIGINS(self) -> List[str]:
-        """Get allowed origins from env var or use defaults for dev"""
+        """Get allowed origins from env var, YAML config, or use defaults"""
+        # Priority 1: Environment variable (for quick overrides)
         if self.CORS_ALLOWED_ORIGINS:
             return [origin.strip() for origin in self.CORS_ALLOWED_ORIGINS.split(",")]
-        # Default origins for local development
-        return [
+
+        # Priority 2: Load from YAML configuration file
+        config_path = Path(__file__).parent.parent / "config" / "environments.yaml"
+        if config_path.exists():
+            try:
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                    env_config = config.get(self.ENVIRONMENT.lower(), {})
+                    origins = env_config.get('allowed_origins', [])
+                    if origins:
+                        return origins
+            except Exception as e:
+                print(f"Warning: Could not load CORS config from YAML: {e}")
+
+        # Priority 3: Fallback defaults
+        origins = [
             "http://localhost:4200",
             "http://localhost:3000",
             "http://localhost:8080",
         ]
+        # Add Cloud Run URLs if in production
+        if self.ENVIRONMENT == "production":
+            origins.extend([
+                "https://multiprompt-frontend-595703335416.us-central1.run.app",
+                "https://multiprompt-frontend-595703335416.us-central1.run.app/",
+            ])
+        return origins
 
     # Database - can use DATABASE_URL directly or construct from components
     DATABASE_URL: str = ""

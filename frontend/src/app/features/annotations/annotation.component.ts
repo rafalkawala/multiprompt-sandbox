@@ -303,7 +303,7 @@ import { ProjectsService, Project, ImageItem } from '../../core/services/project
       gap: 16px;
       margin-bottom: 16px;
 
-      @media (max-width: 768px) {
+      @media (max-width: 767px) { /* $mobile-max from _breakpoints.scss */
         grid-template-columns: 1fr;
       }
     }

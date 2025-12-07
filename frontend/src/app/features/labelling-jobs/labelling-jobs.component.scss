@@ -1,7 +1,13 @@
+@import '../../../styles/breakpoints';
+
 .labelling-jobs-container {
   padding: 2rem;
   max-width: 1400px;
   margin: 0 auto;
+
+  @include mobile {
+    padding: 1rem;
+  }
 
   .header {
     display: flex;
@@ -106,6 +112,11 @@
     grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
     gap: 1.5rem;
     margin-bottom: 2rem;
+
+    @include mobile {
+      grid-template-columns: 1fr;
+      gap: 1rem;
+    }
   }
 
   .job-card {
@@ -179,6 +190,12 @@
         background-color: #f5f5f5;
         border-radius: 4px;
 
+        @include mobile {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 0.75rem;
+          padding: 0.75rem;
+        }
+
         .stat {
           text-align: center;
 
@@ -236,6 +253,30 @@
 
       mat-chip {
         font-size: 0.75rem;
+      }
+
+      @include mobile {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+
+        th, td {
+          white-space: nowrap;
+          min-width: 100px;
+          padding: 0.5rem 0.75rem;
+
+          &:first-child {
+            min-width: 120px;
+            position: sticky;
+            left: 0;
+            background: white;
+            z-index: 1;
+          }
+        }
+
+        th:first-child {
+          background: #fafafa;
+        }
       }
     }
   }
