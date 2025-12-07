@@ -50,20 +50,74 @@
 }
 
 /* TABLE STYLES */
+.selection-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.project-panel {
+  margin-bottom: 16px;
+  
+  mat-panel-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 16px;
+    font-weight: 500;
+  }
+  
+  .project-icon {
+    color: #5f6368;
+  }
+}
+
+.dataset-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-top: 16px;
+}
+
+.dataset-group {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.dataset-header {
+  background: #f8f9fa;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e0e0e0;
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .dataset-name {
+    font-weight: 500;
+    font-size: 14px;
+    color: #202124;
+  }
+
+  .eval-count {
+    font-size: 12px;
+    color: #5f6368;
+  }
+}
+
 .table-container {
   overflow-x: auto;
 }
 
 .evaluations-table {
   width: 100%;
-
-  .project-info {
-    display: flex;
-    flex-direction: column;
-    
-    .project { font-weight: 500; font-size: 13px; }
-    .dataset { font-size: 12px; color: #5f6368; }
-  }
 
   .model-chip {
     font-size: 12px;
@@ -88,6 +142,30 @@
       cursor: not-allowed;
       &:hover { background: transparent; }
     }
+  }
+  
+  // Hide header for cleaner nested look if desired, or keep it
+  tr.mat-header-row {
+    height: 40px;
+  }
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px;
+  color: #5f6368;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+
+  mat-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
   }
 }
 

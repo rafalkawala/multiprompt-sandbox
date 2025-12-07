@@ -28,76 +28,102 @@
   </div>
 
   <!-- SELECTION VIEW -->
-  <mat-card *ngIf="!showComparison() && !loadingList()" class="selection-card">
-    <div class="table-container">
-      <table mat-table [dataSource]="evaluations()" class="evaluations-table">
-        
-        <!-- Checkbox Column -->
-        <ng-container matColumnDef="select">
-          <th mat-header-cell *matHeaderCellDef></th>
-          <td mat-cell *matCellDef="let row">
-            <mat-checkbox (click)="$event.stopPropagation()"
-                          (change)="$event ? toggleSelection(row) : null"
-                          [checked]="selection.isSelected(row)"
-                          [disabled]="isRowDisabled(row)">
-            </mat-checkbox>
-          </td>
-        </ng-container>
+  <div *ngIf="!showComparison() && !loadingList()" class="selection-container">
+    <mat-accordion multi>
+      <mat-expansion-panel *ngFor="let projectGroup of groupedEvaluations()" [expanded]="true" class="project-panel">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            <mat-icon class="project-icon">folder</mat-icon>
+            <span class="project-name">{{ projectGroup.projectName }}</span>
+          </mat-panel-title>
+          <mat-panel-description>
+            Last modified: {{ projectGroup.lastModified | date:'shortDate' }}
+          </mat-panel-description>
+        </mat-expansion-panel-header>
 
-        <!-- Name Column -->
-        <ng-container matColumnDef="name">
-          <th mat-header-cell *matHeaderCellDef>Name</th>
-          <td mat-cell *matCellDef="let row">
-            <span class="name-text">{{ row.name }}</span>
-          </td>
-        </ng-container>
-
-        <!-- Model Column -->
-        <ng-container matColumnDef="model_name">
-          <th mat-header-cell *matHeaderCellDef>Model</th>
-          <td mat-cell *matCellDef="let row">
-            <mat-chip class="model-chip">{{ row.model_name }}</mat-chip>
-          </td>
-        </ng-container>
-
-        <!-- Project Column -->
-        <ng-container matColumnDef="project_name">
-          <th mat-header-cell *matHeaderCellDef>Project / Dataset</th>
-          <td mat-cell *matCellDef="let row">
-            <div class="project-info">
-              <span class="project">{{ row.project_name }}</span>
-              <span class="dataset">{{ row.dataset_name }}</span>
+        <div class="dataset-groups">
+          <div *ngFor="let datasetGroup of projectGroup.datasets" class="dataset-group">
+            <div class="dataset-header">
+              <div class="header-left">
+                <mat-checkbox 
+                  (click)="$event.stopPropagation()"
+                  (change)="toggleGroupSelection(datasetGroup, $event)"
+                  [checked]="isGroupSelected(datasetGroup)"
+                  [indeterminate]="isGroupIndeterminate(datasetGroup)"
+                  color="primary">
+                </mat-checkbox>
+                <span class="dataset-name">{{ datasetGroup.datasetName }}</span>
+              </div>
+              <span class="eval-count">{{ datasetGroup.evaluations.length }} evaluations</span>
             </div>
-          </td>
-        </ng-container>
 
-        <!-- Accuracy Column -->
-        <ng-container matColumnDef="accuracy">
-          <th mat-header-cell *matHeaderCellDef>Accuracy</th>
-          <td mat-cell *matCellDef="let row">
-            <span [class.success]="(row.accuracy || 0) > 0.8" class="accuracy-text">
-              {{ formatAccuracy(row.accuracy) }}
-            </span>
-          </td>
-        </ng-container>
+            <div class="table-container">
+              <table mat-table [dataSource]="datasetGroup.evaluations" class="evaluations-table">
+                
+                <!-- Checkbox Column -->
+                <ng-container matColumnDef="select">
+                  <th mat-header-cell *matHeaderCellDef></th>
+                  <td mat-cell *matCellDef="let row">
+                    <mat-checkbox (click)="$event.stopPropagation()"
+                                  (change)="$event ? toggleSelection(row) : null"
+                                  [checked]="selection.isSelected(row)"
+                                  [disabled]="isRowDisabled(row)">
+                    </mat-checkbox>
+                  </td>
+                </ng-container>
 
-        <!-- Created At Column -->
-        <ng-container matColumnDef="created_at">
-          <th mat-header-cell *matHeaderCellDef>Created</th>
-          <td mat-cell *matCellDef="let row">
-            {{ row.created_at | date:'short' }}
-          </td>
-        </ng-container>
+                <!-- Name Column -->
+                <ng-container matColumnDef="name">
+                  <th mat-header-cell *matHeaderCellDef>Name</th>
+                  <td mat-cell *matCellDef="let row">
+                    <span class="name-text">{{ row.name }}</span>
+                  </td>
+                </ng-container>
 
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumns;"
-            (click)="toggleSelection(row)"
-            [class.selected-row]="selection.isSelected(row)"
-            [class.disabled-row]="isRowDisabled(row)">
-        </tr>
-      </table>
+                <!-- Model Column -->
+                <ng-container matColumnDef="model_name">
+                  <th mat-header-cell *matHeaderCellDef>Model</th>
+                  <td mat-cell *matCellDef="let row">
+                    <mat-chip class="model-chip">{{ row.model_name }}</mat-chip>
+                  </td>
+                </ng-container>
+
+                <!-- Accuracy Column -->
+                <ng-container matColumnDef="accuracy">
+                  <th mat-header-cell *matHeaderCellDef>Accuracy</th>
+                  <td mat-cell *matCellDef="let row">
+                    <span [class.success]="(row.accuracy || 0) > 0.8" class="accuracy-text">
+                      {{ formatAccuracy(row.accuracy) }}
+                    </span>
+                  </td>
+                </ng-container>
+
+                <!-- Created At Column -->
+                <ng-container matColumnDef="created_at">
+                  <th mat-header-cell *matHeaderCellDef>Created</th>
+                  <td mat-cell *matCellDef="let row">
+                    {{ row.created_at | date:'short' }}
+                  </td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+                    (click)="toggleSelection(row)"
+                    [class.selected-row]="selection.isSelected(row)"
+                    [class.disabled-row]="isRowDisabled(row)">
+                </tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </mat-expansion-panel>
+    </mat-accordion>
+    
+    <div *ngIf="groupedEvaluations().length === 0" class="empty-state">
+      <mat-icon>science</mat-icon>
+      <p>No evaluations found.</p>
     </div>
-  </mat-card>
+  </div>
 
   <!-- COMPARISON VIEW -->
   <div *ngIf="showComparison() && !loadingComparison()" class="comparison-view">

@@ -11,6 +11,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatExpansionModule } from '@angular/material/expansion';
 import { SelectionModel } from '@angular/cdk/collections';
 import { forkJoin, map, switchMap, of, catchError } from 'rxjs';
 
@@ -20,6 +21,18 @@ import { ConfusionMatrixComponent } from '../../../shared/components/confusion-m
 interface ComparisonItem {
   evaluation: Evaluation;
   modelConfig: ModelConfig | null;
+}
+
+interface DatasetGroup {
+  datasetName: string;
+  evaluations: EvaluationListItem[];
+  lastModified: Date;
+}
+
+interface ProjectGroup {
+  projectName: string;
+  datasets: DatasetGroup[];
+  lastModified: Date;
 }
 
 @Component({
@@ -37,6 +50,7 @@ interface ComparisonItem {
     MatChipsModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
+    MatExpansionModule,
     ConfusionMatrixComponent
   ],
   templateUrl: './compare.component.html',
@@ -44,10 +58,10 @@ interface ComparisonItem {
 })
 export class CompareComponent implements OnInit {
   // Selection State
-  evaluations = signal<EvaluationListItem[]>([]);
+  groupedEvaluations = signal<ProjectGroup[]>([]);
   loadingList = signal(true);
   selection = new SelectionModel<EvaluationListItem>(true, []);
-  displayedColumns = ['select', 'name', 'model_name', 'project_name', 'accuracy', 'created_at'];
+  displayedColumns = ['select', 'name', 'model_name', 'accuracy', 'created_at'];
 
   // Comparison State
   comparisonData = signal<ComparisonItem[]>([]);
@@ -69,8 +83,9 @@ export class CompareComponent implements OnInit {
     this.loadingList.set(true);
     this.evaluationsService.getEvaluations().subscribe({
       next: (data) => {
-        this.evaluations.set(data);
+        this.groupEvaluations(data);
         this.loadingList.set(false);
+        this.autoSelectLatestGroup();
       },
       error: (err) => {
         console.error('Failed to load evaluations', err);
@@ -78,6 +93,54 @@ export class CompareComponent implements OnInit {
         this.loadingList.set(false);
       }
     });
+  }
+
+  groupEvaluations(evaluations: EvaluationListItem[]) {
+    const groups: Record<string, Record<string, EvaluationListItem[]>> = {};
+
+    evaluations.forEach(ev => {
+      if (!groups[ev.project_name]) {
+        groups[ev.project_name] = {};
+      }
+      if (!groups[ev.project_name][ev.dataset_name]) {
+        groups[ev.project_name][ev.dataset_name] = [];
+      }
+      groups[ev.project_name][ev.dataset_name].push(ev);
+    });
+
+    const projectGroups: ProjectGroup[] = Object.keys(groups).map(projectName => {
+      const datasetsObj = groups[projectName];
+      const datasets: DatasetGroup[] = Object.keys(datasetsObj).map(datasetName => {
+        const evals = datasetsObj[datasetName].sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        return {
+          datasetName,
+          evaluations: evals,
+          lastModified: new Date(evals[0].created_at) // Last modified is the newest eval
+        };
+      }).sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+
+      return {
+        projectName,
+        datasets,
+        lastModified: datasets.length > 0 ? datasets[0].lastModified : new Date(0)
+      };
+    }).sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+
+    this.groupedEvaluations.set(projectGroups);
+  }
+
+  autoSelectLatestGroup() {
+    const groups = this.groupedEvaluations();
+    if (groups.length > 0 && groups[0].datasets.length > 0) {
+      // Select the first (latest) dataset of the first (latest) project
+      const latestDataset = groups[0].datasets[0];
+      
+      // Select up to MAX_SELECTION evaluations from this group
+      const toSelect = latestDataset.evaluations.slice(0, this.MAX_SELECTION);
+      this.selection.select(...toSelect);
+    }
   }
 
   toggleSelection(row: EvaluationListItem) {
@@ -90,6 +153,46 @@ export class CompareComponent implements OnInit {
         this.snackBar.open(`Maximum ${this.MAX_SELECTION} evaluations can be compared`, 'Close', { duration: 2000 });
       }
     }
+  }
+
+  toggleGroupSelection(datasetGroup: DatasetGroup, event: any) {
+    event.stopPropagation();
+    const allSelected = datasetGroup.evaluations.every(e => this.selection.isSelected(e));
+    
+    if (allSelected) {
+      // Deselect all
+      this.selection.deselect(...datasetGroup.evaluations);
+    } else {
+      // Select all (up to limit)
+      const currentCount = this.selection.selected.length;
+      const remaining = this.MAX_SELECTION - currentCount;
+      
+      if (remaining <= 0) {
+        this.snackBar.open(`Maximum ${this.MAX_SELECTION} evaluations can be compared`, 'Close', { duration: 2000 });
+        return;
+      }
+
+      // Filter unselected ones
+      const toSelect = datasetGroup.evaluations.filter(e => !this.selection.isSelected(e));
+      
+      // Take only what fits
+      const allowed = toSelect.slice(0, remaining);
+      this.selection.select(...allowed);
+      
+      if (toSelect.length > remaining) {
+        this.snackBar.open(`Selected only ${remaining} items due to limit`, 'Close', { duration: 2000 });
+      }
+    }
+  }
+
+  isGroupSelected(datasetGroup: DatasetGroup): boolean {
+    return datasetGroup.evaluations.length > 0 && 
+           datasetGroup.evaluations.every(e => this.selection.isSelected(e));
+  }
+
+  isGroupIndeterminate(datasetGroup: DatasetGroup): boolean {
+    const selectedCount = datasetGroup.evaluations.filter(e => this.selection.isSelected(e)).length;
+    return selectedCount > 0 && selectedCount < datasetGroup.evaluations.length;
   }
 
   isRowDisabled(row: EvaluationListItem): boolean {

@@ -44,7 +44,7 @@ export class AppComponent {
     { icon: 'folder', label: 'Projects', route: '/projects', adminOnly: false },
     { icon: 'edit_note', label: 'Annotations', route: '/annotations', adminOnly: false },
     { icon: 'science', label: 'Evaluations', route: '/evaluations', adminOnly: false },
-    { icon: 'compare_arrows', label: 'Compare', route: '/evaluations/compare', adminOnly: false },
+    { icon: 'compare_arrows', label: 'Compare Evals', route: '/evaluations/compare', adminOnly: false },
     { icon: 'work_outline', label: 'Labelling Jobs', route: '/labelling-jobs', adminOnly: false }
   ];
 
