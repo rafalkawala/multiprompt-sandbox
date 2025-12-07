@@ -42,6 +42,11 @@ export const routes: Routes = [
     canActivate: [authGuard, adminGuard]
   },
   {
+    path: 'evaluations/compare',
+    loadComponent: () => import('./features/evaluations/compare/compare.component').then(m => m.CompareComponent),
+    canActivate: [authGuard]
+  },
+  {
     path: 'evaluations',
     loadComponent: () => import('./features/evaluations/evaluations.component').then(m => m.EvaluationsComponent),
     canActivate: [authGuard]

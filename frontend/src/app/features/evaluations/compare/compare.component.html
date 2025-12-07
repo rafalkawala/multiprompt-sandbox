@@ -1,0 +1,161 @@
+<div class="container">
+  <!-- Header -->
+  <div class="page-header">
+    <div class="title-section">
+      <button mat-icon-button *ngIf="showComparison()" (click)="backToSelection()" class="back-btn">
+        <mat-icon>arrow_back</mat-icon>
+      </button>
+      <h1>{{ showComparison() ? 'Comparison Results' : 'Compare Evaluations' }}</h1>
+    </div>
+    
+    <div class="actions" *ngIf="!showComparison()">
+      <span class="selection-count">
+        {{ selection.selected.length }} / {{ MAX_SELECTION }} selected
+      </span>
+      <button mat-raised-button color="primary" 
+              (click)="runComparison()" 
+              [disabled]="selection.selected.length < 2 || loadingList()">
+        <mat-icon>compare_arrows</mat-icon>
+        Compare
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading Spinner -->
+  <div class="loading-overlay" *ngIf="loadingList() || loadingComparison()">
+    <mat-spinner diameter="40"></mat-spinner>
+    <p>{{ loadingList() ? 'Loading evaluations...' : 'Comparing...' }}</p>
+  </div>
+
+  <!-- SELECTION VIEW -->
+  <mat-card *ngIf="!showComparison() && !loadingList()" class="selection-card">
+    <div class="table-container">
+      <table mat-table [dataSource]="evaluations()" class="evaluations-table">
+        
+        <!-- Checkbox Column -->
+        <ng-container matColumnDef="select">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let row">
+            <mat-checkbox (click)="$event.stopPropagation()"
+                          (change)="$event ? toggleSelection(row) : null"
+                          [checked]="selection.isSelected(row)"
+                          [disabled]="isRowDisabled(row)">
+            </mat-checkbox>
+          </td>
+        </ng-container>
+
+        <!-- Name Column -->
+        <ng-container matColumnDef="name">
+          <th mat-header-cell *matHeaderCellDef>Name</th>
+          <td mat-cell *matCellDef="let row">
+            <span class="name-text">{{ row.name }}</span>
+          </td>
+        </ng-container>
+
+        <!-- Model Column -->
+        <ng-container matColumnDef="model_name">
+          <th mat-header-cell *matHeaderCellDef>Model</th>
+          <td mat-cell *matCellDef="let row">
+            <mat-chip class="model-chip">{{ row.model_name }}</mat-chip>
+          </td>
+        </ng-container>
+
+        <!-- Project Column -->
+        <ng-container matColumnDef="project_name">
+          <th mat-header-cell *matHeaderCellDef>Project / Dataset</th>
+          <td mat-cell *matCellDef="let row">
+            <div class="project-info">
+              <span class="project">{{ row.project_name }}</span>
+              <span class="dataset">{{ row.dataset_name }}</span>
+            </div>
+          </td>
+        </ng-container>
+
+        <!-- Accuracy Column -->
+        <ng-container matColumnDef="accuracy">
+          <th mat-header-cell *matHeaderCellDef>Accuracy</th>
+          <td mat-cell *matCellDef="let row">
+            <span [class.success]="(row.accuracy || 0) > 0.8" class="accuracy-text">
+              {{ formatAccuracy(row.accuracy) }}
+            </span>
+          </td>
+        </ng-container>
+
+        <!-- Created At Column -->
+        <ng-container matColumnDef="created_at">
+          <th mat-header-cell *matHeaderCellDef>Created</th>
+          <td mat-cell *matCellDef="let row">
+            {{ row.created_at | date:'short' }}
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+            (click)="toggleSelection(row)"
+            [class.selected-row]="selection.isSelected(row)"
+            [class.disabled-row]="isRowDisabled(row)">
+        </tr>
+      </table>
+    </div>
+  </mat-card>
+
+  <!-- COMPARISON VIEW -->
+  <div *ngIf="showComparison() && !loadingComparison()" class="comparison-view">
+    <div class="comparison-grid" [style.grid-template-columns]="'200px repeat(' + comparisonData().length + ', 1fr)'">
+      
+      <!-- HEADER ROW -->
+      <div class="grid-cell label-cell header-cell">Evaluation</div>
+      <div class="grid-cell header-cell value-cell" *ngFor="let item of comparisonData()">
+        <h3>{{ item.evaluation.name }}</h3>
+        <span class="date">{{ item.evaluation.created_at | date:'shortDate' }}</span>
+      </div>
+
+      <!-- ACCURACY ROW -->
+      <div class="grid-cell label-cell">Accuracy</div>
+      <div class="grid-cell value-cell" *ngFor="let item of comparisonData()">
+        <div class="accuracy-viz">
+          <div class="bar-container">
+            <div class="bar" [style.height.%]="(item.evaluation.accuracy || 0) * 100"></div>
+          </div>
+          <span class="accuracy-value">{{ formatAccuracy(item.evaluation.accuracy) }}</span>
+        </div>
+      </div>
+
+      <!-- STATUS ROW -->
+      <div class="grid-cell label-cell">Status</div>
+      <div class="grid-cell value-cell" *ngFor="let item of comparisonData()">
+        <mat-chip [color]="item.evaluation.status === 'completed' ? 'accent' : 'warn'">
+          {{ item.evaluation.status }}
+        </mat-chip>
+        <div class="stats-text">
+          {{ item.evaluation.results_summary?.correct || 0 }} / {{ item.evaluation.total_images }} correct
+        </div>
+      </div>
+
+      <!-- MODEL CONFIG ROW -->
+      <div class="grid-cell label-cell">Model Config</div>
+      <div class="grid-cell value-cell" *ngFor="let item of comparisonData()">
+        <div class="config-detail" *ngIf="item.modelConfig">
+          <strong>{{ item.modelConfig.model_name }}</strong>
+          <span>{{ item.modelConfig.provider }}</span>
+          <span class="param">Temp: {{ item.modelConfig.temperature }}</span>
+        </div>
+      </div>
+
+      <!-- PROMPT ROW -->
+      <div class="grid-cell label-cell">System Prompt</div>
+      <div class="grid-cell value-cell" *ngFor="let item of comparisonData()">
+        <div class="prompt-text" [matTooltip]="item.evaluation.system_message || ''">
+          {{ item.evaluation.system_message || 'N/A' }}
+        </div>
+      </div>
+
+      <!-- CONFUSION MATRIX ROW -->
+      <div class="grid-cell label-cell">Confusion Matrix</div>
+      <div class="grid-cell value-cell" *ngFor="let item of comparisonData()">
+        <app-confusion-matrix [matrix]="item.evaluation.results_summary?.confusion_matrix"></app-confusion-matrix>
+      </div>
+
+    </div>
+  </div>
+</div>
