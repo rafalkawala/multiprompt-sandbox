@@ -147,6 +147,15 @@ export class CompareComponent implements OnInit {
     if (this.selection.isSelected(row)) {
       this.selection.deselect(row);
     } else {
+      // Check for project consistency
+      if (this.selection.selected.length > 0) {
+        const currentProject = this.selection.selected[0].project_name;
+        if (row.project_name !== currentProject) {
+          this.selection.clear();
+          this.snackBar.open(`Cleared previous selection (comparisons limited to single project)`, 'Close', { duration: 3000 });
+        }
+      }
+
       if (this.selection.selected.length < this.MAX_SELECTION) {
         this.selection.select(row);
       } else {
@@ -160,27 +169,18 @@ export class CompareComponent implements OnInit {
     const allSelected = datasetGroup.evaluations.every(e => this.selection.isSelected(e));
     
     if (allSelected) {
-      // Deselect all
+      // Deselect all in this group
       this.selection.deselect(...datasetGroup.evaluations);
     } else {
-      // Select all (up to limit)
-      const currentCount = this.selection.selected.length;
-      const remaining = this.MAX_SELECTION - currentCount;
-      
-      if (remaining <= 0) {
-        this.snackBar.open(`Maximum ${this.MAX_SELECTION} evaluations can be compared`, 'Close', { duration: 2000 });
-        return;
-      }
+      // Selecting a group: Clear everything else first to enforce focus and project constraint
+      this.selection.clear();
 
-      // Filter unselected ones
-      const toSelect = datasetGroup.evaluations.filter(e => !this.selection.isSelected(e));
+      // Select up to MAX_SELECTION from this group
+      const toSelect = datasetGroup.evaluations.slice(0, this.MAX_SELECTION);
+      this.selection.select(...toSelect);
       
-      // Take only what fits
-      const allowed = toSelect.slice(0, remaining);
-      this.selection.select(...allowed);
-      
-      if (toSelect.length > remaining) {
-        this.snackBar.open(`Selected only ${remaining} items due to limit`, 'Close', { duration: 2000 });
+      if (datasetGroup.evaluations.length > this.MAX_SELECTION) {
+        this.snackBar.open(`Selected top ${this.MAX_SELECTION} evaluations from group`, 'Close', { duration: 2000 });
       }
     }
   }
