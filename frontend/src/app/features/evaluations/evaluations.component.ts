@@ -14,9 +14,11 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTableModule } from '@angular/material/table';
 import { MatExpansionModule } from '@angular/material/expansion';
+import { MatDialog } from '@angular/material/dialog';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { EvaluationsService, EvaluationListItem, ModelConfigListItem, CreateEvaluation, EvaluationResult, Evaluation, PromptStep } from '../../core/services/evaluations.service';
 import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../core/services/projects.service';
+import { SubselectionDialogComponent, SubselectionConfig } from './subselection-dialog/subselection-dialog.component';
 
 @Component({
   selector: 'app-evaluations',
@@ -64,7 +66,7 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
             </mat-form-field>
           </div>
           <div class="form-row">
-            <mat-form-field appearance="outline">
+            <mat-form-field appearance="outline" class="dataset-field">
               <mat-label>Dataset</mat-label>
               <mat-select [(ngModel)]="newEval.dataset_id" [disabled]="!newEval.project_id">
                 @for (dataset of datasets(); track dataset.id) {
@@ -72,6 +74,16 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
                 }
               </mat-select>
             </mat-form-field>
+            
+            <button mat-stroked-button 
+                    class="advanced-settings-btn"
+                    [class.active]="hasSubselection()"
+                    (click)="openSubselectionDialog()"
+                    [disabled]="!newEval.dataset_id">
+              <mat-icon>{{ hasSubselection() ? 'filter_list' : 'tune' }}</mat-icon>
+              {{ getSubselectionLabel() }}
+            </button>
+
             <mat-form-field appearance="outline">
               <mat-label>Model</mat-label>
               <mat-select [(ngModel)]="newEval.model_config_id">
@@ -463,17 +475,40 @@ import { ProjectsService, ProjectListItem, DatasetDetail, Project } from '../../
       display: flex;
       gap: 16px;
       margin-bottom: 8px;
+      align-items: center; /* Align items vertically */
 
       mat-form-field {
         flex: 1;
+      }
+      
+      /* Make dataset field take remaining space but leave room for button */
+      .dataset-field {
+        flex: 2; 
+      }
+      
+      .advanced-settings-btn {
+        height: 56px; /* Match standard mat-form-field height */
+        margin-bottom: 22px; /* Account for mat-form-field subscript */
+        
+        &.active {
+          background-color: #e8f0fe;
+          color: #1967d2;
+          border-color: #1967d2;
+        }
       }
 
       @media (max-width: 767px) { /* $mobile-max from _breakpoints.scss */
         flex-direction: column;
         gap: 12px;
+        align-items: stretch;
 
         mat-form-field {
           width: 100%;
+        }
+        
+        .advanced-settings-btn {
+          width: 100%;
+          margin-bottom: 0;
         }
       }
     }
@@ -945,7 +980,8 @@ export class EvaluationsComponent implements OnInit {
     project_id: '',
     dataset_id: '',
     model_config_id: '',
-    prompt_chain: []  // Multi-phase prompting
+    prompt_chain: [],  // Multi-phase prompting
+    selection_config: { mode: 'all' }
   };
 
   selectedProject: Project | null = null;
@@ -957,7 +993,8 @@ export class EvaluationsComponent implements OnInit {
     private evaluationsService: EvaluationsService,
     private projectsService: ProjectsService,
     private snackBar: MatSnackBar,
-    private breakpointObserver: BreakpointObserver
+    private breakpointObserver: BreakpointObserver,
+    private dialog: MatDialog
   ) {
     // Observe mobile breakpoint
     this.breakpointObserver.observe(['(max-width: 767px)'])
@@ -979,6 +1016,48 @@ export class EvaluationsComponent implements OnInit {
         this.closeResultDetail();
       }
     });
+  }
+
+  openSubselectionDialog() {
+    if (!this.newEval.project_id || !this.newEval.dataset_id) return;
+
+    const dialogRef = this.dialog.open(SubselectionDialogComponent, {
+      width: '800px',
+      maxWidth: '95vw',
+      maxHeight: '90vh',
+      data: {
+        config: this.newEval.selection_config || { mode: 'all' },
+        projectId: this.newEval.project_id,
+        datasetId: this.newEval.dataset_id
+      }
+    });
+
+    dialogRef.afterClosed().subscribe((result: SubselectionConfig | undefined) => {
+      if (result) {
+        this.newEval.selection_config = result;
+      }
+    });
+  }
+
+  hasSubselection(): boolean {
+    return !!this.newEval.selection_config && this.newEval.selection_config.mode !== 'all';
+  }
+
+  getSubselectionLabel(): string {
+    const config = this.newEval.selection_config;
+    if (!config || config.mode === 'all') {
+      return 'Advanced Settings';
+    }
+    if (config.mode === 'random_count') {
+      return `Random (${config.count})`;
+    }
+    if (config.mode === 'random_percent') {
+      return `Random (${config.percent}%)`;
+    }
+    if (config.mode === 'manual') {
+      return `Manual (${config.image_ids?.length})`;
+    }
+    return 'Advanced Settings';
   }
 
   ngOnDestroy() {
@@ -1029,6 +1108,7 @@ export class EvaluationsComponent implements OnInit {
         next: (datasets) => {
           this.datasets.set(datasets);
           this.newEval.dataset_id = '';
+          this.newEval.selection_config = { mode: 'all' }; // Reset subselection
         },
         error: (err) => console.error('Failed to load datasets:', err)
       });
@@ -1161,7 +1241,8 @@ export class EvaluationsComponent implements OnInit {
           dataset_id: '',
           model_config_id: '',
           system_message: '',
-          question_text: ''
+          question_text: '',
+          selection_config: { mode: 'all' }
         };
         this.selectedProject = null;
       },

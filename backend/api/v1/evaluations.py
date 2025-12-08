@@ -14,6 +14,8 @@ import json
 import time
 import asyncio
 import threading
+import math
+from sqlalchemy.sql.expression import func
 
 from core.database import SessionLocal
 from core.prompt_config import get_system_prompt
@@ -53,6 +55,10 @@ class EvaluationCreate(BaseModel):
     # New multi-phase prompting (optional)
     # Structure: [{"step_number": 1, "system_message": "...", "prompt": "..."}, ...]
     prompt_chain: Optional[List[Dict[str, Any]]] = None
+
+    # Dataset selection configuration (subselection)
+    # Structure: {"mode": "all"|"random"|"manual", "limit": 100, "image_ids": [...]}
+    selection_config: Optional[Dict[str, Any]] = None
 
     @field_validator('prompt_chain')
     @classmethod
@@ -98,6 +104,7 @@ class EvaluationResponse(BaseModel):
     system_message: Optional[str]
     question_text: Optional[str]
     prompt_chain: Optional[List[Dict[str, Any]]] = None  # Multi-phase prompting
+    selection_config: Optional[Dict[str, Any]] = None
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
     created_at: datetime
@@ -224,17 +231,40 @@ async def run_evaluation_task(evaluation_id: str):
         model_config = evaluation.model_config
         project = evaluation.project
 
-        # Get images with annotations
-        images = db.query(Image).join(Annotation).filter(
+        # Get images with annotations (Apply Selection Config)
+        query = db.query(Image).join(Annotation).filter(
             Image.dataset_id == evaluation.dataset_id
-        ).all()
+        )
+
+        # Apply subselection logic
+        if evaluation.selection_config:
+            mode = evaluation.selection_config.get('mode', 'all')
+            
+            if mode == 'random_count':
+                limit = evaluation.selection_config.get('count', 0)
+                if limit > 0:
+                    query = query.order_by(func.random()).limit(limit)
+                    
+            elif mode == 'random_percent':
+                percent = evaluation.selection_config.get('percent', 0)
+                if percent > 0:
+                    total_count = db.query(Image).filter(Image.dataset_id == evaluation.dataset_id).count()
+                    limit = math.ceil((total_count * percent) / 100)
+                    query = query.order_by(func.random()).limit(limit)
+                    
+            elif mode == 'manual':
+                image_ids = evaluation.selection_config.get('image_ids', [])
+                if image_ids:
+                    query = query.filter(Image.id.in_(image_ids))
+        
+        images = query.all()
 
         evaluation.total_images = len(images)
         db.commit()
 
         if not images:
             evaluation.status = 'failed'
-            evaluation.error_message = 'No annotated images in dataset'
+            evaluation.error_message = 'No annotated images in dataset (or selection criteria matched none)'
             db.commit()
             return
 
@@ -569,6 +599,7 @@ async def create_evaluation(
         system_message=data.system_message,
         question_text=data.question_text,
         prompt_chain=data.prompt_chain,  # Multi-phase prompting
+        selection_config=data.selection_config,
         created_by_id=current_user.id
     )
     db.add(evaluation)
@@ -601,7 +632,9 @@ async def create_evaluation(
         question_text=evaluation.question_text,
         started_at=evaluation.started_at,
         completed_at=evaluation.completed_at,
-        created_at=evaluation.created_at
+        created_at=evaluation.created_at,
+        prompt_chain=evaluation.prompt_chain,
+        selection_config=evaluation.selection_config
     )
 
 @router.get("/{evaluation_id}", response_model=EvaluationResponse)
@@ -635,7 +668,9 @@ async def get_evaluation(
         question_text=evaluation.question_text,
         started_at=evaluation.started_at,
         completed_at=evaluation.completed_at,
-        created_at=evaluation.created_at
+        created_at=evaluation.created_at,
+        prompt_chain=evaluation.prompt_chain,
+        selection_config=evaluation.selection_config
     )
 
 @router.get("/{evaluation_id}/results", response_model=List[EvaluationResultItem])

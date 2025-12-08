@@ -54,6 +54,10 @@ class Evaluation(Base):
     # Structure: [{"step_number": 1, "system_message": "...", "prompt": "..."}, ...]
     prompt_chain = Column(JSON, nullable=True)
 
+    # Dataset selection configuration (subselection)
+    # Structure: {"mode": "all"|"random"|"manual", "limit": 100, "image_ids": [...]}
+    selection_config = Column(JSON, nullable=True)
+
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)

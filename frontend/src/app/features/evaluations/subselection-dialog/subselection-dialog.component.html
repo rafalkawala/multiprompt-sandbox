@@ -1,0 +1,86 @@
+<h2 mat-dialog-title>Dataset Subselection</h2>
+<mat-dialog-content>
+  <div class="selection-mode">
+    <mat-radio-group [(ngModel)]="config.mode" class="mode-group">
+      <mat-radio-button value="all">
+        <div class="radio-label">
+          <strong>All Images</strong>
+          <small>Use entire dataset</small>
+        </div>
+      </mat-radio-button>
+      
+      <mat-radio-button value="random_count">
+        <div class="radio-label">
+          <strong>Random Sample (Count)</strong>
+          <small>Select a specific number of random images</small>
+        </div>
+      </mat-radio-button>
+      
+      <mat-radio-button value="random_percent">
+        <div class="radio-label">
+          <strong>Random Sample (Percent)</strong>
+          <small>Select a percentage of the dataset</small>
+        </div>
+      </mat-radio-button>
+      
+      <mat-radio-button value="manual">
+        <div class="radio-label">
+          <strong>Manual Selection</strong>
+          <small>Hand-pick specific images</small>
+        </div>
+      </mat-radio-button>
+    </mat-radio-group>
+  </div>
+
+  <!-- Random Count Input -->
+  <div *ngIf="config.mode === 'random_count'" class="config-section">
+    <mat-form-field appearance="outline">
+      <mat-label>Number of Images</mat-label>
+      <input matInput type="number" [(ngModel)]="config.count" min="1" placeholder="e.g. 50">
+    </mat-form-field>
+  </div>
+
+  <!-- Random Percent Input -->
+  <div *ngIf="config.mode === 'random_percent'" class="config-section">
+    <mat-form-field appearance="outline">
+      <mat-label>Percentage (%)</mat-label>
+      <input matInput type="number" [(ngModel)]="config.percent" min="1" max="100" placeholder="e.g. 10">
+      <span matSuffix>%</span>
+    </mat-form-field>
+  </div>
+
+  <!-- Manual Selection Grid -->
+  <div *ngIf="config.mode === 'manual'" class="manual-section">
+    <div class="manual-header">
+      <span>{{ selectedImages().size }} selected</span>
+      <div class="actions">
+        <button mat-button (click)="selectAll()">Select All</button>
+        <button mat-button (click)="deselectAll()">Deselect All</button>
+      </div>
+    </div>
+    
+    <div class="image-grid" *ngIf="!loadingImages(); else loading">
+      <div *ngFor="let image of images()" 
+           class="image-item" 
+           [class.selected]="selectedImages().has(image.id)"
+           (click)="toggleImageSelection(image.id)">
+        <img [src]="getImageUrl(image)" [alt]="image.filename">
+        <div class="selection-overlay">
+          <mat-icon>check_circle</mat-icon>
+        </div>
+      </div>
+    </div>
+    
+    <ng-template #loading>
+      <div class="loading-container">
+        <mat-spinner diameter="40"></mat-spinner>
+      </div>
+    </ng-template>
+  </div>
+
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button color="warn" (click)="clear()">Clear / Reset</button>
+  <button mat-button mat-dialog-close>Cancel</button>
+  <button mat-raised-button color="primary" (click)="save()" [disabled]="!isValid()">Save & Close</button>
+</mat-dialog-actions>

@@ -66,6 +66,7 @@ export interface Evaluation {
   system_message: string | null;
   question_text: string | null;
   prompt_chain: PromptStep[] | null;  // Multi-phase prompting
+  selection_config?: any; // Dataset subselection
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
@@ -107,6 +108,8 @@ export interface CreateEvaluation {
   question_text?: string;
   // Multi-phase prompting (optional)
   prompt_chain?: PromptStep[];
+  // Dataset subselection
+  selection_config?: any;
 }
 
 export interface AnnotationStats {
