@@ -9,7 +9,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatChipsModule } from '@angular/material/chips';
-import { ProjectsService, ImageItem } from '../../../../core/services/projects.service';
+import { ProjectsService, ImageItem } from '../../../core/services/projects.service';
 
 export interface SubselectionConfig {
   mode: 'all' | 'random_count' | 'random_percent' | 'manual';
@@ -72,12 +72,12 @@ export class SubselectionDialogComponent implements OnInit {
     // Ideally support pagination or infinite scroll for large datasets
     // For MVP, loading first 500 or so.
     this.projectsService.getImages(this.projectId, this.datasetId, 0, 500).subscribe({
-      next: (images) => {
+      next: (images: ImageItem[]) => {
         this.images.set(images);
         this.totalImages = images.length; // Should get total from API ideally
         this.loadingImages.set(false);
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Failed to load images', err);
         this.loadingImages.set(false);
       }

@@ -55,7 +55,7 @@ interface ProjectWithDatasets extends ProjectListItem {
                 </mat-panel-description>
               </mat-expansion-panel-header>
 
-              @if (projectsData()[project.id]?.datasets?.length) {
+              @if (projectsData()[project.id]?.datasets.length) {
                 <div class="datasets-list">
                   @for (dataset of projectsData()[project.id].datasets; track dataset.id) {
                     <mat-card class="dataset-card">

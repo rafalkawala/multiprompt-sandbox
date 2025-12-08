@@ -225,7 +225,7 @@ export class EditProjectDialogComponent {
                 }
 
                 <!-- Image Grid -->
-                @if (datasetImages[dataset.id]?.length) {
+                @if (datasetImages[dataset.id] && datasetImages[dataset.id].length) {
                   <div class="image-grid">
                     @for (image of datasetImages[dataset.id]; track image.id) {
                       <div class="image-item" (click)="openImageDetail(dataset.id, image)">
@@ -578,7 +578,7 @@ export class EditProjectDialogComponent {
         background: linear-gradient(rgba(0, 0, 0, 0.5), transparent);
         display: flex;
         justify-content: space-between;
-        align-items: start;
+        align-items: flex-start;
         opacity: 0;
         transition: opacity 0.2s ease;
 
