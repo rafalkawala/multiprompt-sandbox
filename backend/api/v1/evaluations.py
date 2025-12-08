@@ -288,7 +288,10 @@ async def run_evaluation_task(evaluation_id: str):
 
         # Track completed images (not index-based, to avoid race conditions in parallel processing)
         completed_count = 0
-
+        
+        # Progress tracking variables
+        task_start_time = time.time()
+        
         # Process images in parallel with concurrency limit
         async def process_image(i: int, image):
             nonlocal correct_count, failed_count, error_messages, completed_count
@@ -392,6 +395,26 @@ async def run_evaluation_task(evaluation_id: str):
                 completed_count += 1
                 evaluation.processed_images = completed_count
                 evaluation.progress = int((completed_count / len(images)) * 100)
+                
+                # Calculate ETA
+                # Update only after first batch completes and at start of new batches
+                if completed_count >= concurrency and completed_count % concurrency == 0:
+                    now = time.time()
+                    elapsed_total = now - task_start_time
+                    avg_time_per_image = elapsed_total / completed_count
+                    remaining_images = len(images) - completed_count
+                    
+                    # Formula: (avg_time * remaining) / concurrency + single_photo_time
+                    # single_photo_time is approximated as avg_time_per_image
+                    eta_seconds = (avg_time_per_image * remaining_images) / concurrency + avg_time_per_image
+                    
+                    if not evaluation.results_summary:
+                        evaluation.results_summary = {}
+                    # Make a copy to update JSON field (SQLAlchemy requirement for JSON updates)
+                    summary = dict(evaluation.results_summary) if evaluation.results_summary else {}
+                    summary['eta_seconds'] = round(eta_seconds, 1)
+                    evaluation.results_summary = summary
+
                 db.commit()
 
         # Run all images in parallel with concurrency limit

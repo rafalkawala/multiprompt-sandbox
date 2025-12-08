@@ -1,16 +1,25 @@
 """
 LangChain agent service implementation
 """
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain.tools import Tool
-from langchain import hub
 from typing import Optional, Dict, Any
 import logging
-
 from core.config import settings
 
 logger = logging.getLogger(__name__)
+
+try:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain.agents import AgentExecutor, create_react_agent
+    from langchain.tools import Tool
+    from langchain import hub
+except ImportError as e:
+    logger.warning(f"Failed to import LangChain dependencies: {e}")
+    # Define dummy classes to prevent NameError at module level
+    ChatGoogleGenerativeAI = None
+    AgentExecutor = None
+    create_react_agent = None
+    Tool = None
+    hub = None
 
 
 class AgentService:
@@ -20,6 +29,9 @@ class AgentService:
         """Initialize agent service with LLM and tools"""
         if not settings.GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY is not set")
+            
+        if not ChatGoogleGenerativeAI:
+            raise ImportError("LangChain dependencies are missing. Install them to use AgentService.")
 
         # Initialize LLM
         self.llm = ChatGoogleGenerativeAI(
@@ -31,7 +43,7 @@ class AgentService:
         # Define tools
         self.tools = self._create_tools()
 
-    def _create_tools(self) -> list[Tool]:
+    def _create_tools(self) -> list: # Changed return type hint to generic list to avoid NameError if Tool is None
         """Create tools for the agent"""
 
         def search_tool(query: str) -> str:
@@ -45,6 +57,9 @@ class AgentService:
                 return f"Result: {result}"
             except Exception as e:
                 return f"Error: {str(e)}"
+        
+        if not Tool:
+             return []
 
         tools = [
             Tool(
@@ -79,6 +94,9 @@ class AgentService:
             Execution result with intermediate steps
         """
         try:
+            if not hub or not create_react_agent or not AgentExecutor:
+                 raise ImportError("LangChain dependencies missing")
+
             # Get prompt template
             react_prompt = hub.pull("hwchase17/react")
 

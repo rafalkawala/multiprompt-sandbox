@@ -1,8 +1,20 @@
 from functools import lru_cache
 from typing import Optional, Tuple
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception
+import httpx
+import logging
+
 from infrastructure.llm.gemini import GeminiProvider
 from infrastructure.llm.openai import OpenAIProvider
 from infrastructure.llm.anthropic import AnthropicProvider
+
+logger = logging.getLogger(__name__)
+
+def is_rate_limit_error(exception):
+    """Return True if exception is a 429 Rate Limit error"""
+    if isinstance(exception, httpx.HTTPStatusError):
+        return exception.response.status_code == 429
+    return False
 
 class LLMService:
     def __init__(self):
@@ -12,6 +24,12 @@ class LLMService:
             "anthropic": AnthropicProvider()
         }
 
+    @retry(
+        retry=retry_if_exception(is_rate_limit_error),
+        stop=stop_after_attempt(3),
+        wait=wait_fixed(2),
+        before_sleep=lambda retry_state: logger.warning(f"Rate limit hit (429). Retrying... (Attempt {retry_state.attempt_number})")
+    )
     async def generate_content(
         self,
         provider_name: str,
