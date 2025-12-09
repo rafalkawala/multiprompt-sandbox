@@ -342,12 +342,14 @@ async def upload_images(
                 uploaded_path, _ = await storage.upload(file_obj, storage_path)
 
                 # Create database record with thumbnail
+                # Mark as completed since thumbnail is already generated
                 image = Image(
                     dataset_id=dataset_id,
                     filename=file.filename,
                     storage_path=uploaded_path,
                     file_size=file_size,
                     thumbnail_data=thumbnail_bytes,
+                    processing_status='completed',
                     uploaded_by_id=current_user.id
                 )
                 db.add(image)

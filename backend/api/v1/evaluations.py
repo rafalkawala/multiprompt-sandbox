@@ -166,7 +166,7 @@ async def preload_images(images: list) -> dict:
             image_data, mime_type = await get_image_data(image.storage_path)
             return image.id, (image_data, mime_type)
         except Exception as e:
-            logger.error(f"Failed to preload image {image.id}: {e}")
+            logger.error(f"Failed to preload image {image.id} (dataset: {image.dataset_id}, filename: {image.filename}, storage_path: {image.storage_path}, processing_status: {image.processing_status}): {e}")
             return image.id, None
 
     # Load all images in parallel
@@ -232,8 +232,10 @@ async def run_evaluation_task(evaluation_id: str):
         project = evaluation.project
 
         # Get images with annotations (Apply Selection Config)
+        # Exclude failed images, but include pending/completed (for backwards compatibility)
         query = db.query(Image).join(Annotation).filter(
-            Image.dataset_id == evaluation.dataset_id
+            Image.dataset_id == evaluation.dataset_id,
+            Image.processing_status != 'failed'
         )
 
         # Apply subselection logic
@@ -248,14 +250,21 @@ async def run_evaluation_task(evaluation_id: str):
             elif mode == 'random_percent':
                 percent = evaluation.selection_config.get('percent', 0)
                 if percent > 0:
-                    total_count = db.query(Image).filter(Image.dataset_id == evaluation.dataset_id).count()
+                    # Count images with annotations (same criteria as main query)
+                    # Exclude failed images but include pending/completed
+                    total_count = db.query(Image).join(Annotation).filter(
+                        Image.dataset_id == evaluation.dataset_id,
+                        Image.processing_status != 'failed'
+                    ).count()
                     limit = math.ceil((total_count * percent) / 100)
                     query = query.order_by(func.random()).limit(limit)
                     
             elif mode == 'manual':
                 image_ids = evaluation.selection_config.get('image_ids', [])
                 if image_ids:
+                    # Verify these image IDs belong to the correct dataset (defensive check)
                     query = query.filter(Image.id.in_(image_ids))
+                    logger.info(f"Evaluation {evaluation_id}: Manual selection mode with {len(image_ids)} image IDs")
         
         images = query.all()
 
@@ -267,6 +276,10 @@ async def run_evaluation_task(evaluation_id: str):
             evaluation.error_message = 'No annotated images in dataset (or selection criteria matched none)'
             db.commit()
             return
+
+        # Log selected images for debugging
+        logger.info(f"Evaluation {evaluation_id}: Selected {len(images)} images from dataset {evaluation.dataset_id}")
+        logger.debug(f"Evaluation {evaluation_id}: Image IDs: {[str(img.id) for img in images[:10]]}")  # Log first 10 IDs
 
         # Load prompt chain (multi-phase) or fallback to legacy single prompt
         if evaluation.prompt_chain and len(evaluation.prompt_chain) > 0:
