@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict, Any
 
 class ILLMProvider(ABC):
     """Abstract interface for LLM providers."""
@@ -15,7 +15,7 @@ class ILLMProvider(ABC):
         system_message: Optional[str],
         temperature: float,
         max_tokens: int
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, int, Dict[str, Any]]:
         """
         Generates content from the LLM.
 
@@ -30,6 +30,7 @@ class ILLMProvider(ABC):
             max_tokens: Max output tokens.
 
         Returns:
-            A tuple containing (generated_text, latency_in_ms).
+            A tuple containing (generated_text, latency_in_ms, usage_metadata).
+            usage_metadata contains: prompt_tokens, completion_tokens, total_tokens
         """
         pass

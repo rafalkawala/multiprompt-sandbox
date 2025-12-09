@@ -1,6 +1,6 @@
 import time
 import httpx
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict, Any
 from core.interfaces.llm import ILLMProvider
 from core.http_client import HttpClient
 
@@ -15,14 +15,14 @@ class OpenAIProvider(ILLMProvider):
         system_message: Optional[str],
         temperature: float,
         max_tokens: int
-    ) -> Tuple[str, int]:
-        
+    ) -> Tuple[str, int, Dict[str, Any]]:
+
         start_time = time.time()
 
         messages = []
         if system_message:
             messages.append({"role": "system", "content": system_message})
-        
+
         content = []
         if image_data and mime_type:
             content.append({"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image_data}"}})
@@ -52,4 +52,13 @@ class OpenAIProvider(ILLMProvider):
 
         result = response.json()
         text = result.get('choices', [{}])[0].get('message', {}).get('content', '')
-        return text, latency
+
+        # Extract usage metadata
+        usage = result.get('usage', {})
+        usage_metadata = {
+            'prompt_tokens': usage.get('prompt_tokens', 0),
+            'completion_tokens': usage.get('completion_tokens', 0),
+            'total_tokens': usage.get('total_tokens', 0)
+        }
+
+        return text, latency, usage_metadata

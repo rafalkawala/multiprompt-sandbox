@@ -1,7 +1,7 @@
 import time
 import os
 import httpx
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict, Any
 from core.interfaces.llm import ILLMProvider
 from core.http_client import HttpClient
 
@@ -16,7 +16,7 @@ class GeminiProvider(ILLMProvider):
         system_message: Optional[str],
         temperature: float,
         max_tokens: int
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, int, Dict[str, Any]]:
         
         start_time = time.time()
 
@@ -57,10 +57,18 @@ class GeminiProvider(ILLMProvider):
             text = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
         except (IndexError, AttributeError):
             text = ""
-            
-        return text, latency
 
-    async def _call_vertex(self, model_name: str, image_data: Optional[str], mime_type: Optional[str], prompt: str, temperature: float, max_tokens: int, start_time: float) -> Tuple[str, int]:
+        # Extract usage metadata
+        usage = result.get('usageMetadata', {})
+        usage_metadata = {
+            'prompt_tokens': usage.get('promptTokenCount', 0),
+            'completion_tokens': usage.get('candidatesTokenCount', 0),
+            'total_tokens': usage.get('totalTokenCount', 0)
+        }
+
+        return text, latency, usage_metadata
+
+    async def _call_vertex(self, model_name: str, image_data: Optional[str], mime_type: Optional[str], prompt: str, temperature: float, max_tokens: int, start_time: float) -> Tuple[str, int, Dict[str, Any]]:
         """Call Gemini via Vertex AI using service account credentials (ADC)"""
         import google.auth
         import google.auth.transport.requests
@@ -133,5 +141,13 @@ class GeminiProvider(ILLMProvider):
             text = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
         except (IndexError, AttributeError):
             text = ""
-            
-        return text, latency
+
+        # Extract usage metadata
+        usage = result.get('usageMetadata', {})
+        usage_metadata = {
+            'prompt_tokens': usage.get('promptTokenCount', 0),
+            'completion_tokens': usage.get('candidatesTokenCount', 0),
+            'total_tokens': usage.get('totalTokenCount', 0)
+        }
+
+        return text, latency, usage_metadata

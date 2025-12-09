@@ -105,6 +105,9 @@ class EvaluationResponse(BaseModel):
     question_text: Optional[str]
     prompt_chain: Optional[List[Dict[str, Any]]] = None  # Multi-phase prompting
     selection_config: Optional[Dict[str, Any]] = None
+    estimated_cost: Optional[float] = None  # Cost estimation before execution
+    actual_cost: Optional[float] = None  # Actual cost after execution
+    cost_details: Optional[Dict[str, Any]] = None  # Detailed cost breakdown
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
     created_at: datetime
@@ -368,7 +371,7 @@ async def run_evaluation_task(evaluation_id: str):
 
                         # Call LLM Service
                         llm_service = get_llm_service()
-                        response_text, latency = await llm_service.generate_content(
+                        response_text, latency, usage_metadata = await llm_service.generate_content(
                             provider_name=model_config.provider,
                             api_key=model_config.api_key,
                             model_name=model_config.model_name,
@@ -384,11 +387,34 @@ async def run_evaluation_task(evaluation_id: str):
                         outputs[step_num] = response_text
                         total_latency += latency
 
+                        # Calculate cost for this step
+                        step_cost = 0.0
+                        step_cost_details = {}
+                        if model_config.pricing_config:
+                            # Calculate actual cost including image cost handling
+                            step_cost = get_cost_service().calculate_actual_cost(
+                                usage_metadata,
+                                model_config.pricing_config,
+                                has_image=bool(image_data),
+                                provider=model_config.provider
+                            )
+
+                            step_cost_details = {
+                                'prompt_tokens': usage_metadata.get('prompt_tokens', 0),
+                                'completion_tokens': usage_metadata.get('completion_tokens', 0),
+                                'total_tokens': usage_metadata.get('total_tokens', 0),
+                                'step_cost': round(step_cost, 6)
+                            }
+
+                            total_actual_cost += step_cost
+
                         # Record step result
                         step_results.append({
                             "step_number": step_num,
                             "raw_output": response_text,
                             "latency_ms": latency,
+                            "usage": usage_metadata,
+                            "cost": step_cost_details,
                             "error": None
                         })
 
@@ -516,6 +542,30 @@ async def run_evaluation_task(evaluation_id: str):
 
         evaluation.completed_at = datetime.utcnow()
         evaluation.accuracy = correct_count / successful_count if successful_count > 0 else 0
+        evaluation.actual_cost = round(total_actual_cost, 4)
+
+        # Calculate cost details breakdown
+        total_prompt_tokens = 0
+        total_completion_tokens = 0
+        total_image_cost = 0
+
+        # Aggregate token counts from all results
+        results = db.query(EvaluationResult).filter(EvaluationResult.evaluation_id == evaluation.id).all()
+        for r in results:
+            if r.step_results:
+                for step in r.step_results:
+                    usage = step.get('usage', {})
+                    total_prompt_tokens += usage.get('prompt_tokens', 0)
+                    total_completion_tokens += usage.get('completion_tokens', 0)
+
+        evaluation.cost_details = {
+            'total_prompt_tokens': total_prompt_tokens,
+            'total_completion_tokens': total_completion_tokens,
+            'total_tokens': total_prompt_tokens + total_completion_tokens,
+            'total_cost': evaluation.actual_cost,
+            'average_cost_per_image': round(evaluation.actual_cost / total_processed, 6) if total_processed > 0 else 0
+        }
+
         evaluation.results_summary = {
             'correct': correct_count,
             'total': total_processed,
@@ -647,7 +697,10 @@ async def create_evaluation(
         completed_at=evaluation.completed_at,
         created_at=evaluation.created_at,
         prompt_chain=evaluation.prompt_chain,
-        selection_config=evaluation.selection_config
+        selection_config=evaluation.selection_config,
+        estimated_cost=evaluation.estimated_cost,
+        actual_cost=evaluation.actual_cost,
+        cost_details=evaluation.cost_details
     )
 
 @router.get("/{evaluation_id}", response_model=EvaluationResponse)
@@ -683,7 +736,10 @@ async def get_evaluation(
         completed_at=evaluation.completed_at,
         created_at=evaluation.created_at,
         prompt_chain=evaluation.prompt_chain,
-        selection_config=evaluation.selection_config
+        selection_config=evaluation.selection_config,
+        estimated_cost=evaluation.estimated_cost,
+        actual_cost=evaluation.actual_cost,
+        cost_details=evaluation.cost_details
     )
 
 @router.get("/{evaluation_id}/results", response_model=List[EvaluationResultItem])

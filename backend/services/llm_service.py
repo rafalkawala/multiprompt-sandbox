@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception
 import httpx
 import logging
@@ -41,12 +41,12 @@ class LLMService:
         system_message: Optional[str] = None,
         temperature: float = 0.0,
         max_tokens: int = 1024
-    ) -> Tuple[str, int]:
-        
+    ) -> Tuple[str, int, Dict[str, Any]]:
+
         provider = self._providers.get(provider_name)
         if not provider:
             raise ValueError(f"Unknown provider: {provider_name}")
-        
+
         return await provider.generate_content(
             api_key=api_key,
             model_name=model_name,
