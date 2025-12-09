@@ -35,6 +35,9 @@ class LabellingJob(Base):
     total_images_labeled = Column(Integer, default=0, nullable=False)
     total_errors = Column(Integer, default=0, nullable=False)
 
+    # Cost Tracking
+    total_cost = Column(Float, nullable=True)
+
     # Metadata
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -72,6 +75,10 @@ class LabellingJobRun(Base):
     # Error tracking
     error_message = Column(Text, nullable=True)
     error_details = Column(JSON, nullable=True)
+
+    # Cost Tracking
+    cost = Column(Float, nullable=True)
+    cost_details = Column(JSON, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 

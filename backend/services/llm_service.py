@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 from infrastructure.llm.gemini import GeminiProvider
 from infrastructure.llm.openai import OpenAIProvider
 from infrastructure.llm.anthropic import AnthropicProvider
@@ -23,7 +23,7 @@ class LLMService:
         system_message: Optional[str] = None,
         temperature: float = 0.0,
         max_tokens: int = 1024
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, int, Dict[str, Any]]:
         
         provider = self._providers.get(provider_name)
         if not provider:

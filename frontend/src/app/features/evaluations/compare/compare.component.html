@@ -147,6 +147,17 @@
         </div>
       </div>
 
+      <!-- COST ROW -->
+      <div class="grid-cell label-cell">Total Cost</div>
+      <div class="grid-cell value-cell" *ngFor="let item of comparisonData()">
+        <div class="cost-value">
+          <span *ngIf="item.evaluation.actual_cost !== undefined; else noCost">
+            ${{ item.evaluation.actual_cost | number:'1.2-4' }}
+          </span>
+          <ng-template #noCost><span class="text-muted">-</span></ng-template>
+        </div>
+      </div>
+
       <!-- STATUS ROW -->
       <div class="grid-cell label-cell">Status</div>
       <div class="grid-cell value-cell" *ngFor="let item of comparisonData()">

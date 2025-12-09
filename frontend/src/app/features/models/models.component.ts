@@ -11,7 +11,8 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatChipsModule } from '@angular/material/chips';
-import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../../core/services/evaluations.service';
+import { MatExpansionModule } from '@angular/material/expansion';
+import { EvaluationsService, ModelConfigListItem, CreateModelConfig, PricingConfig } from '../../core/services/evaluations.service';
 
 @Component({
   selector: 'app-models',
@@ -28,7 +29,8 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
     MatSnackBarModule,
     MatProgressSpinnerModule,
     MatDialogModule,
-    MatChipsModule
+    MatChipsModule,
+    MatExpansionModule
   ],
   template: `
     <div class="models-container">
@@ -82,6 +84,61 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
               <mat-hint>Number of parallel API calls (1-100, recommended: 3-10)</mat-hint>
             </mat-form-field>
           </div>
+
+          <!-- Pricing Configuration -->
+          <mat-expansion-panel class="pricing-panel">
+            <mat-expansion-panel-header>
+              <mat-panel-title>
+                <mat-icon class="panel-icon">attach_money</mat-icon>
+                Pricing & Cost Estimation
+              </mat-panel-title>
+              <mat-panel-description>
+                Configure token rates for cost estimation
+              </mat-panel-description>
+            </mat-expansion-panel-header>
+
+            <div class="pricing-actions">
+              <button mat-stroked-button color="primary" (click)="loadPricingDefaults()">
+                <mat-icon>download</mat-icon>
+                Load Defaults for {{ getProviderLabel(newConfig.provider) }}
+              </button>
+            </div>
+
+            <div class="form-row" *ngIf="newConfig.pricing_config">
+              <mat-form-field appearance="outline">
+                <mat-label>Input Price ($ per 1M tokens)</mat-label>
+                <input matInput type="number" [(ngModel)]="newConfig.pricing_config.input_price_per_1m" step="0.01">
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Output Price ($ per 1M tokens)</mat-label>
+                <input matInput type="number" [(ngModel)]="newConfig.pricing_config.output_price_per_1m" step="0.01">
+              </mat-form-field>
+            </div>
+
+            <div class="form-row" *ngIf="newConfig.pricing_config">
+              <mat-form-field appearance="outline">
+                <mat-label>Image Pricing Mode</mat-label>
+                <mat-select [(ngModel)]="newConfig.pricing_config.image_price_mode">
+                  <mat-option value="per_image">Per Image</mat-option>
+                  <mat-option value="per_tile">Per Tile (OpenAI)</mat-option>
+                  <mat-option value="per_token">Per Token</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Image Price Value</mat-label>
+                <input matInput type="number" [(ngModel)]="newConfig.pricing_config.image_price_val" step="0.00001">
+                <mat-hint>Cost per image OR cost per 1M tokens (depending on mode)</mat-hint>
+              </mat-form-field>
+            </div>
+
+            <div class="form-row" *ngIf="newConfig.pricing_config">
+              <mat-form-field appearance="outline">
+                <mat-label>Discount (%)</mat-label>
+                <input matInput type="number" [(ngModel)]="newConfig.pricing_config.discount_percent" min="0" max="100">
+                <mat-hint>Apply discount to total cost (e.g. for batch processing)</mat-hint>
+              </mat-form-field>
+            </div>
+          </mat-expansion-panel>
         </mat-card-content>
         <mat-card-actions>
           @if (editingConfigId) {
@@ -267,6 +324,22 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
       }
     }
 
+    .pricing-panel {
+      margin-top: 16px;
+      background: #f8f9fa;
+    }
+
+    .panel-icon {
+      margin-right: 8px;
+      color: #1a73e8;
+    }
+
+    .pricing-actions {
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: flex-end;
+    }
+
     .test-card {
       margin-top: 24px;
       border: 2px solid #1967d2;
@@ -340,7 +413,14 @@ export class ModelsComponent implements OnInit {
     api_key: '',
     temperature: 0,
     max_tokens: 1024,
-    concurrency: 3
+    concurrency: 3,
+    pricing_config: {
+      input_price_per_1m: 0,
+      output_price_per_1m: 0,
+      image_price_mode: 'per_image',
+      image_price_val: 0,
+      discount_percent: 0
+    }
   };
 
   // Test state
@@ -405,7 +485,14 @@ export class ModelsComponent implements OnInit {
           api_key: '', // Don't populate API key for security
           temperature: fullConfig.temperature,
           max_tokens: fullConfig.max_tokens,
-          concurrency: fullConfig.concurrency
+          concurrency: fullConfig.concurrency,
+          pricing_config: fullConfig.pricing_config || {
+            input_price_per_1m: 0,
+            output_price_per_1m: 0,
+            image_price_mode: 'per_image',
+            image_price_val: 0,
+            discount_percent: 0
+          }
         };
       },
       error: (err) => {
@@ -496,8 +583,75 @@ export class ModelsComponent implements OnInit {
       api_key: '',
       temperature: 0,
       max_tokens: 1024,
-      concurrency: 3
+      concurrency: 3,
+      pricing_config: {
+        input_price_per_1m: 0,
+        output_price_per_1m: 0,
+        image_price_mode: 'per_image',
+        image_price_val: 0,
+        discount_percent: 0
+      }
     };
+  }
+
+  loadPricingDefaults() {
+    const provider = this.newConfig.provider;
+    const model = this.newConfig.model_name.toLowerCase();
+
+    if (!this.newConfig.pricing_config) {
+      this.newConfig.pricing_config = {
+        input_price_per_1m: 0,
+        output_price_per_1m: 0,
+        image_price_mode: 'per_image',
+        image_price_val: 0,
+        discount_percent: 0
+      };
+    }
+
+    const pc = this.newConfig.pricing_config;
+
+    if (provider === 'openai') {
+      // GPT-4o
+      if (model.includes('gpt-4o')) {
+        pc.input_price_per_1m = 2.50;
+        pc.output_price_per_1m = 10.00;
+        pc.image_price_mode = 'per_tile';
+        pc.image_price_val = 2.50; // Input price used for tiles
+      } else if (model.includes('mini')) {
+        pc.input_price_per_1m = 0.15;
+        pc.output_price_per_1m = 0.60;
+        pc.image_price_mode = 'per_tile';
+        pc.image_price_val = 0.15;
+      }
+    } else if (provider === 'gemini') {
+      // Gemini 1.5 Pro
+      if (model.includes('pro')) {
+        pc.input_price_per_1m = 3.50;
+        pc.output_price_per_1m = 10.50;
+        pc.image_price_mode = 'per_image';
+        pc.image_price_val = 0.001315;
+      } else if (model.includes('flash')) {
+        pc.input_price_per_1m = 0.075;
+        pc.output_price_per_1m = 0.30;
+        pc.image_price_mode = 'per_image';
+        pc.image_price_val = 0.00002;
+      }
+    } else if (provider === 'anthropic') {
+      // Claude 3.5 Sonnet
+      if (model.includes('sonnet')) {
+        pc.input_price_per_1m = 3.00;
+        pc.output_price_per_1m = 15.00;
+        pc.image_price_mode = 'per_token'; // Approx
+        pc.image_price_val = 3.00; // Use input price for tokens
+      } else if (model.includes('haiku')) {
+        pc.input_price_per_1m = 0.80;
+        pc.output_price_per_1m = 4.00;
+        pc.image_price_mode = 'per_token';
+        pc.image_price_val = 0.80;
+      }
+    }
+
+    this.snackBar.open(`Loaded pricing defaults for ${provider}`, 'Close', { duration: 2000 });
   }
 
   // Test methods

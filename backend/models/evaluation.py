@@ -19,6 +19,10 @@ class ModelConfig(Base):
     concurrency = Column(Integer, default=3)  # Number of parallel API calls
     additional_params = Column(JSON, nullable=True)
 
+    # Pricing Configuration
+    # Fields: input_price_per_1m, output_price_per_1m, image_price_mode, image_price_val, discount_percent
+    pricing_config = Column(JSON, nullable=True)
+
     is_active = Column(Boolean, default=True)
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -45,6 +49,11 @@ class Evaluation(Base):
     accuracy = Column(Float, nullable=True)
     results_summary = Column(JSON, nullable=True)
     error_message = Column(Text, nullable=True)
+
+    # Cost Tracking
+    estimated_cost = Column(Float, nullable=True)
+    actual_cost = Column(Float, nullable=True)
+    cost_details = Column(JSON, nullable=True)  # Detailed breakdown
 
     # Evaluation prompts (saved at creation time, editable before starting)
     system_message = Column(Text, nullable=True)

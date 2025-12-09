@@ -36,6 +36,7 @@ class ModelConfigCreate(BaseModel):
     max_tokens: int = 1024
     concurrency: int = Field(default=3, ge=1, le=100, description="Number of parallel API calls (1-100)")
     additional_params: Optional[dict] = None
+    pricing_config: Optional[dict] = None
 
     @validator('concurrency')
     def validate_concurrency(cls, v):
@@ -52,6 +53,7 @@ class ModelConfigUpdate(BaseModel):
     max_tokens: Optional[int] = None
     concurrency: Optional[int] = Field(default=None, ge=1, le=100, description="Number of parallel API calls (1-100)")
     additional_params: Optional[dict] = None
+    pricing_config: Optional[dict] = None
     is_active: Optional[bool] = None
 
     @validator('concurrency')
@@ -69,6 +71,7 @@ class ModelConfigResponse(BaseModel):
     max_tokens: int
     concurrency: int
     additional_params: Optional[dict]
+    pricing_config: Optional[dict]
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -129,6 +132,7 @@ async def create_model_config(
         max_tokens=data.max_tokens,
         concurrency=data.concurrency,
         additional_params=data.additional_params,
+        pricing_config=data.pricing_config,
         created_by_id=current_user.id
     )
     db.add(config)
@@ -144,6 +148,7 @@ async def create_model_config(
         max_tokens=config.max_tokens,
         concurrency=config.concurrency,
         additional_params=config.additional_params,
+        pricing_config=config.pricing_config,
         is_active=config.is_active,
         created_at=config.created_at,
         updated_at=config.updated_at
@@ -172,6 +177,7 @@ async def get_model_config(
         max_tokens=config.max_tokens,
         concurrency=config.concurrency,
         additional_params=config.additional_params,
+        pricing_config=config.pricing_config,
         is_active=config.is_active,
         created_at=config.created_at,
         updated_at=config.updated_at
@@ -208,6 +214,7 @@ async def update_model_config(
         max_tokens=config.max_tokens,
         concurrency=config.concurrency,
         additional_params=config.additional_params,
+        pricing_config=config.pricing_config,
         is_active=config.is_active,
         created_at=config.created_at,
         updated_at=config.updated_at
@@ -251,7 +258,7 @@ async def test_model_config(
     try:
         llm_service = get_llm_service()
         
-        response_text, latency = await llm_service.generate_content(
+        response_text, latency, _ = await llm_service.generate_content(
             provider_name=config.provider,
             api_key=config.api_key,
             model_name=config.model_name,

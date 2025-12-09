@@ -28,6 +28,7 @@ from api.v1.auth import get_current_user
 from services.storage_service import get_storage_provider
 # Import LLM Service
 from services.llm_service import get_llm_service
+from services.cost_estimation_service import get_cost_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -114,6 +115,12 @@ class EvaluationListItem(BaseModel):
     processed_images: int
     accuracy: Optional[float]
     created_at: datetime
+
+class EvaluationCostEstimate(BaseModel):
+    estimated_cost: float
+    image_count: int
+    avg_cost_per_image: float
+    details: Dict[str, Any]
 
 class EvaluationResultItem(BaseModel):
     id: str
@@ -281,6 +288,7 @@ async def run_evaluation_task(evaluation_id: str):
         correct_count = 0
         failed_count = 0
         error_messages = []
+        total_actual_cost = 0.0
 
         # Get concurrency limit from model config
         concurrency = getattr(model_config, 'concurrency', 3)
@@ -322,7 +330,7 @@ async def run_evaluation_task(evaluation_id: str):
 
                         # Call LLM Service
                         llm_service = get_llm_service()
-                        response_text, latency = await llm_service.generate_content(
+                        response_text, latency, usage_metadata = await llm_service.generate_content(
                             provider_name=model_config.provider,
                             api_key=model_config.api_key,
                             model_name=model_config.model_name,
@@ -343,8 +351,18 @@ async def run_evaluation_task(evaluation_id: str):
                             "step_number": step_num,
                             "raw_output": response_text,
                             "latency_ms": latency,
+                            "usage": usage_metadata,
                             "error": None
                         })
+
+                        # Calculate cost for this step
+                        if model_config.pricing_config:
+                            step_cost = get_cost_service().calculate_actual_cost(usage_metadata, model_config.pricing_config)
+                            # Add image cost manual fix if Gemini 'per_image' (simplification: assume 1 image was used in prompt if image_data present)
+                            if image_data and model_config.pricing_config.get('image_price_mode') == 'per_image':
+                                step_cost += float(model_config.pricing_config.get('image_price_val', 0))
+
+                            total_actual_cost += step_cost
 
                         logger.debug(f"Evaluation {evaluation_id}: Image {i+1} Step {step_num} completed - Output: {response_text[:50]}...")
 
@@ -369,7 +387,8 @@ async def run_evaluation_task(evaluation_id: str):
                         ground_truth=ground_truth,
                         is_correct=is_correct,
                         step_results=step_results,  # NEW: Store intermediate results
-                        latency_ms=total_latency  # Sum of all steps
+                        latency_ms=total_latency,  # Sum of all steps
+                        token_count=sum(s.get('usage', {}).get('total_tokens', 0) for s in step_results)
                     )
                     db.add(result)
                     logger.info(f"Evaluation {evaluation_id}: Processed image {i+1}/{len(images)} ({len(steps)} steps) - Correct: {is_correct}")
@@ -450,6 +469,7 @@ async def run_evaluation_task(evaluation_id: str):
 
         evaluation.completed_at = datetime.utcnow()
         evaluation.accuracy = correct_count / successful_count if successful_count > 0 else 0
+        evaluation.actual_cost = round(total_actual_cost, 4)
         evaluation.results_summary = {
             'correct': correct_count,
             'total': total_processed,
@@ -614,6 +634,22 @@ async def get_evaluation(
         completed_at=evaluation.completed_at,
         created_at=evaluation.created_at
     )
+
+@router.get("/{evaluation_id}/estimate-cost", response_model=EvaluationCostEstimate)
+async def estimate_evaluation_cost(
+    evaluation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Estimate cost for an evaluation"""
+    try:
+        estimate = await get_cost_service().estimate_evaluation_cost(evaluation_id, db)
+        return EvaluationCostEstimate(**estimate)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Cost estimation failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to estimate cost")
 
 @router.get("/{evaluation_id}/results", response_model=List[EvaluationResultItem])
 async def get_evaluation_results(

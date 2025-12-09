@@ -38,6 +38,7 @@ tenacity==8.2.3
 pyyaml==6.0.1
 Pillow==10.4.0
 pandas==2.1.4
+tiktoken==0.8.0
 
 # OAuth
 authlib==1.6.0

@@ -14,6 +14,7 @@ from services.gcs_scanner_service import GCSScannerService, GCSFileInfo
 from services.storage_service import get_storage_provider
 from services.cloud_tasks_service import get_cloud_tasks_service
 from services.llm_service import get_llm_service
+from services.cost_estimation_service import get_cost_service
 from core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -349,9 +350,11 @@ class LabellingJobService:
         semaphore = asyncio.Semaphore(concurrency)
 
         results = []
+        run_cost = 0.0
 
         # Process images in parallel with concurrency limit
         async def process_image(image: Image):
+            nonlocal run_cost
             async with semaphore:
                 try:
                     # Get cached image data
@@ -364,7 +367,7 @@ class LabellingJobService:
                     # Call LLM Service
                     llm_service = get_llm_service()
                     start = datetime.utcnow()
-                    response_text, latency = await llm_service.generate_content(
+                    response_text, latency, usage_metadata = await llm_service.generate_content(
                         provider_name=model_config.provider,
                         api_key=model_config.api_key,
                         model_name=model_config.model_name,
@@ -379,6 +382,16 @@ class LabellingJobService:
                     # Parse answer (reuse evaluation logic)
                     parsed_answer = self._parse_answer(response_text, job.project.question_type)
 
+                    # Calculate cost
+                    image_cost = 0.0
+                    if model_config.pricing_config:
+                        image_cost = get_cost_service().calculate_actual_cost(usage_metadata, model_config.pricing_config)
+                        # Manual fix for per_image pricing
+                        if model_config.pricing_config.get('image_price_mode') == 'per_image':
+                            image_cost += float(model_config.pricing_config.get('image_price_val', 0))
+
+                        run_cost += image_cost
+
                     # Create result record
                     result = LabellingResult(
                         labelling_job_id=job.id,
@@ -387,6 +400,7 @@ class LabellingJobService:
                         model_response=response_text,
                         parsed_answer=parsed_answer,
                         latency_ms=latency,
+                        token_count=usage_metadata.get('total_tokens'),
                         gcs_source_path=image.storage_path
                     )
                     db.add(result)
@@ -412,6 +426,12 @@ class LabellingJobService:
 
         # Process all images in parallel
         await asyncio.gather(*[process_image(img) for img in images])
+
+        # Update run cost
+        run.cost = round(run_cost, 4)
+
+        # Update job total cost
+        job.total_cost = (job.total_cost or 0.0) + run.cost
 
         db.commit()
         return results

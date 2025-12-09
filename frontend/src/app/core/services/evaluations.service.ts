@@ -10,6 +10,7 @@ export interface ModelConfig {
   temperature: number;
   max_tokens: number;
   concurrency: number;
+  pricing_config: PricingConfig;
   additional_params: any;
   is_active: boolean;
   created_at: string;
@@ -25,6 +26,14 @@ export interface ModelConfigListItem {
   created_at: string;
 }
 
+export interface PricingConfig {
+  input_price_per_1m: number;
+  output_price_per_1m: number;
+  image_price_mode: 'per_image' | 'per_token' | 'per_tile';
+  image_price_val: number;
+  discount_percent: number;
+}
+
 export interface CreateModelConfig {
   name: string;
   provider: string;
@@ -34,6 +43,14 @@ export interface CreateModelConfig {
   max_tokens?: number;
   concurrency?: number;  // Number of parallel API calls (default: 3)
   additional_params?: any;
+  pricing_config?: PricingConfig;
+}
+
+export interface EvaluationCostEstimate {
+  estimated_cost: number;
+  image_count: number;
+  avg_cost_per_image: number;
+  details: any;
 }
 
 // Multi-phase prompting interfaces
@@ -61,6 +78,7 @@ export interface Evaluation {
   total_images: number;
   processed_images: number;
   accuracy: number | null;
+  actual_cost?: number;
   results_summary: any;
   error_message: string | null;
   system_message: string | null;
@@ -160,6 +178,11 @@ export class EvaluationsService {
 
   testModelConfig(id: string, prompt: string) {
     return this.http.post<{success: boolean, response?: string, error?: string, latency_ms?: number}>(`${this.API_URL}/model-configs/${id}/test`, { prompt });
+  }
+
+  // Cost Estimation
+  estimateEvaluationCost(id: string) {
+    return this.http.get<EvaluationCostEstimate>(`${this.API_URL}/evaluations/${id}/estimate-cost`);
   }
 
   // Evaluations
