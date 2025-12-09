@@ -82,6 +82,14 @@ class TestEvaluationRunner:
             res.is_correct = True
             res.ground_truth = {"value": True}
             res.parsed_answer = {"value": True}
+            res.step_results = [{
+                "step_number": 1,
+                "raw_output": "yes",
+                "latency_ms": 100,
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                "cost": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15, "step_cost": 0.0},
+                "error": None
+            }]
             results.append(res)
         return results
 
@@ -163,13 +171,22 @@ class TestEvaluationRunner:
                     r.is_correct = True
                     r.ground_truth = {"value": True}
                     r.parsed_answer = {"value": True}
+                    r.step_results = [{
+                        "step_number": 1,
+                        "raw_output": "yes",
+                        "latency_ms": 100,
+                        "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                        "cost": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15, "step_cost": 0.0},
+                        "error": None
+                    }]
                     res_mocks.append(r)
-                # And 2 that failed
+                # And 2 that failed (no step_results or empty)
                 for _ in range(2):
                     r = Mock(spec=EvaluationResult)
                     r.is_correct = None
+                    r.step_results = None  # Failed results have no step_results
                     res_mocks.append(r)
-                
+
                 filter_mock = Mock()
                 filter_mock.all.return_value = res_mocks
                 query_mock.filter.return_value = filter_mock
