@@ -180,7 +180,7 @@ import { SubselectionDialogComponent, SubselectionConfig } from './subselection-
           </button>
           @if (estimatedCost() !== null) {
             <span class="estimated-cost-display">
-              Est. Cost: ${{ (estimatedCost() ?? 0).toFixed(4) }}
+              Est. Cost: \${{ (estimatedCost() ?? 0).toFixed(4) }}
             </span>
           }
           <button mat-raised-button color="primary" (click)="startEvaluation()" [disabled]="!isFormValid()">
@@ -224,7 +224,7 @@ import { SubselectionDialogComponent, SubselectionConfig } from './subselection-
                 }
                 @if (selectedEvaluation && selectedEvaluation.id === evaluation.id && selectedEvaluation.actual_cost !== null) {
                   <span class="cost-text">
-                    Cost: ${{ (selectedEvaluation.actual_cost ?? 0).toFixed(2) }}
+                    Cost: \${{ (selectedEvaluation.actual_cost ?? 0).toFixed(2) }}
                   </span>
                 }
               </div>
