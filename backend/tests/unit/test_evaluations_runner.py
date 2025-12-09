@@ -52,7 +52,8 @@ class TestEvaluationRunner:
         eval_obj.model_config.concurrency = 2
         eval_obj.model_config.temperature = 0.0
         eval_obj.model_config.max_tokens = 100
-        
+        eval_obj.model_config.pricing_config = None  # No pricing by default
+
         return eval_obj
 
     @pytest.fixture
@@ -123,7 +124,7 @@ class TestEvaluationRunner:
         
         # Mock LLM Service
         mock_llm_service = Mock()
-        mock_llm_service.generate_content = AsyncMock(return_value=("yes", 100))
+        mock_llm_service.generate_content = AsyncMock(return_value=("yes", 100, {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}))
         mocker.patch('api.v1.evaluations.get_llm_service', return_value=mock_llm_service)
         
         # Run task
@@ -189,7 +190,7 @@ class TestEvaluationRunner:
             nonlocal call_count
             call_count += 1
             if call_count <= 3:
-                return ("yes", 100)
+                return ("yes", 100, {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15})
             else:
                 raise Exception("API Error")
 
@@ -239,7 +240,7 @@ class TestEvaluationRunner:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return ("yes", 100)
+                return ("yes", 100, {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15})
             else:
                 raise Exception("E")
 
@@ -281,9 +282,9 @@ class TestEvaluationRunner:
         mocker.patch('core.prompt_utils.substitute_variables', return_value="processed prompt")
         
         mock_llm_service = Mock()
-        mock_llm_service.generate_content = AsyncMock(return_value=("yes", 100))
+        mock_llm_service.generate_content = AsyncMock(return_value=("yes", 100, {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}))
         mocker.patch('api.v1.evaluations.get_llm_service', return_value=mock_llm_service)
-        
+
         # Fix StopIteration: Provide infinite iterator
         mock_time = mocker.patch('time.time', side_effect=itertools.count(start=1000))
         

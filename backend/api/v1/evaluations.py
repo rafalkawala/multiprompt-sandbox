@@ -327,6 +327,7 @@ async def run_evaluation_task(evaluation_id: str):
         correct_count = 0
         failed_count = 0
         error_messages = []
+        total_actual_cost = 0.0
 
         # Get concurrency limit from model config
         concurrency = getattr(model_config, 'concurrency', 3)
