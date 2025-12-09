@@ -67,6 +67,9 @@ export interface Evaluation {
   question_text: string | null;
   prompt_chain: PromptStep[] | null;  // Multi-phase prompting
   selection_config?: any; // Dataset subselection
+  estimated_cost: number | null;  // Cost estimation before execution
+  actual_cost: number | null;  // Actual cost after execution
+  cost_details: any | null;  // Detailed cost breakdown
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
@@ -183,6 +186,10 @@ export class EvaluationsService {
 
   getEvaluationResults(id: string, skip: number = 0, limit: number = 50, filter: string = 'all') {
     return this.http.get<EvaluationResult[]>(`${this.API_URL}/evaluations/${id}/results?skip=${skip}&limit=${limit}&filter=${filter}`);
+  }
+
+  estimateEvaluationCost(id: string) {
+    return this.http.get<{estimated_cost: number, image_count: number, avg_cost_per_image: number, details: any}>(`${this.API_URL}/evaluations/${id}/estimate-cost`);
   }
 
   deleteEvaluation(id: string) {

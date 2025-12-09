@@ -170,6 +170,19 @@ import { SubselectionDialogComponent, SubselectionConfig } from './subselection-
           }
         </mat-card-content>
         <mat-card-actions>
+          <button mat-stroked-button color="accent" (click)="estimateCost()" [disabled]="!isFormValid() || estimatingCost()">
+            @if (estimatingCost()) {
+              <mat-spinner diameter="20" style="display: inline-block; margin-right: 8px;"></mat-spinner>
+            } @else {
+              <mat-icon>calculate</mat-icon>
+            }
+            Estimate Cost
+          </button>
+          @if (estimatedCost() !== null) {
+            <span class="estimated-cost-display">
+              Est. Cost: ${{ estimatedCost()!.toFixed(4) }}
+            </span>
+          }
           <button mat-raised-button color="primary" (click)="startEvaluation()" [disabled]="!isFormValid()">
             <mat-icon>play_arrow</mat-icon>
             Start Evaluation
@@ -208,6 +221,11 @@ import { SubselectionDialogComponent, SubselectionConfig } from './subselection-
                    <span class="count-text">
                      {{ evaluation.processed_images }} / {{ evaluation.total_images }} images
                    </span>
+                }
+                @if (selectedEvaluation && selectedEvaluation.id === evaluation.id && selectedEvaluation.actual_cost !== null) {
+                  <span class="cost-text">
+                    Cost: ${{ selectedEvaluation.actual_cost.toFixed(2) }}
+                  </span>
                 }
               </div>
               @if (evaluation.status === 'running') {
@@ -566,6 +584,20 @@ import { SubselectionDialogComponent, SubselectionConfig } from './subselection-
     .accuracy {
       font-weight: 500;
       color: #1967d2;
+    }
+
+    .cost-text {
+      font-weight: 500;
+      color: #137333;
+    }
+
+    .estimated-cost-display {
+      font-weight: 500;
+      color: #137333;
+      margin-left: 12px;
+      padding: 6px 12px;
+      background-color: #e6f4ea;
+      border-radius: 4px;
     }
 
     .progress-text {
@@ -987,6 +1019,10 @@ export class EvaluationsComponent implements OnInit {
   selectedProject: Project | null = null;
   selectedEvaluation: Evaluation | null = null;
 
+  // Cost estimation state
+  estimatedCost = signal<number | null>(null);
+  estimatingCost = signal(false);
+
   private refreshInterval: any;
 
   constructor(
@@ -1228,6 +1264,46 @@ export class EvaluationsComponent implements OnInit {
     }
   }
 
+  estimateCost() {
+    if (!this.isFormValid()) return;
+
+    this.estimatingCost.set(true);
+    this.estimatedCost.set(null);
+
+    // First create the evaluation (without starting it) to get an ID
+    this.evaluationsService.createEvaluation(this.newEval).subscribe({
+      next: (evaluation) => {
+        // Now get cost estimate for this evaluation
+        this.evaluationsService.estimateEvaluationCost(evaluation.id).subscribe({
+          next: (estimate) => {
+            this.estimatedCost.set(estimate.estimated_cost);
+            this.estimatingCost.set(false);
+            this.snackBar.open(`Estimated cost: $${estimate.estimated_cost.toFixed(4)} for ${estimate.image_count} images`, 'Close', { duration: 5000 });
+
+            // Delete the temporary evaluation
+            this.evaluationsService.deleteEvaluation(evaluation.id).subscribe({
+              next: () => {},
+              error: (err) => console.error('Failed to cleanup temp evaluation:', err)
+            });
+          },
+          error: (err) => {
+            console.error('Failed to estimate cost:', err);
+            this.estimatingCost.set(false);
+            this.snackBar.open('Failed to estimate cost', 'Close', { duration: 3000 });
+
+            // Delete the temporary evaluation even on error
+            this.evaluationsService.deleteEvaluation(evaluation.id).subscribe();
+          }
+        });
+      },
+      error: (err) => {
+        console.error('Failed to create temp evaluation:', err);
+        this.estimatingCost.set(false);
+        this.snackBar.open('Failed to estimate cost', 'Close', { duration: 3000 });
+      }
+    });
+  }
+
   startEvaluation() {
     if (!this.isFormValid()) return;
 
@@ -1235,6 +1311,7 @@ export class EvaluationsComponent implements OnInit {
       next: (evaluation) => {
         this.loadEvaluations();
         this.snackBar.open('Evaluation started', 'Close', { duration: 3000 });
+        this.estimatedCost.set(null);  // Clear estimated cost
         this.newEval = {
           name: '',
           project_id: '',
