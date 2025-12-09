@@ -62,6 +62,23 @@ Split complex views into a Container (Smart) and Presentational (Dumb) component
 - `ModelFormComponent`: Input: `config?`. Output: `save`, `cancel`.
 - `ModelTestComponent`: Input: `config`. Output: `runTest`.
 
+### 1.4 Authentication Refactoring
+**Current State:**
+`AuthService` directly uses `HttpClient` and manages OAuth flow and state.
+
+**Proposal:**
+Refactor `AuthService` to use the new `BaseApiService` or `ApiService` wrapper. Ensure token management and error handling (401/403) are centralized in an HttpInterceptor or within the base service.
+
+### 1.5 Testing Strategy (Critical)
+**Current State:**
+Almost zero unit tests exist (only `app.component.spec.ts`).
+
+**Proposal:**
+Introduce a strict testing requirement for all refactored components and services.
+- **Dumb Components:** Test inputs/outputs and rendering.
+- **Smart Components:** Test service integration and state changes.
+- **Services:** Test HTTP calls and error handling using `HttpTestingController`.
+
 ## 2. Refactoring by File
 
 ### 2.1 `src/app/features/models/models.component.ts`
@@ -152,13 +169,22 @@ Break down into sub-components.
 2.  **Phase 2: Component Split (Models Feature)**
     - Refactor `models.component.ts` into Container + Presentational components.
     - Switch to Reactive Forms for the Model Config form.
+    - **Test:** Add `model-form.component.spec.ts` and `model-list.component.spec.ts`.
 
 3.  **Phase 3: Component Split (Projects Feature)**
     - Extract "Create Project" form.
     - Implement a reusable "Confirm Dialog" service instead of `confirm()` alert.
+    - **Test:** Add tests for new components.
 
-4.  **Phase 4: Shared UI**
-    - Ensure `MatCard`, `MatButton`, etc., are imported via a `SharedMaterialModule` or imported directly in standalone components (current approach is fine, but ensure consistency).
+4.  **Phase 4: Expanding Scope**
+    - Apply "Smart/Dumb" pattern to `evaluations`, `labelling-jobs`, and `annotations` modules.
+    - Refactor `AuthService` to use `BaseApiService`.
+    - Ensure `admin` module follows the new patterns.
+
+5.  **Phase 5: Testing & Hardening**
+    - Achieve at least 50% unit test coverage for all new shared services and "Dumb" components.
+    - Run full regression testing manually on the refactored features.
+    - Verify that no duplicate HTTP logic exists (e.g., all raw `HttpClient` calls should be via `BaseApiService` or wrapped).
 
 ## 4. Benefits
 
@@ -166,3 +192,4 @@ Break down into sub-components.
 - **Maintainability:** Smaller files are easier to read.
 - **Reusability:** The `ModelFormComponent` could potentially be reused in a wizard or modal.
 - **Consistency:** Centralized types and constants prevent typo bugs.
+- **Reliability:** Added test coverage ensures that future changes don't break existing functionality.
