@@ -36,6 +36,7 @@ class ModelConfigCreate(BaseModel):
     max_tokens: int = 1024
     concurrency: int = Field(default=3, ge=1, le=100, description="Number of parallel API calls (1-100)")
     additional_params: Optional[dict] = None
+    pricing_config: Optional[dict] = None  # Cost tracking configuration
 
     @validator('concurrency')
     def validate_concurrency(cls, v):
@@ -52,6 +53,7 @@ class ModelConfigUpdate(BaseModel):
     max_tokens: Optional[int] = None
     concurrency: Optional[int] = Field(default=None, ge=1, le=100, description="Number of parallel API calls (1-100)")
     additional_params: Optional[dict] = None
+    pricing_config: Optional[dict] = None  # Cost tracking configuration
     is_active: Optional[bool] = None
 
     @validator('concurrency')
@@ -69,6 +71,7 @@ class ModelConfigResponse(BaseModel):
     max_tokens: int
     concurrency: int
     additional_params: Optional[dict]
+    pricing_config: Optional[dict]
     is_active: bool
     created_at: datetime
     updated_at: datetime
