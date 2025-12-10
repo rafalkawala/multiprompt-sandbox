@@ -45,8 +45,6 @@ services:
       - "8000:8000"
     environment:
       - ENVIRONMENT=development
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
       - DATABASE_URL=postgresql://mllm_sandbox_user:mllm_sandbox_pass@db:5432/mllm_sandbox_db
       - ADMIN_EMAILS=rafal.kawala@gmail.com
     env_file:
