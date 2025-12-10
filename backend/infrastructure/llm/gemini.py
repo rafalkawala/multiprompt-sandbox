@@ -1,6 +1,7 @@
 import time
 import httpx
 import base64
+import os
 from typing import Tuple, Optional, Dict, Any, List
 from core.interfaces.llm import ILLMProvider
 from core.http_client import HttpClient
@@ -101,10 +102,19 @@ class GeminiProvider(ILLMProvider):
         # Combine system message with prompt
         full_prompt = f"{system_message}\n\n{prompt}" if system_message else prompt
 
-        # Decision Logic:
-        # If API Key is present, assume Local Dev using AI Studio.
-        # If API Key is missing, assume GCP using ADC/Vertex.
-        if api_key and api_key != "sk-placeholder":
+        # Environment check
+        is_dev = os.environ.get("ENVIRONMENT", "production").lower() == "development"
+        has_key = api_key and api_key != "sk-placeholder"
+        wants_vertex = auth_type in ['google_adc', 'service_account']
+
+        # 1. Vertex AI (ADC) Path
+        # Use if explicitly requested, UNLESS we are in Dev and have a Key (Dev Override)
+        if wants_vertex:
+            if not (is_dev and has_key):
+                return await self._call_vertex(model_name, image_data, mime_type, full_prompt, temperature, max_tokens, start_time)
+
+        # 2. Google AI Studio (API Key) Path
+        if has_key:
             # Prepare parts
             parts = []
             if image_data and mime_type:
@@ -146,9 +156,8 @@ class GeminiProvider(ILLMProvider):
 
             return text, latency, usage_metadata
 
-        else:
-            # Fallback to Vertex AI (ADC)
-            return await self._call_vertex(model_name, image_data, mime_type, full_prompt, temperature, max_tokens, start_time)
+        # 3. Fallback to Vertex AI if no key and no explicit auth_type (or if auth_type=api_key but no key provided)
+        return await self._call_vertex(model_name, image_data, mime_type, full_prompt, temperature, max_tokens, start_time)
 
     async def _call_vertex(self, model_name: str, image_data: Optional[str], mime_type: Optional[str], prompt: str, temperature: float, max_tokens: int, start_time: float) -> Tuple[str, int, Dict[str, Any]]:
         """Call Gemini via Vertex AI using service account credentials (ADC)"""
