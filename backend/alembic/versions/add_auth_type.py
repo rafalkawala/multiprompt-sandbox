@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_auth_type'
-down_revision = 'add_selection_config'
+down_revision = '4817bfb92f7f'
 branch_labels = None
 depends_on = None
 
