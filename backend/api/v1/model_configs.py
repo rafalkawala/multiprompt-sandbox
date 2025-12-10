@@ -386,7 +386,7 @@ async def test_model_config(
     try:
         llm_service = get_llm_service()
         
-        response_text, latency = await llm_service.generate_content(
+        response_text, latency, usage = await llm_service.generate_content(
             provider_name=config.provider,
             api_key=config.api_key,
             model_name=config.model_name,
