@@ -74,7 +74,7 @@
     "display_name": "Gemini 3 Pro Preview",
     "description": "Next-gen reasoning model (Preview).",
     "endpoint": "https://generativelanguage.googleapis.com/v1beta",
-    "auth_type": "google_adc",
+    "auth_type": "api_key",
     "api_key": "",
     "pricing_config": {
       "mode": "token_based",
@@ -92,7 +92,7 @@
     "display_name": "Gemini 2.5 Pro",
     "description": "High-intelligence model (Preview).",
     "endpoint": "https://generativelanguage.googleapis.com/v1beta",
-    "auth_type": "google_adc",
+    "auth_type": "api_key",
     "api_key": "",
     "pricing_config": {
       "mode": "token_based",
@@ -110,7 +110,7 @@
     "display_name": "Gemini 2.5 Flash",
     "description": "Fast and versatile multimodal model.",
     "endpoint": "https://generativelanguage.googleapis.com/v1beta",
-    "auth_type": "google_adc",
+    "auth_type": "api_key",
     "api_key": "",
     "pricing_config": {
       "mode": "token_based",
@@ -128,7 +128,7 @@
     "display_name": "Gemini 2.5 Flash-Lite",
     "description": "Cost-optimized model for high volume.",
     "endpoint": "https://generativelanguage.googleapis.com/v1beta",
-    "auth_type": "google_adc",
+    "auth_type": "api_key",
     "api_key": "",
     "pricing_config": {
       "mode": "token_based",
