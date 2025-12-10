@@ -22,7 +22,7 @@ class ILLMProvider(ABC):
 
         Args:
             api_key: API Key for the provider.
-            auth_type: Authentication type (e.g., 'api_key', 'google_adc').
+            auth_type: Authentication type ('api_key').
             model_name: Name of the model to use.
             image_data: Base64 encoded image data (optional).
             mime_type: Mime type of the image (optional).

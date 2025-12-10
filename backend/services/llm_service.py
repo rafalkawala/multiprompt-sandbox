@@ -7,6 +7,7 @@ import os
 
 from core.config import settings
 from infrastructure.llm.gemini import GeminiProvider
+from infrastructure.llm.vertex import VertexAIProvider
 from infrastructure.llm.openai import OpenAIProvider
 from infrastructure.llm.anthropic import AnthropicProvider
 
@@ -22,6 +23,7 @@ class LLMService:
     def __init__(self):
         self._providers = {
             "gemini": GeminiProvider(),
+            "vertex": VertexAIProvider(),
             "openai": OpenAIProvider(),
             "anthropic": AnthropicProvider()
         }
@@ -58,8 +60,11 @@ class LLMService:
             elif provider_name == "anthropic":
                 final_api_key = os.environ.get("ANTHROPIC_API_KEY")
             elif provider_name == "gemini":
-                # Gemini provider might use ADC if key is None, but let's check env too
+                # Gemini provider uses API key authentication only
                 final_api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+            elif provider_name == "vertex":
+                # Vertex AI provider uses API key or ADC
+                final_api_key = os.environ.get("VERTEX_AI_API_KEY") or os.environ.get("GEMINI_API_KEY")
             
             if final_api_key:
                 logger.info(f"Using environment variable API key for {provider_name}")

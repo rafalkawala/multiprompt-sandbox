@@ -71,11 +71,10 @@
     "id": "google-gemini-3-pro-preview",
     "provider": "gemini",
     "model_name": "gemini-3-pro-preview",
-    "display_name": "Gemini 3 Pro Preview",
-    "description": "Next-gen reasoning model (Preview).",
+    "display_name": "Gemini 3 Pro Preview (Legacy - AI Studio)",
+    "description": "Legacy: Next-gen reasoning model via AI Studio API. ⚠️ Requires billing.",
     "endpoint": "https://generativelanguage.googleapis.com/v1beta",
-    "auth_type": "google_adc",
-    "api_key": "",
+    "auth_type": "api_key",
     "pricing_config": {
       "mode": "token_based",
       "input_price_per_1m": 2.00,
@@ -88,12 +87,11 @@
   {
     "id": "google-gemini-2-5-pro",
     "provider": "gemini",
-    "model_name": "gemini-2.5-pro-preview-03-25",
-    "display_name": "Gemini 2.5 Pro",
-    "description": "High-intelligence model (Preview).",
+    "model_name": "gemini-2.5-pro",
+    "display_name": "Gemini 2.5 Pro (Legacy - AI Studio)",
+    "description": "Legacy: High-intelligence model via AI Studio API. ⚠️ Requires billing.",
     "endpoint": "https://generativelanguage.googleapis.com/v1beta",
-    "auth_type": "google_adc",
-    "api_key": "",
+    "auth_type": "api_key",
     "pricing_config": {
       "mode": "token_based",
       "input_price_per_1m": 1.25,
@@ -107,11 +105,10 @@
     "id": "google-gemini-2-5-flash",
     "provider": "gemini",
     "model_name": "gemini-2.5-flash",
-    "display_name": "Gemini 2.5 Flash",
-    "description": "Fast and versatile multimodal model.",
+    "display_name": "Gemini 2.5 Flash (Legacy - AI Studio)",
+    "description": "Legacy: Fast multimodal model via AI Studio API. ✅ Free tier available.",
     "endpoint": "https://generativelanguage.googleapis.com/v1beta",
-    "auth_type": "google_adc",
-    "api_key": "",
+    "auth_type": "api_key",
     "pricing_config": {
       "mode": "token_based",
       "input_price_per_1m": 0.075,
@@ -125,15 +122,82 @@
     "id": "google-gemini-2-5-flash-lite",
     "provider": "gemini",
     "model_name": "gemini-2.5-flash-lite",
-    "display_name": "Gemini 2.5 Flash-Lite",
-    "description": "Cost-optimized model for high volume.",
+    "display_name": "Gemini 2.5 Flash-Lite (Legacy - AI Studio)",
+    "description": "Legacy: Cost-optimized model via AI Studio API. ✅ Free tier available.",
     "endpoint": "https://generativelanguage.googleapis.com/v1beta",
-    "auth_type": "google_adc",
-    "api_key": "",
+    "auth_type": "api_key",
     "pricing_config": {
       "mode": "token_based",
       "input_price_per_1m": 0.10,
       "output_price_per_1m": 0.40,
+      "image_price_mode": "per_token",
+      "image_token_calc": "fixed_tokens",
+      "discount_percent": 0
+    }
+  },
+  {
+    "id": "vertex-gemini-3-pro",
+    "provider": "vertex",
+    "model_name": "gemini-3-pro",
+    "display_name": "Gemini 3 Pro (Vertex AI)",
+    "description": "Next-gen reasoning model via Vertex AI. Includes quota for Pro tier.",
+    "endpoint": "vertex-ai",
+    "auth_type": "google_adc",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 2.00,
+      "output_price_per_1m": 12.00,
+      "image_price_mode": "per_image",
+      "image_price_val": 0.0011,
+      "discount_percent": 0
+    }
+  },
+  {
+    "id": "vertex-gemini-2-5-pro",
+    "provider": "vertex",
+    "model_name": "gemini-2.5-pro",
+    "display_name": "Gemini 2.5 Pro (Vertex AI)",
+    "description": "High-intelligence model via Vertex AI. Includes quota for Pro tier.",
+    "endpoint": "vertex-ai",
+    "auth_type": "google_adc",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 1.25,
+      "output_price_per_1m": 10.00,
+      "image_price_mode": "per_token",
+      "image_token_calc": "fixed_tokens",
+      "discount_percent": 0
+    }
+  },
+  {
+    "id": "vertex-gemini-2-5-flash",
+    "provider": "vertex",
+    "model_name": "gemini-2.5-flash",
+    "display_name": "Gemini 2.5 Flash (Vertex AI)",
+    "description": "Fast and versatile multimodal model via Vertex AI.",
+    "endpoint": "vertex-ai",
+    "auth_type": "google_adc",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 0.075,
+      "output_price_per_1m": 0.30,
+      "image_price_mode": "per_token",
+      "image_token_calc": "fixed_tokens",
+      "discount_percent": 0
+    }
+  },
+  {
+    "id": "vertex-gemini-2-0-flash",
+    "provider": "vertex",
+    "model_name": "gemini-2.0-flash",
+    "display_name": "Gemini 2.0 Flash (Vertex AI)",
+    "description": "Latest generation fast model via Vertex AI.",
+    "endpoint": "vertex-ai",
+    "auth_type": "google_adc",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 0.075,
+      "output_price_per_1m": 0.30,
       "image_price_mode": "per_token",
       "image_token_calc": "fixed_tokens",
       "discount_percent": 0

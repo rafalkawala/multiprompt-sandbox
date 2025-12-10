@@ -66,8 +66,10 @@ class Settings(BaseSettings):
     DB_NAME: str = ""
 
     # Google Cloud / Gemini Configuration
-    GEMINI_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""  # Legacy AI Studio API key
+    VERTEX_AI_API_KEY: str = ""  # Vertex AI API key (preferred)
     GCP_PROJECT_ID: str = ""
+    GCP_LOCATION: str = "us-central1"  # Vertex AI location
     GEMINI_MODEL: str = "gemini-pro-vision"
     GCS_BUCKET_NAME: str = ""  # GCS bucket for image uploads
     STORAGE_TYPE: str = "local" # local or gcs
