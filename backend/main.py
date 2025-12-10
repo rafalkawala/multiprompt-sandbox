@@ -116,12 +116,8 @@ async def seed_model_configs():
 
             if existing:
                 # Update essential fields
-                existing.name = item.get("display_name", item.get("name", existing.name)) # Use display_name as name if avail
-                existing.endpoint = item.get("endpoint", getattr(existing, "endpoint", None)) # Handle endpoint if schema allows (schema doesn't have endpoint col? Check model.)
-                # Wait, ModelConfig schema doesn't have 'endpoint' or 'display_name'. It has 'name'.
-                # Mapping: json 'display_name' -> db 'name'.
                 existing.name = item.get("display_name", item.get("model_name"))
-                
+                existing.auth_type = item.get("auth_type", "api_key")
                 existing.temperature = item.get("temperature", 0.0)
                 existing.max_tokens = item.get("max_tokens", 1024)
                 existing.pricing_config = item.get("pricing_config", existing.pricing_config)
@@ -133,6 +129,7 @@ async def seed_model_configs():
                     provider=item["provider"],
                     model_name=item["model_name"],
                     api_key="sk-placeholder", # Placeholder
+                    auth_type=item.get("auth_type", "api_key"),
                     temperature=0.0,
                     max_tokens=1024,
                     concurrency=3,

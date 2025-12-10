@@ -101,50 +101,54 @@ class GeminiProvider(ILLMProvider):
         # Combine system message with prompt
         full_prompt = f"{system_message}\n\n{prompt}" if system_message else prompt
 
-        # Use Vertex AI if configured for ADC/Service Account OR if no API key provided
-        if (auth_type in ['google_adc', 'service_account']) or (not api_key):
-            return await self._call_vertex(model_name, image_data, mime_type, full_prompt, temperature, max_tokens, start_time)
+        # Decision Logic:
+        # If API Key is present, assume Local Dev using AI Studio.
+        # If API Key is missing, assume GCP using ADC/Vertex.
+        if api_key and api_key != "sk-placeholder":
+            # Prepare parts
+            parts = []
+            if image_data and mime_type:
+                parts.append({"inline_data": {"mime_type": mime_type, "data": image_data}})
+            parts.append({"text": full_prompt})
 
-        # Prepare parts
-        parts = []
-        if image_data and mime_type:
-            parts.append({"inline_data": {"mime_type": mime_type, "data": image_data}})
-        parts.append({"text": full_prompt})
-
-        # Use Google AI API with API key (local development)
-        client = HttpClient.get_client()
-        response = await client.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent",
-            params={"key": api_key},
-            json={
-                "contents": [{"parts": parts}],
-                "generationConfig": {
-                    "temperature": temperature,
-                    "maxOutputTokens": max_tokens
+            # Use Google AI API with API key (local development)
+            client = HttpClient.get_client()
+            response = await client.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent",
+                params={"key": api_key},
+                json={
+                    "contents": [{"parts": parts}],
+                    "generationConfig": {
+                        "temperature": temperature,
+                        "maxOutputTokens": max_tokens
+                    }
                 }
+            )
+
+            latency = int((time.time() - start_time) * 1000)
+
+            if response.status_code != 200:
+                raise Exception(f"Gemini API error: {response.text}")
+
+            result = response.json()
+            try:
+                text = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+            except (IndexError, AttributeError):
+                text = ""
+
+            # Extract usage metadata
+            usage = result.get('usageMetadata', {})
+            usage_metadata = {
+                'prompt_tokens': usage.get('promptTokenCount', 0),
+                'completion_tokens': usage.get('candidatesTokenCount', 0),
+                'total_tokens': usage.get('totalTokenCount', 0)
             }
-        )
 
-        latency = int((time.time() - start_time) * 1000)
+            return text, latency, usage_metadata
 
-        if response.status_code != 200:
-            raise Exception(f"Gemini API error: {response.text}")
-
-        result = response.json()
-        try:
-            text = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
-        except (IndexError, AttributeError):
-            text = ""
-
-        # Extract usage metadata
-        usage = result.get('usageMetadata', {})
-        usage_metadata = {
-            'prompt_tokens': usage.get('promptTokenCount', 0),
-            'completion_tokens': usage.get('candidatesTokenCount', 0),
-            'total_tokens': usage.get('totalTokenCount', 0)
-        }
-
-        return text, latency, usage_metadata
+        else:
+            # Fallback to Vertex AI (ADC)
+            return await self._call_vertex(model_name, image_data, mime_type, full_prompt, temperature, max_tokens, start_time)
 
     async def _call_vertex(self, model_name: str, image_data: Optional[str], mime_type: Optional[str], prompt: str, temperature: float, max_tokens: int, start_time: float) -> Tuple[str, int, Dict[str, Any]]:
         """Call Gemini via Vertex AI using service account credentials (ADC)"""
