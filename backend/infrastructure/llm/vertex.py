@@ -137,44 +137,32 @@ class VertexAIProvider(ILLMProvider):
                 "parts": [{"text": system_message}]
             }
 
-        # Build Vertex AI endpoint URL (using API key method)
-        # Format: https://aiplatform.googleapis.com/v1/publishers/google/models/{model}:streamGenerateContent?key={key}
+        # Build Vertex AI endpoint URL
+        # Note: aiplatform.googleapis.com does NOT support API key authentication
+        # Only OAuth2/ADC is supported
         endpoint = f"https://aiplatform.googleapis.com/v1/publishers/google/models/{model_name}:streamGenerateContent"
 
         client = HttpClient.get_client()
         headers = {"Content-Type": "application/json"}
 
-        # Authentication: Try API key first, then fall back to ADC
-        if api_key and api_key != "sk-placeholder":
-            logger.info("Using API key authentication for Vertex AI")
-            # API key passed as query parameter
-            params = {"key": api_key}
-            response = await client.post(
-                endpoint,
-                params=params,
-                headers=headers,
-                json=request_body
+        # Vertex AI requires ADC (Application Default Credentials)
+        logger.info("Using ADC authentication for Vertex AI")
+        access_token = await self._get_access_token()
+
+        if not access_token:
+            raise ValueError(
+                "No valid credentials found for Vertex AI.\n"
+                "Local development: Run 'gcloud auth application-default login'\n"
+                "GCP production: Workload identity is configured automatically"
             )
-        else:
-            # Use ADC (Application Default Credentials)
-            logger.info("Using ADC authentication for Vertex AI")
-            access_token = await self._get_access_token()
 
-            if not access_token:
-                raise ValueError(
-                    "No valid credentials found. Please either:\n"
-                    "1. Set VERTEX_AI_API_KEY environment variable, or\n"
-                    "2. Run 'gcloud auth application-default login' for local development, or\n"
-                    "3. Ensure workload identity is configured in GCP"
-                )
+        headers["Authorization"] = f"Bearer {access_token}"
 
-            headers["Authorization"] = f"Bearer {access_token}"
-
-            response = await client.post(
-                endpoint,
-                headers=headers,
-                json=request_body
-            )
+        response = await client.post(
+            endpoint,
+            headers=headers,
+            json=request_body
+        )
 
         latency = int((time.time() - start_time) * 1000)
 
