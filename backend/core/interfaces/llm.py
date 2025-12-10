@@ -34,3 +34,45 @@ class ILLMProvider(ABC):
             usage_metadata contains: prompt_tokens, completion_tokens, total_tokens
         """
         pass
+
+    @abstractmethod
+    def estimate_cost(
+        self,
+        input_text: str,
+        output_est_text: str,
+        images: list[str],
+        pricing_config: Dict[str, Any]
+    ) -> float:
+        """
+        Estimate the cost of a request based on inputs and pricing config.
+
+        Args:
+            input_text: The input text prompt.
+            output_est_text: Estimated output text.
+            images: List of base64 encoded images.
+            pricing_config: Pricing configuration dictionary.
+
+        Returns:
+            Estimated cost in USD.
+        """
+        pass
+
+    @abstractmethod
+    def calculate_actual_cost(
+        self,
+        usage_metadata: Dict[str, Any],
+        pricing_config: Dict[str, Any],
+        has_image: bool = False
+    ) -> float:
+        """
+        Calculate actual cost based on usage metadata returned by the API.
+
+        Args:
+            usage_metadata: Metadata containing token counts (prompt_tokens, completion_tokens).
+            pricing_config: Pricing configuration dictionary.
+            has_image: Whether the request included an image (relevant for some providers).
+
+        Returns:
+            Actual cost in USD.
+        """
+        pass

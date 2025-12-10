@@ -1,0 +1,138 @@
+[
+  {
+    "id": "openai-gpt-4o",
+    "provider": "openai",
+    "model_name": "gpt-4o",
+    "display_name": "GPT-4o",
+    "description": "OpenAI's flagship high-intelligence model. Great for complex multi-step tasks.",
+    "endpoint": "https://api.openai.com/v1",
+    "auth_type": "api_key",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 5.00,
+      "output_price_per_1m": 15.00,
+      "image_price_mode": "per_tile",
+      "image_token_calc": "openai_tiles",
+      "discount_percent": 0
+    }
+  },
+  {
+    "id": "openai-gpt-4o-mini",
+    "provider": "openai",
+    "model_name": "gpt-4o-mini",
+    "display_name": "GPT-4o Mini",
+    "description": "Cost-efficient small model for simple tasks and high volume.",
+    "endpoint": "https://api.openai.com/v1",
+    "auth_type": "api_key",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 0.15,
+      "output_price_per_1m": 0.60,
+      "image_price_mode": "per_tile",
+      "image_token_calc": "openai_tiles",
+      "discount_percent": 0
+    }
+  },
+  {
+    "id": "anthropic-claude-3-5-sonnet",
+    "provider": "anthropic",
+    "model_name": "claude-3-5-sonnet-20240620",
+    "display_name": "Claude 3.5 Sonnet",
+    "description": "Anthropic's most intelligent model. Excellent reasoning and coding capabilities.",
+    "endpoint": "https://api.anthropic.com/v1",
+    "auth_type": "api_key",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 3.00,
+      "output_price_per_1m": 15.00,
+      "image_price_mode": "per_token",
+      "image_token_calc": "anthropic_pixel_ratio",
+      "discount_percent": 0
+    }
+  },
+  {
+    "id": "anthropic-claude-3-opus",
+    "provider": "anthropic",
+    "model_name": "claude-3-opus-20240229",
+    "display_name": "Claude 3 Opus",
+    "description": "Anthropic's legacy high-intelligence model. Good for long-context analysis.",
+    "endpoint": "https://api.anthropic.com/v1",
+    "auth_type": "api_key",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 15.00,
+      "output_price_per_1m": 75.00,
+      "image_price_mode": "per_token",
+      "image_token_calc": "anthropic_pixel_ratio",
+      "discount_percent": 0
+    }
+  },
+  {
+    "id": "google-gemini-3-pro-preview",
+    "provider": "gemini",
+    "model_name": "gemini-3-pro-preview",
+    "display_name": "Gemini 3 Pro Preview",
+    "description": "Next-gen reasoning model (Preview).",
+    "endpoint": "https://generativelanguage.googleapis.com/v1beta",
+    "auth_type": "api_key",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 2.00,
+      "output_price_per_1m": 12.00,
+      "image_price_mode": "per_image",
+      "image_price_val": 0.0011,
+      "discount_percent": 0
+    }
+  },
+  {
+    "id": "google-gemini-2-5-pro",
+    "provider": "gemini",
+    "model_name": "gemini-2.5-pro-preview-03-25",
+    "display_name": "Gemini 2.5 Pro",
+    "description": "High-intelligence model (Preview).",
+    "endpoint": "https://generativelanguage.googleapis.com/v1beta",
+    "auth_type": "api_key",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 1.25,
+      "output_price_per_1m": 10.00,
+      "image_price_mode": "per_token",
+      "image_token_calc": "fixed_tokens",
+      "discount_percent": 0
+    }
+  },
+  {
+    "id": "google-gemini-2-5-flash",
+    "provider": "gemini",
+    "model_name": "gemini-2.5-flash",
+    "display_name": "Gemini 2.5 Flash",
+    "description": "Fast and versatile multimodal model.",
+    "endpoint": "https://generativelanguage.googleapis.com/v1beta",
+    "auth_type": "api_key",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 0.075,
+      "output_price_per_1m": 0.30,
+      "image_price_mode": "per_token",
+      "image_token_calc": "fixed_tokens",
+      "discount_percent": 0
+    }
+  },
+  {
+    "id": "google-gemini-2-5-flash-lite",
+    "provider": "gemini",
+    "model_name": "gemini-2.5-flash-lite",
+    "display_name": "Gemini 2.5 Flash-Lite",
+    "description": "Cost-optimized model for high volume.",
+    "endpoint": "https://generativelanguage.googleapis.com/v1beta",
+    "auth_type": "api_key",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 0.10,
+      "output_price_per_1m": 0.40,
+      "image_price_mode": "per_token",
+      "image_token_calc": "fixed_tokens",
+      "discount_percent": 0
+    }
+  }
+]

@@ -93,7 +93,212 @@ class TestResponse(BaseModel):
     error: Optional[str] = None
     latency_ms: Optional[int] = None
 
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
+from pydantic import BaseModel, Field, validator
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+import httpx
+import logging
+import time
+import json
+import io
+
+from core.database import SessionLocal
+from models.evaluation import ModelConfig
+from models.user import User
+from api.v1.auth import get_current_user
+from services.llm_service import get_llm_service
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# Schemas
+class ModelConfigCreate(BaseModel):
+    name: str
+    provider: str  # 'gemini', 'openai', 'anthropic'
+    model_name: str
+    api_key: Optional[str] = None  # Optional - will use service account auth if empty
+    temperature: float = 0.0
+    max_tokens: int = 1024
+    concurrency: int = Field(default=3, ge=1, le=100, description="Number of parallel API calls (1-100)")
+    additional_params: Optional[dict] = None
+    pricing_config: Optional[dict] = None  # Cost tracking configuration
+
+    @validator('concurrency')
+    def validate_concurrency(cls, v):
+        if v < 1 or v > 100:
+            raise ValueError('Concurrency must be between 1 and 100')
+        return v
+
+class ModelConfigUpdate(BaseModel):
+    name: Optional[str] = None
+    provider: Optional[str] = None
+    model_name: Optional[str] = None
+    api_key: Optional[str] = None
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
+    concurrency: Optional[int] = Field(default=None, ge=1, le=100, description="Number of parallel API calls (1-100)")
+    additional_params: Optional[dict] = None
+    pricing_config: Optional[dict] = None  # Cost tracking configuration
+    is_active: Optional[bool] = None
+
+    @validator('concurrency')
+    def validate_concurrency(cls, v):
+        if v is not None and (v < 1 or v > 100):
+            raise ValueError('Concurrency must be between 1 and 100')
+        return v
+
+class ModelConfigResponse(BaseModel):
+    id: str
+    name: str
+    provider: str
+    model_name: str
+    temperature: float
+    max_tokens: int
+    concurrency: int
+    additional_params: Optional[dict]
+    pricing_config: Optional[dict]
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+class ModelConfigListItem(BaseModel):
+    id: str
+    name: str
+    provider: str
+    model_name: str
+    is_active: bool
+    created_at: datetime
+
+class TestRequest(BaseModel):
+    prompt: str
+
+class TestResponse(BaseModel):
+    success: bool
+    response: Optional[str] = None
+    error: Optional[str] = None
+    latency_ms: Optional[int] = None
+
+class ImportResponse(BaseModel):
+    message: str
+    imported_count: int
+    updated_count: int
+
 # Endpoints
+@router.get("/export")
+async def export_model_configs(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Export all model configurations as JSON"""
+    configs = db.query(ModelConfig).filter(
+        ModelConfig.created_by_id == current_user.id
+    ).all()
+
+    export_data = []
+    for c in configs:
+        data = {
+            "name": c.name,
+            "provider": c.provider,
+            "model_name": c.model_name,
+            "temperature": c.temperature,
+            "max_tokens": c.max_tokens,
+            "concurrency": c.concurrency,
+            "additional_params": c.additional_params,
+            "pricing_config": c.pricing_config,
+            "is_active": c.is_active
+            # Exclude ID and API Key for portability/security
+        }
+        export_data.append(data)
+
+    json_str = json.dumps(export_data, indent=2)
+    stream = io.StringIO(json_str)
+
+    return StreamingResponse(
+        stream,
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=model_configs_export.json"}
+    )
+
+@router.post("/import", response_model=ImportResponse)
+async def import_model_configs(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Import model configurations from JSON file"""
+    try:
+        content = await file.read()
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON file")
+
+    if not isinstance(data, list):
+        raise HTTPException(status_code=400, detail="JSON root must be a list of model objects")
+
+    imported = 0
+    updated = 0
+
+    for item in data:
+        # Validate minimal required fields
+        if not all(k in item for k in ("name", "provider", "model_name")):
+            continue  # Skip invalid items or raise error? Skipping for robustness.
+
+        # Check for existing config (match by provider+model_name OR name)
+        existing = db.query(ModelConfig).filter(
+            ModelConfig.created_by_id == current_user.id,
+            (ModelConfig.name == item["name"]) | 
+            ((ModelConfig.provider == item["provider"]) & (ModelConfig.model_name == item["model_name"]))
+        ).first()
+
+        if existing:
+            # Update existing
+            existing.name = item.get("name", existing.name)
+            existing.provider = item.get("provider", existing.provider)
+            existing.model_name = item.get("model_name", existing.model_name)
+            existing.temperature = item.get("temperature", existing.temperature)
+            existing.max_tokens = item.get("max_tokens", existing.max_tokens)
+            existing.concurrency = item.get("concurrency", existing.concurrency)
+            existing.additional_params = item.get("additional_params", existing.additional_params)
+            existing.pricing_config = item.get("pricing_config", existing.pricing_config)
+            existing.is_active = item.get("is_active", existing.is_active)
+            if "api_key" in item and item["api_key"]:
+                existing.api_key = item["api_key"]
+            updated += 1
+        else:
+            # Create new
+            new_config = ModelConfig(
+                name=item["name"],
+                provider=item["provider"],
+                model_name=item["model_name"],
+                api_key=item.get("api_key", "sk-placeholder"), # Placeholder if missing, user must update
+                temperature=item.get("temperature", 0.0),
+                max_tokens=item.get("max_tokens", 1024),
+                concurrency=item.get("concurrency", 3),
+                additional_params=item.get("additional_params", {}),
+                pricing_config=item.get("pricing_config", {}),
+                is_active=item.get("is_active", True),
+                created_by_id=current_user.id
+            )
+            db.add(new_config)
+            imported += 1
+
+    db.commit()
+    return ImportResponse(
+        message="Import completed successfully",
+        imported_count=imported,
+        updated_count=updated
+    )
+
 @router.get("", response_model=List[ModelConfigListItem])
 async def list_model_configs(
     current_user: User = Depends(get_current_user),

@@ -1,11 +1,88 @@
 import time
-import os
 import httpx
-from typing import Tuple, Optional, Dict, Any
+import base64
+from typing import Tuple, Optional, Dict, Any, List
 from core.interfaces.llm import ILLMProvider
 from core.http_client import HttpClient
 
 class GeminiProvider(ILLMProvider):
+    def _count_tokens(self, text: str) -> int:
+        if not text:
+            return 0
+        return len(text) // 4
+
+    def estimate_cost(
+        self,
+        input_text: str,
+        output_est_text: str,
+        images: List[str],
+        pricing_config: Dict[str, Any]
+    ) -> float:
+        input_price = float(pricing_config.get('input_price_per_1m', 0))
+        output_price = float(pricing_config.get('output_price_per_1m', 0))
+
+        # Text tokens
+        input_tokens = self._count_tokens(input_text)
+        output_tokens = self._count_tokens(output_est_text)
+
+        text_cost = (input_tokens / 1_000_000 * input_price) + \
+                    (output_tokens / 1_000_000 * output_price)
+
+        # Image Cost
+        image_cost = 0.0
+        mode = pricing_config.get('image_price_mode', 'per_image')
+
+        for _ in images:
+            if mode == 'per_image':
+                val = float(pricing_config.get('image_price_val', 0))
+                image_cost += val
+            else:
+                # Fallback to token based (approx 258 tokens per image)
+                tokens = 258
+                image_cost += (tokens / 1_000_000) * input_price
+
+        total_cost = text_cost + image_cost
+
+        discount = float(pricing_config.get('discount_percent', 0))
+        if discount > 0:
+            total_cost = total_cost * (1 - (discount / 100))
+
+        return total_cost
+
+    def calculate_actual_cost(
+        self,
+        usage_metadata: Dict[str, Any],
+        pricing_config: Dict[str, Any],
+        has_image: bool = False
+    ) -> float:
+        p_tokens = usage_metadata.get('prompt_tokens', 0)
+        c_tokens = usage_metadata.get('completion_tokens', 0)
+
+        in_price = float(pricing_config.get('input_price_per_1m', 0))
+        out_price = float(pricing_config.get('output_price_per_1m', 0))
+
+        cost = (p_tokens / 1_000_000 * in_price) + (c_tokens / 1_000_000 * out_price)
+
+        # Add per-image fixed cost if applicable
+        # (Assuming Gemini token counts might NOT include the image "tokens" if billed per-image)
+        if has_image:
+            mode = pricing_config.get('image_price_mode', 'per_image')
+            if mode == 'per_image':
+                # We don't know exact image count from metadata usually,
+                # but if has_image is True, we assume at least 1?
+                # Ideally calculate_actual_cost should take image_count if variable.
+                # For now, assuming 1 image if has_image=True for single request context.
+                # This limits accuracy for multi-image requests if only boolean passed.
+                # NOTE: To fix this, we'd need to pass image_count to this method.
+                # Given interface 'has_image' boolean, we assume 1.
+                cost += float(pricing_config.get('image_price_val', 0))
+
+        discount = float(pricing_config.get('discount_percent', 0))
+        if discount > 0:
+            cost = cost * (1 - (discount / 100))
+
+        return round(cost, 6)
+
     async def generate_content(
         self,
         api_key: Optional[str],

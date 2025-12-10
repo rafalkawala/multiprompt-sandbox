@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 export interface ModelConfig {
@@ -36,6 +37,13 @@ export interface CreateModelConfig {
   concurrency?: number;  // Number of parallel API calls (default: 3)
   additional_params?: any;
   pricing_config?: any;  // Cost tracking configuration
+}
+
+export interface TestResponse {
+  success: boolean;
+  response?: string;
+  error?: string;
+  latency_ms?: number;
 }
 
 // Multi-phase prompting interfaces
@@ -158,19 +166,29 @@ export class EvaluationsService {
     return this.http.post<ModelConfig>(`${this.API_URL}/model-configs`, data);
   }
 
-  updateModelConfig(id: string, data: Partial<CreateModelConfig>) {
-    return this.http.patch<ModelConfig>(`${this.API_URL}/model-configs/${id}`, data);
+  updateModelConfig(id: string, config: Partial<ModelConfig>): Observable<ModelConfig> {
+    return this.http.patch<ModelConfig>(`${this.API_URL}/model-configs/${id}`, config);
   }
 
-  deleteModelConfig(id: string) {
-    return this.http.delete(`${this.API_URL}/model-configs/${id}`);
+  deleteModelConfig(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.API_URL}/model-configs/${id}`);
   }
 
-  testModelConfig(id: string, prompt: string) {
-    return this.http.post<{success: boolean, response?: string, error?: string, latency_ms?: number}>(`${this.API_URL}/model-configs/${id}/test`, { prompt });
+  testModelConfig(id: string, prompt: string): Observable<TestResponse> {
+    return this.http.post<TestResponse>(`${this.API_URL}/model-configs/${id}/test`, { prompt });
   }
 
-  // Evaluations
+  exportModelConfigs(): Observable<Blob> {
+    return this.http.get(`${this.API_URL}/model-configs/export`, { responseType: 'blob' });
+  }
+
+  importModelConfigs(file: File): Observable<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post(`${this.API_URL}/model-configs/import`, formData);
+  }
+
+  // --- Evaluation Endpoints ---
   getEvaluations(projectId?: string) {
     if (projectId) {
       return this.http.get<EvaluationListItem[]>(`${this.API_URL}/evaluations`, { params: { project_id: projectId } });

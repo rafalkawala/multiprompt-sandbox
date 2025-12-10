@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -32,8 +32,23 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
   ],
   template: `
     <div class="models-container">
-      <h1>Model Configurations</h1>
-      <p class="subtitle">Configure LLM providers for running evaluations</p>
+      <div class="header-row">
+        <div>
+          <h1>Model Configurations</h1>
+          <p class="subtitle">Configure LLM providers for running evaluations</p>
+        </div>
+        <div class="actions-row">
+          <button mat-stroked-button color="primary" (click)="onExport()">
+            <mat-icon>download</mat-icon>
+            Export Configs
+          </button>
+          <button mat-stroked-button color="primary" (click)="fileInput.click()">
+            <mat-icon>upload</mat-icon>
+            Import Configs
+          </button>
+          <input #fileInput type="file" hidden (change)="onImport($event)" accept=".json">
+        </div>
+      </div>
 
       <!-- Create/Edit Config Form -->
       <mat-card class="create-card">
@@ -80,6 +95,35 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
               <mat-label>Concurrency</mat-label>
               <input matInput type="number" [(ngModel)]="newConfig.concurrency" min="1" max="100" step="1">
               <mat-hint>Number of parallel API calls (1-100, recommended: 3-10)</mat-hint>
+            </mat-form-field>
+          </div>
+
+          <!-- Pricing Configuration -->
+          <h3 class="section-title">Pricing Configuration (Optional)</h3>
+          <p class="section-subtitle">{{ getPricingHint() }}</p>
+
+          <div class="form-row">
+            <mat-form-field appearance="outline">
+              <mat-label>Input Price per 1M tokens ($)</mat-label>
+              <input matInput type="number" [(ngModel)]="newConfig.pricing_config!.input_price_per_1m" min="0" step="0.01">
+              <mat-hint>Cost per 1 million input tokens</mat-hint>
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Output Price per 1M tokens ($)</mat-label>
+              <input matInput type="number" [(ngModel)]="newConfig.pricing_config!.output_price_per_1m" min="0" step="0.01">
+              <mat-hint>Cost per 1 million output tokens</mat-hint>
+            </mat-form-field>
+          </div>
+          <div class="form-row">
+            <mat-form-field appearance="outline">
+              <mat-label>Image Price ($)</mat-label>
+              <input matInput type="number" [(ngModel)]="newConfig.pricing_config!.image_price_val" min="0" step="0.0001">
+              <mat-hint>{{ getImagePriceHint() }}</mat-hint>
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Discount (%)</mat-label>
+              <input matInput type="number" [(ngModel)]="newConfig.pricing_config!.discount_percent" min="0" max="100" step="1">
+              <mat-hint>Volume discount percentage</mat-hint>
             </mat-form-field>
           </div>
         </mat-card-content>
@@ -202,6 +246,18 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
       padding: 24px;
       max-width: 1200px;
       margin: 0 auto;
+    }
+
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 24px;
+    }
+
+    .actions-row {
+      display: flex;
+      gap: 12px;
     }
 
     h1 {
@@ -332,6 +388,8 @@ export class ModelsComponent implements OnInit {
   loading = signal(true);
   testing = signal(false);
   editingConfigId: string | null = null;
+  
+  @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
 
   newConfig: CreateModelConfig = {
     name: '',
@@ -340,7 +398,13 @@ export class ModelsComponent implements OnInit {
     api_key: '',
     temperature: 0,
     max_tokens: 1024,
-    concurrency: 3
+    concurrency: 3,
+    pricing_config: {
+      input_price_per_1m: 0,
+      output_price_per_1m: 0,
+      image_price_val: 0,
+      discount_percent: 0
+    }
   };
 
   // Test state
@@ -355,6 +419,10 @@ export class ModelsComponent implements OnInit {
 
   ngOnInit() {
     this.loadConfigs();
+  }
+  
+  triggerImport() {
+    this.fileInput.nativeElement.click();
   }
 
   loadConfigs() {
@@ -393,11 +461,30 @@ export class ModelsComponent implements OnInit {
     return labels[provider] || provider;
   }
 
+  getPricingHint(): string {
+    const provider = this.newConfig.provider;
+    if (provider === 'gemini') {
+      return 'Enter pricing per 1M tokens. Recent Gemini models often use per-token pricing for images too.';
+    } else if (provider === 'openai') {
+      return 'Enter pricing per 1M tokens. Image pricing is calculated based on tiles.';
+    } else if (provider === 'anthropic') {
+      return 'Enter pricing per 1M tokens. Image pricing is estimated based on pixel count.';
+    }
+    return 'Enter estimated cost per 1M tokens.';
+  }
+
+  getImagePriceHint(): string {
+    const mode = this.newConfig.pricing_config?.image_price_mode;
+    if (mode === 'per_image') return 'Cost per single image';
+    if (mode === 'per_tile') return 'Cost per 512x512 tile (if overriding)';
+    return 'Cost per 1M image tokens (if treating images as tokens)';
+  }
+
   editConfig(config: ModelConfigListItem) {
     this.editingConfigId = config.id;
     // Fetch full config details to get all fields
     this.evaluationsService.getModelConfig(config.id).subscribe({
-      next: (fullConfig) => {
+      next: (fullConfig: any) => {
         this.newConfig = {
           name: fullConfig.name,
           provider: fullConfig.provider,
@@ -405,10 +492,16 @@ export class ModelsComponent implements OnInit {
           api_key: '', // Don't populate API key for security
           temperature: fullConfig.temperature,
           max_tokens: fullConfig.max_tokens,
-          concurrency: fullConfig.concurrency
+          concurrency: fullConfig.concurrency,
+          pricing_config: fullConfig.pricing_config || {
+            input_price_per_1m: 0,
+            output_price_per_1m: 0,
+            image_price_val: 0,
+            discount_percent: 0
+          }
         };
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Failed to load config:', err);
         this.snackBar.open('Failed to load configuration', 'Close', { duration: 3000 });
       }
@@ -426,7 +519,7 @@ export class ModelsComponent implements OnInit {
     if (this.editingConfigId) {
       // Update existing config
       this.evaluationsService.updateModelConfig(this.editingConfigId, this.newConfig).subscribe({
-        next: (config) => {
+        next: (config: any) => {
           const index = this.configs().findIndex(c => c.id === config.id);
           if (index !== -1) {
             const updated = [...this.configs()];
@@ -444,7 +537,7 @@ export class ModelsComponent implements OnInit {
           this.resetForm();
           this.snackBar.open('Configuration updated', 'Close', { duration: 3000 });
         },
-        error: (err) => {
+        error: (err: any) => {
           console.error('Failed to update config:', err);
           this.snackBar.open('Failed to update configuration', 'Close', { duration: 3000 });
         }
@@ -452,7 +545,7 @@ export class ModelsComponent implements OnInit {
     } else {
       // Create new config
       this.evaluationsService.createModelConfig(this.newConfig).subscribe({
-        next: (config) => {
+        next: (config: any) => {
           this.configs.set([{
             id: config.id,
             name: config.name,
@@ -464,7 +557,7 @@ export class ModelsComponent implements OnInit {
           this.resetForm();
           this.snackBar.open('Configuration created', 'Close', { duration: 3000 });
         },
-        error: (err) => {
+        error: (err: any) => {
           console.error('Failed to create config:', err);
           this.snackBar.open('Failed to create configuration', 'Close', { duration: 3000 });
         }
@@ -480,7 +573,7 @@ export class ModelsComponent implements OnInit {
         this.configs.set(this.configs().filter(c => c.id !== config.id));
         this.snackBar.open('Configuration deleted', 'Close', { duration: 3000 });
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Failed to delete config:', err);
         this.snackBar.open('Failed to delete configuration', 'Close', { duration: 3000 });
       }
@@ -496,7 +589,13 @@ export class ModelsComponent implements OnInit {
       api_key: '',
       temperature: 0,
       max_tokens: 1024,
-      concurrency: 3
+      concurrency: 3,
+      pricing_config: {
+        input_price_per_1m: 0,
+        output_price_per_1m: 0,
+        image_price_val: 0,
+        discount_percent: 0
+      }
     };
   }
 
@@ -523,11 +622,11 @@ export class ModelsComponent implements OnInit {
     this.testResult = null;
 
     this.evaluationsService.testModelConfig(this.testConfigId, this.testPrompt).subscribe({
-      next: (result) => {
+      next: (result: any) => {
         this.testResult = result;
         this.testing.set(false);
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Test failed:', err);
         this.testResult = {
           success: false,
@@ -536,5 +635,41 @@ export class ModelsComponent implements OnInit {
         this.testing.set(false);
       }
     });
+  }
+
+  onExport() {
+    this.evaluationsService.exportModelConfigs().subscribe({
+      next: (blob: any) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'model_configs_export.json';
+        link.click();
+        window.URL.revokeObjectURL(url);
+      },
+      error: (err: any) => {
+        console.error('Export failed:', err);
+        this.snackBar.open('Failed to export configurations', 'Close', { duration: 3000 });
+      }
+    });
+  }
+
+  onImport(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      const file = input.files[0];
+      this.evaluationsService.importModelConfigs(file).subscribe({
+        next: (res: any) => {
+          this.snackBar.open(res.message, 'Close', { duration: 3000 });
+          this.loadConfigs(); // Refresh list
+          input.value = ''; // Reset input
+        },
+        error: (err: any) => {
+          console.error('Import failed:', err);
+          this.snackBar.open('Failed to import configurations', 'Close', { duration: 3000 });
+          input.value = ''; // Reset input
+        }
+      });
+    }
   }
 }

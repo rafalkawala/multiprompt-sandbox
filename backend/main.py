@@ -75,6 +75,81 @@ async def sync_admin_users():
     finally:
         db.close()
 
+@app.on_event("startup")
+async def seed_model_configs():
+    """Seed model configurations from models.json on startup"""
+    import json
+    from models.evaluation import ModelConfig
+    
+    config_path = os.path.join(os.path.dirname(__file__), "config", "models.json")
+    if not os.path.exists(config_path):
+        logger.warning(f"Model config seed file not found at {config_path}")
+        return
+
+    logger.info(f"Seeding model configs from {config_path}")
+    db = SessionLocal()
+    try:
+        # Find an admin user to own these configs
+        admin = db.query(User).filter(User.role == UserRole.ADMIN.value).first()
+        if not admin:
+            # Fallback to any user
+            admin = db.query(User).first()
+        
+        if not admin:
+            logger.warning("No users found in database. Skipping model config seeding.")
+            return
+
+        with open(config_path, 'r') as f:
+            data = json.load(f)
+
+        imported = 0
+        updated = 0
+
+        for item in data:
+            # Check for existing config
+            existing = db.query(ModelConfig).filter(
+                ModelConfig.created_by_id == admin.id,
+                ModelConfig.provider == item["provider"],
+                ModelConfig.model_name == item["model_name"]
+            ).first()
+
+            if existing:
+                # Update essential fields
+                existing.name = item.get("display_name", item.get("name", existing.name)) # Use display_name as name if avail
+                existing.endpoint = item.get("endpoint", getattr(existing, "endpoint", None)) # Handle endpoint if schema allows (schema doesn't have endpoint col? Check model.)
+                # Wait, ModelConfig schema doesn't have 'endpoint' or 'display_name'. It has 'name'.
+                # Mapping: json 'display_name' -> db 'name'.
+                existing.name = item.get("display_name", item.get("model_name"))
+                
+                existing.temperature = item.get("temperature", 0.0)
+                existing.max_tokens = item.get("max_tokens", 1024)
+                existing.pricing_config = item.get("pricing_config", existing.pricing_config)
+                # Keep API key if set in DB, unless seed has one? Seed usually doesn't have secrets.
+                updated += 1
+            else:
+                new_config = ModelConfig(
+                    name=item.get("display_name", item.get("model_name")),
+                    provider=item["provider"],
+                    model_name=item["model_name"],
+                    api_key="sk-placeholder", # Placeholder
+                    temperature=0.0,
+                    max_tokens=1024,
+                    concurrency=3,
+                    pricing_config=item.get("pricing_config", {}),
+                    is_active=True,
+                    created_by_id=admin.id
+                )
+                db.add(new_config)
+                imported += 1
+        
+        db.commit()
+        logger.info(f"Model config seeding complete: {imported} imported, {updated} updated.")
+
+    except Exception as e:
+        logger.error(f"Error seeding model configs: {e}")
+    finally:
+        db.close()
+
 @app.on_event("shutdown")
 async def shutdown_event():
     """Close resources on shutdown"""
