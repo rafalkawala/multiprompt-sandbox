@@ -743,6 +743,92 @@ async def get_evaluation(
         cost_details=evaluation.cost_details
     )
 
+@router.get("/{evaluation_id}/estimate-cost")
+async def estimate_evaluation_cost(
+    evaluation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Estimate the cost of running an evaluation"""
+    evaluation = db.query(Evaluation).filter(
+        Evaluation.id == evaluation_id,
+        Evaluation.created_by_id == current_user.id
+    ).first()
+    if not evaluation:
+        raise HTTPException(status_code=404, detail="Evaluation not found")
+
+    # Get model config with pricing
+    model_config = db.query(ModelConfig).filter(ModelConfig.id == evaluation.model_config_id).first()
+    if not model_config:
+        raise HTTPException(status_code=404, detail="Model config not found")
+
+    # Get pricing configuration
+    pricing_config = model_config.pricing_config or {}
+    if not pricing_config:
+        return {
+            "estimated_cost": 0,
+            "image_count": 0,
+            "avg_cost_per_image": 0,
+            "details": {"error": "No pricing configuration available for this model"}
+        }
+
+    # Determine image count based on selection_config
+    if evaluation.selection_config:
+        selection_mode = evaluation.selection_config.get('mode', 'all')
+        if selection_mode == 'manual' and 'image_ids' in evaluation.selection_config:
+            image_count = len(evaluation.selection_config['image_ids'])
+        elif selection_mode == 'random' and 'limit' in evaluation.selection_config:
+            total_images = db.query(Image).filter(Image.dataset_id == evaluation.dataset_id).count()
+            image_count = min(evaluation.selection_config['limit'], total_images)
+        else:
+            image_count = db.query(Image).filter(Image.dataset_id == evaluation.dataset_id).count()
+    else:
+        image_count = db.query(Image).filter(Image.dataset_id == evaluation.dataset_id).count()
+
+    # Calculate cost per image
+    input_price_per_1m = pricing_config.get('input_price_per_1m', 0)
+    output_price_per_1m = pricing_config.get('output_price_per_1m', 0)
+    image_price_val = pricing_config.get('image_price_val', 0)
+    discount_percent = pricing_config.get('discount_percent', 0)
+
+    # Estimate token usage (rough estimates)
+    # System message + question text + image tokens
+    estimated_input_tokens = 1000  # Base prompt
+    estimated_output_tokens = 200   # Expected response
+
+    # Calculate text cost
+    text_cost_per_image = (
+        (estimated_input_tokens * input_price_per_1m / 1_000_000) +
+        (estimated_output_tokens * output_price_per_1m / 1_000_000)
+    )
+
+    # Calculate image cost
+    image_cost = image_price_val / 1_000_000  # Convert to per-image cost
+
+    # Total per image
+    cost_per_image = text_cost_per_image + image_cost
+
+    # Apply discount
+    if discount_percent > 0:
+        cost_per_image *= (1 - discount_percent / 100)
+
+    # Total cost
+    total_cost = cost_per_image * image_count
+
+    return {
+        "estimated_cost": round(total_cost, 6),
+        "image_count": image_count,
+        "avg_cost_per_image": round(cost_per_image, 6),
+        "details": {
+            "input_price_per_1m": input_price_per_1m,
+            "output_price_per_1m": output_price_per_1m,
+            "image_price_val": image_price_val,
+            "discount_percent": discount_percent,
+            "estimated_input_tokens": estimated_input_tokens,
+            "estimated_output_tokens": estimated_output_tokens
+        }
+    }
+
 @router.get("/{evaluation_id}/results", response_model=List[EvaluationResultItem])
 async def get_evaluation_results(
     evaluation_id: str,

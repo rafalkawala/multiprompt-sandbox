@@ -11,6 +11,7 @@ export interface ModelConfig {
   max_tokens: number;
   concurrency: number;
   additional_params: any;
+  pricing_config: any;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -34,6 +35,7 @@ export interface CreateModelConfig {
   max_tokens?: number;
   concurrency?: number;  // Number of parallel API calls (default: 3)
   additional_params?: any;
+  pricing_config?: any;  // Cost tracking configuration
 }
 
 // Multi-phase prompting interfaces
