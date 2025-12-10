@@ -80,6 +80,7 @@ async def seed_model_configs():
     """Seed model configurations from models.json on startup"""
     import json
     from models.evaluation import ModelConfig
+    import os
     
     config_path = os.path.join(os.path.dirname(__file__), "config", "models.json")
     if not os.path.exists(config_path):

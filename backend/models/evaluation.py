@@ -13,6 +13,7 @@ class ModelConfig(Base):
     provider = Column(String, nullable=False)  # 'gemini', 'openai', 'anthropic'
     model_name = Column(String, nullable=False)  # e.g., 'gemini-1.5-pro', 'gpt-4o', 'claude-3-sonnet'
     api_key = Column(String, nullable=False)  # encrypted in production
+    auth_type = Column(String, default="api_key", nullable=False)  # 'api_key', 'service_account', 'google_adc'
 
     temperature = Column(Float, default=0.0)
     max_tokens = Column(Integer, default=1024)

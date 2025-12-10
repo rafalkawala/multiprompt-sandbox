@@ -3,7 +3,9 @@ from typing import Optional, Tuple, Dict, Any
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception
 import httpx
 import logging
+import os
 
+from core.config import settings
 from infrastructure.llm.gemini import GeminiProvider
 from infrastructure.llm.openai import OpenAIProvider
 from infrastructure.llm.anthropic import AnthropicProvider
@@ -47,8 +49,22 @@ class LLMService:
         if not provider:
             raise ValueError(f"Unknown provider: {provider_name}")
 
+        # Secret Injection: Fallback to env vars if key is missing/placeholder
+        final_api_key = api_key
+        if not final_api_key or final_api_key == "sk-placeholder":
+            if provider_name == "openai":
+                final_api_key = os.environ.get("OPENAI_API_KEY")
+            elif provider_name == "anthropic":
+                final_api_key = os.environ.get("ANTHROPIC_API_KEY")
+            elif provider_name == "gemini":
+                # Gemini provider might use ADC if key is None, but let's check env too
+                final_api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+            
+            if final_api_key:
+                logger.info(f"Using environment variable API key for {provider_name}")
+
         return await provider.generate_content(
-            api_key=api_key,
+            api_key=final_api_key,
             model_name=model_name,
             image_data=image_data,
             mime_type=mime_type,
