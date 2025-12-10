@@ -1,6 +1,7 @@
 import time
 import httpx
 import base64
+import os
 from typing import Tuple, Optional, Dict, Any, List
 from core.interfaces.llm import ILLMProvider
 from core.http_client import HttpClient
@@ -102,9 +103,25 @@ class GeminiProvider(ILLMProvider):
         full_prompt = f"{system_message}\n\n{prompt}" if system_message else prompt
 
         # Decision Logic:
-        # If API Key is present, assume Local Dev using AI Studio.
-        # If API Key is missing, assume GCP using ADC/Vertex.
-        if api_key and api_key != "sk-placeholder":
+        # Prioritize auth_type if present.
+        # 'api_key' -> AI Studio
+        # 'google_adc' -> Vertex AI
+        # Fallback to legacy logic: if api_key is present -> AI Studio, else -> Vertex AI
+
+        use_api_key = False
+
+        if auth_type == "api_key":
+            use_api_key = True
+        elif auth_type == "google_adc":
+            use_api_key = False
+        else:
+            # Legacy logic
+            if api_key and api_key != "sk-placeholder":
+                use_api_key = True
+            else:
+                use_api_key = False
+
+        if use_api_key:
             # Prepare parts
             parts = []
             if image_data and mime_type:
@@ -113,6 +130,9 @@ class GeminiProvider(ILLMProvider):
 
             # Use Google AI API with API key (local development)
             client = HttpClient.get_client()
+            # If explicit auth_type=api_key is set but no key provided, this might fail unless key is in params or env?
+            # The calling service should have resolved api_key.
+
             response = await client.post(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent",
                 params={"key": api_key},
