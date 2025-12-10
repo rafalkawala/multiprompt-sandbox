@@ -86,6 +86,7 @@ class GeminiProvider(ILLMProvider):
     async def generate_content(
         self,
         api_key: Optional[str],
+        auth_type: Optional[str],
         model_name: str,
         image_data: Optional[str],
         mime_type: Optional[str],
@@ -100,8 +101,8 @@ class GeminiProvider(ILLMProvider):
         # Combine system message with prompt
         full_prompt = f"{system_message}\n\n{prompt}" if system_message else prompt
 
-        # Use Vertex AI if no API key (service account auth in Cloud Run)
-        if not api_key:
+        # Use Vertex AI if configured for ADC/Service Account OR if no API key provided
+        if (auth_type in ['google_adc', 'service_account']) or (not api_key):
             return await self._call_vertex(model_name, image_data, mime_type, full_prompt, temperature, max_tokens, start_time)
 
         # Prepare parts

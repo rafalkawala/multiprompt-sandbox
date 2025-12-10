@@ -123,6 +123,7 @@ class OpenAIProvider(ILLMProvider):
     async def generate_content(
         self,
         api_key: Optional[str],
+        auth_type: Optional[str],
         model_name: str,
         image_data: Optional[str],
         mime_type: Optional[str],

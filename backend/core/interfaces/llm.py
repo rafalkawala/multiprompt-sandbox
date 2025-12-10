@@ -8,6 +8,7 @@ class ILLMProvider(ABC):
     async def generate_content(
         self,
         api_key: Optional[str],
+        auth_type: Optional[str],
         model_name: str,
         image_data: Optional[str],
         mime_type: Optional[str],
@@ -21,6 +22,7 @@ class ILLMProvider(ABC):
 
         Args:
             api_key: API Key for the provider.
+            auth_type: Authentication type (e.g., 'api_key', 'google_adc').
             model_name: Name of the model to use.
             image_data: Base64 encoded image data (optional).
             mime_type: Mime type of the image (optional).

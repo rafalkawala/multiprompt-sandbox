@@ -36,6 +36,7 @@ class LLMService:
         self,
         provider_name: str,
         api_key: Optional[str],
+        auth_type: Optional[str],
         model_name: str,
         prompt: str,
         image_data: Optional[str] = None,
@@ -65,6 +66,7 @@ class LLMService:
 
         return await provider.generate_content(
             api_key=final_api_key,
+            auth_type=auth_type,
             model_name=model_name,
             image_data=image_data,
             mime_type=mime_type,

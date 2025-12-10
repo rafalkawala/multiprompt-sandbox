@@ -389,6 +389,7 @@ async def test_model_config(
         response_text, latency, usage = await llm_service.generate_content(
             provider_name=config.provider,
             api_key=config.api_key,
+            auth_type=config.auth_type,
             model_name=config.model_name,
             prompt=data.prompt,
             temperature=config.temperature,
