@@ -160,6 +160,13 @@ class VertexAIProvider(ILLMProvider):
 
         headers["Authorization"] = f"Bearer {access_token}"
 
+        # DEBUG: Log the exact request
+        logger.info(f"=== VERTEX AI REQUEST DEBUG ===")
+        logger.info(f"Endpoint: {endpoint}")
+        logger.info(f"Headers: {headers}")
+        logger.info(f"Request Body: {request_body}")
+        logger.info(f"=== END DEBUG ===")
+
         response = await client.post(
             endpoint,
             headers=headers,
@@ -170,6 +177,11 @@ class VertexAIProvider(ILLMProvider):
 
         if response.status_code != 200:
             error_detail = response.text
+            logger.error(f"=== VERTEX AI ERROR DEBUG ===")
+            logger.error(f"Status Code: {response.status_code}")
+            logger.error(f"Response: {error_detail}")
+            logger.error(f"Request was: {request_body}")
+            logger.error(f"=== END ERROR DEBUG ===")
             raise Exception(f"Vertex AI API error (status {response.status_code}): {error_detail}")
 
         result = response.json()
