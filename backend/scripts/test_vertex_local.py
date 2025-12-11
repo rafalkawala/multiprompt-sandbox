@@ -16,7 +16,7 @@ async def test_vertex_connection():
     """
     Test connectivity to Vertex AI using local credentials (ADC).
     """
-    print("\n=== Testing Vertex AI Local Connectivity ===\n")
+    print("\n=== Testing Vertex AI Local Connectivity & Diagnostics ===\n")
 
     # 1. Check Credentials
     print("1. Checking Application Default Credentials (ADC)...")
@@ -49,52 +49,79 @@ async def test_vertex_connection():
 
     # 2. Configure Request
     location = os.environ.get("GCP_LOCATION", "us-central1")
-    model_name = "gemini-1.5-pro-preview-0409" # Or another available model
+    # Use a real model for the "Valid" test
+    valid_model_name = "gemini-1.5-flash-preview-0514"
+    # Use the model name likely in the user's config to test if THAT is the cause
+    config_model_name = "gemini-3-pro-preview"
 
-    # Use the regional endpoint structure
-    endpoint = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/models/{model_name}:generateContent"
 
-    print(f"\n2. Preparing Request...")
-    print(f"   Endpoint: {endpoint}")
+    # --- Helper to send request ---
+    async def run_test(name, model, payload_modifier=None):
+        print(f"\n--- TEST: {name} ---")
+        endpoint = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/models/{model}:generateContent"
 
-    request_body = {
-        "contents": [
-            {
-                "role": "user",
-                "parts": [{"text": "Hello, this is a test from the local environment. Please reply with 'Success'."}]
+        # Base valid payload
+        body = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": "Hello, reply with 'OK'."}]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.0,
+                "maxOutputTokens": 10
             }
-        ],
-        "generationConfig": {
-            "temperature": 0.0,
-            "maxOutputTokens": 100
         }
-    }
 
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {credentials.token}"
-    }
+        if payload_modifier:
+            body = payload_modifier(body)
 
-    # 3. Send Request
-    print(f"\n3. Sending Request to Vertex AI...")
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(endpoint, headers=headers, json=request_body)
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {credentials.token}"
+        }
 
-            if response.status_code == 200:
-                print("   [SUCCESS] Response received!")
-                data = response.json()
-                try:
-                    text = data['candidates'][0]['content']['parts'][0]['text']
-                    print(f"   Response Text: {text.strip()}")
-                except:
-                    print(f"   Raw Response: {json.dumps(data, indent=2)}")
-            else:
-                print(f"   [FAIL] Status Code: {response.status_code}")
-                print(f"   Error Response: {response.text}")
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(endpoint, headers=headers, json=body)
 
-    except Exception as e:
-        print(f"   [FAIL] Request failed: {e}")
+                print(f"   Status Code: {response.status_code}")
+                if response.status_code != 200:
+                    try:
+                        err_json = response.json()
+                        print(f"   Error JSON: {json.dumps(err_json, indent=2)}")
+                    except:
+                        print(f"   Error Text: {response.text}")
+                else:
+                    print("   [SUCCESS] Request worked.")
+
+        except Exception as e:
+            print(f"   [FAIL] Exception: {e}")
+
+    # TEST A: Happy Path (Valid Model, Valid Payload)
+    # await run_test("Happy Path (Real Model)", valid_model_name)
+
+    # TEST B: Invalid Payload - System Instruction with Role (The fix I made)
+    def add_bad_system_instruction(body):
+        body["systemInstruction"] = {
+            "role": "user", # <--- THIS IS THE BUG
+            "parts": [{"text": "Be helpful."}]
+        }
+        return body
+
+    await run_test("Diagnostic: Bad Payload (System Role)", valid_model_name, add_bad_system_instruction)
+
+    # TEST C: Invalid Payload - Wrong Types (String instead of Float)
+    def add_bad_types(body):
+        body["generationConfig"]["temperature"] = "0.5" # String!
+        return body
+
+    await run_test("Diagnostic: Bad Payload (String Types)", valid_model_name, add_bad_types)
+
+    # TEST D: Invalid Model Name (What's in their config)
+    await run_test("Diagnostic: Invalid Model Name", config_model_name)
+
 
 if __name__ == "__main__":
     if sys.platform == "win32":
