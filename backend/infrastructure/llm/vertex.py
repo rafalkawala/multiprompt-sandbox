@@ -141,7 +141,8 @@ class VertexAIProvider(ILLMProvider):
         # Build Vertex AI endpoint URL
         # Note: aiplatform.googleapis.com does NOT support API key authentication
         # Only OAuth2/ADC is supported
-        endpoint = f"https://aiplatform.googleapis.com/v1/publishers/google/models/{model_name}:streamGenerateContent"
+        # Using generateContent (non-streaming) instead of streamGenerateContent
+        endpoint = f"https://aiplatform.googleapis.com/v1/publishers/google/models/{model_name}:generateContent"
 
         client = HttpClient.get_client()
         headers = {"Content-Type": "application/json"}
