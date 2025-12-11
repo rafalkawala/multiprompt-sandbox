@@ -8,6 +8,16 @@ from typing import Dict, Any
 # Adjust path to include backend root
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+# Pre-set critical environment variables to ensure config loads even without a .env file
+# This is "absolutely necessary" for a standalone validation script to be robust.
+if "SECRET_KEY" not in os.environ:
+    os.environ["SECRET_KEY"] = "dummy_key_for_cost_validation_script"
+if "GOOGLE_CLIENT_ID" not in os.environ:
+    os.environ["GOOGLE_CLIENT_ID"] = "dummy_client_id"
+if "GOOGLE_CLIENT_SECRET" not in os.environ:
+    os.environ["GOOGLE_CLIENT_SECRET"] = "dummy_client_secret"
+
+# Import providers after setting env vars
 from infrastructure.llm.gemini import GeminiProvider
 from infrastructure.llm.vertex import VertexAIProvider
 from infrastructure.llm.openai import OpenAIProvider
@@ -49,11 +59,6 @@ def validate_model_costs(config_path: str):
     input_text = "This is a test prompt with roughly 50 tokens." * 5 # ~250 chars -> ~60 tokens
     output_est_text = "This is a predicted response." * 5 # ~60 tokens
     images = [] # No images for basic text test
-
-    # Mock token counts for calculation verification (Providers use internal logic, but we pass raw text)
-    # Gemini/Vertex: chars / 4
-    # OpenAI/Anthropic: usually approximation or library calls.
-    # Here we just want to ensure the estimate_cost function runs and returns a non-negative float.
 
     failed_count = 0
 
