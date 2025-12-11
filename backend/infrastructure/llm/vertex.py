@@ -5,6 +5,7 @@ import logging
 from typing import Tuple, Optional, Dict, Any, List
 from core.interfaces.llm import ILLMProvider
 from core.http_client import HttpClient
+from core.config import settings
 from google.auth import default
 from google.auth.transport.requests import Request
 
@@ -84,10 +85,11 @@ class VertexAIProvider(ILLMProvider):
 
         return round(cost, 6)
 
-    async def _get_access_token(self) -> Optional[str]:
+    async def _get_access_token(self) -> Tuple[Optional[str], Optional[str]]:
         """
         Get access token using Application Default Credentials (ADC).
         This works in both local dev (with gcloud auth) and GCP environments.
+        Returns tuple of (token, project_id)
         """
         try:
             credentials, project = default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
@@ -97,10 +99,10 @@ class VertexAIProvider(ILLMProvider):
                 auth_req = Request()
                 credentials.refresh(auth_req)
 
-            return credentials.token
+            return credentials.token, project
         except Exception as e:
             logger.warning(f"Failed to get ADC token: {e}")
-            return None
+            return None, None
 
     async def generate_content(
         self,
@@ -118,38 +120,41 @@ class VertexAIProvider(ILLMProvider):
         start_time = time.time()
 
         # Prepare request payload
+        # Structure for Vertex AI Gemini API:
+        # {
+        #   "contents": [
+        #     { "role": "user", "parts": [ { "text": "..." } ] }
+        #   ],
+        #   "systemInstruction": {
+        #     "parts": [ { "text": "..." } ]
+        #   },
+        #   "generationConfig": { ... }
+        # }
+
         parts = []
         if image_data and mime_type:
             parts.append({"inline_data": {"mime_type": mime_type, "data": image_data}})
         parts.append({"text": prompt})
 
+        # Ensure types are correct to avoid 400 Bad Request
         request_body = {
             "contents": [{"role": "user", "parts": parts}],
             "generationConfig": {
-                "temperature": temperature,
-                "maxOutputTokens": max_tokens
+                "temperature": float(temperature),
+                "maxOutputTokens": int(max_tokens)
             }
         }
 
         # Add system instruction if provided
+        # NOTE: Do NOT add 'role': 'user' here, it can cause 400 errors.
         if system_message:
             request_body["systemInstruction"] = {
-                "role": "user",
                 "parts": [{"text": system_message}]
             }
 
-        # Build Vertex AI endpoint URL
-        # Note: aiplatform.googleapis.com does NOT support API key authentication
-        # Only OAuth2/ADC is supported
-        # Using generateContent (non-streaming) instead of streamGenerateContent
-        endpoint = f"https://aiplatform.googleapis.com/v1/publishers/google/models/{model_name}:generateContent"
-
-        client = HttpClient.get_client()
-        headers = {"Content-Type": "application/json"}
-
         # Vertex AI requires ADC (Application Default Credentials)
         logger.info("Using ADC authentication for Vertex AI")
-        access_token = await self._get_access_token()
+        access_token, project_id = await self._get_access_token()
 
         if not access_token:
             raise ValueError(
@@ -158,12 +163,33 @@ class VertexAIProvider(ILLMProvider):
                 "GCP production: Workload identity is configured automatically"
             )
 
-        headers["Authorization"] = f"Bearer {access_token}"
+        # Use project from settings if not detected from ADC, or override if needed
+        if settings.GCP_PROJECT_ID:
+            project_id = settings.GCP_PROJECT_ID
 
-        # DEBUG: Log the exact request
+        if not project_id:
+            raise ValueError("GCP Project ID not found. Please set GCP_PROJECT_ID in settings or ensure ADC provides it.")
+
+        location = settings.GCP_LOCATION or "us-central1"
+
+        # Build Vertex AI endpoint URL
+        # Standard format: https://{LOCATION}-aiplatform.googleapis.com/v1/projects/{PROJECT}/locations/{LOCATION}/publishers/google/models/{MODEL}:generateContent
+        # Note: The global endpoint (aiplatform.googleapis.com) can sometimes be used, but the regional
+        # endpoint (e.g., us-central1-aiplatform.googleapis.com) is the standard documented approach
+        # for generateContent to ensure correct routing and data residency.
+        # CRITICAL: The URL path MUST include 'projects/{id}/locations/{loc}' to work.
+        endpoint = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/models/{model_name}:generateContent"
+
+        client = HttpClient.get_client()
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {access_token}"
+        }
+
+        # DEBUG: Log the exact request for troubleshooting 400 errors
         logger.info(f"=== VERTEX AI REQUEST DEBUG ===")
         logger.info(f"Endpoint: {endpoint}")
-        logger.info(f"Headers: {headers}")
+        # logger.info(f"Headers: {headers}") # Don't log headers with token
         logger.info(f"Request Body: {request_body}")
         logger.info(f"=== END DEBUG ===")
 
@@ -190,6 +216,10 @@ class VertexAIProvider(ILLMProvider):
         try:
             candidates = result.get('candidates', [])
             if not candidates:
+                # Handle blocked response (safety filters)
+                if result.get('promptFeedback', {}).get('blockReason'):
+                    block_reason = result.get('promptFeedback', {}).get('blockReason')
+                    raise ValueError(f"Response blocked by safety filters: {block_reason}")
                 raise ValueError("No candidates in response")
 
             content = candidates[0].get('content', {})
