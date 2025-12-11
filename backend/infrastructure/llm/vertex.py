@@ -174,11 +174,16 @@ class VertexAIProvider(ILLMProvider):
 
         # Build Vertex AI endpoint URL
         # Standard format: https://{LOCATION}-aiplatform.googleapis.com/v1/projects/{PROJECT}/locations/{LOCATION}/publishers/google/models/{MODEL}:generateContent
-        # Note: The global endpoint (aiplatform.googleapis.com) can sometimes be used, but the regional
-        # endpoint (e.g., us-central1-aiplatform.googleapis.com) is the standard documented approach
-        # for generateContent to ensure correct routing and data residency.
-        # CRITICAL: The URL path MUST include 'projects/{id}/locations/{loc}' to work.
-        endpoint = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/models/{model_name}:generateContent"
+
+        # Support for Global Endpoint (Dynamic Routing)
+        # If location is explicitly set to 'global', use the global endpoint format.
+        # Format: https://aiplatform.googleapis.com/v1/projects/{PROJECT}/locations/global/publishers/google/models/{MODEL}:generateContent
+        if location.lower() == 'global':
+            endpoint = f"https://aiplatform.googleapis.com/v1/projects/{project_id}/locations/global/publishers/google/models/{model_name}:generateContent"
+        else:
+            # Regional endpoint (Standard/Default)
+            # CRITICAL: The URL path MUST include 'projects/{id}/locations/{loc}' to work.
+            endpoint = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/models/{model_name}:generateContent"
 
         client = HttpClient.get_client()
         headers = {
