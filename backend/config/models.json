@@ -187,6 +187,23 @@
     }
   },
   {
+    "id": "vertex-gemini-2-5-flash-lite",
+    "provider": "vertex",
+    "model_name": "gemini-2.5-flash-lite",
+    "display_name": "Gemini 2.5 Flash-Lite (Vertex AI)",
+    "description": "Cost-optimized model via Vertex AI.",
+    "endpoint": "vertex-ai",
+    "auth_type": "google_adc",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 0.10,
+      "output_price_per_1m": 0.40,
+      "image_price_mode": "per_token",
+      "image_token_calc": "fixed_tokens",
+      "discount_percent": 0
+    }
+  },
+  {
     "id": "vertex-gemini-2-0-flash",
     "provider": "vertex",
     "model_name": "gemini-2.0-flash",
