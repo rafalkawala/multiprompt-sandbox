@@ -52,7 +52,7 @@ services:
       - ./backend/.env
     volumes:
       - ./backend:/app
-      - ${APPDATA}/gcloud/application_default_credentials.json:/root/.config/gcloud/application_default_credentials.json:ro
+      - /c/Users/rafal/AppData/Roaming/gcloud/application_default_credentials.json:/root/.config/gcloud/application_default_credentials.json:ro
     depends_on:
       - db # Ensure db is up before backend
     networks:

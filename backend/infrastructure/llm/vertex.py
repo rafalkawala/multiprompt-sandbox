@@ -134,6 +134,7 @@ class VertexAIProvider(ILLMProvider):
         # Add system instruction if provided
         if system_message:
             request_body["systemInstruction"] = {
+                "role": "user",
                 "parts": [{"text": system_message}]
             }
 
