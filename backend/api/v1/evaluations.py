@@ -375,6 +375,7 @@ async def run_evaluation_task(evaluation_id: str):
                         response_text, latency, usage_metadata = await llm_service.generate_content(
                             provider_name=model_config.provider,
                             api_key=model_config.api_key,
+                            auth_type=model_config.auth_type,
                             model_name=model_config.model_name,
                             image_data=image_data,
                             mime_type=mime_type,
@@ -582,6 +583,7 @@ async def run_evaluation_task(evaluation_id: str):
 
     except Exception as e:
         logger.error(f"Evaluation error: {str(e)}", exc_info=True)
+        db.rollback()  # Rollback any pending transaction
         evaluation.status = 'failed'
         evaluation.error_message = str(e)
         db.commit()

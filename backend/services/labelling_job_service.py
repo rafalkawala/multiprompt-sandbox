@@ -364,9 +364,10 @@ class LabellingJobService:
                     # Call LLM Service
                     llm_service = get_llm_service()
                     start = datetime.utcnow()
-                    response_text, latency = await llm_service.generate_content(
+                    response_text, latency, usage_metadata = await llm_service.generate_content(
                         provider_name=model_config.provider,
                         api_key=model_config.api_key,
+                        auth_type=model_config.auth_type,
                         model_name=model_config.model_name,
                         image_data=image_data,
                         mime_type=mime_type,

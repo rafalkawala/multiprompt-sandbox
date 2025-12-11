@@ -102,9 +102,10 @@ async def analyze_image(
         
         image_b64 = base64.b64encode(content).decode('utf-8')
         
-        text, _ = await llm_service.generate_content(
+        text, _, _ = await llm_service.generate_content(
             provider_name="gemini",
             api_key=settings.GEMINI_API_KEY,
+            auth_type="api_key",
             model_name=settings.GEMINI_MODEL,
             prompt=prompt,
             image_data=image_b64,
