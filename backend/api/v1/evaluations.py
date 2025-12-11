@@ -343,7 +343,7 @@ async def run_evaluation_task(evaluation_id: str):
         
         # Process images in parallel with concurrency limit
         async def process_image(i: int, image):
-            nonlocal correct_count, failed_count, error_messages, completed_count
+            nonlocal correct_count, failed_count, error_messages, completed_count, total_actual_cost
 
             async with semaphore:  # Limit concurrent API calls
                 try:
