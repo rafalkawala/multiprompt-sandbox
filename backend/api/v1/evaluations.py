@@ -30,6 +30,8 @@ from api.v1.auth import get_current_user
 from services.storage_service import get_storage_provider
 # Import LLM Service
 from services.llm_service import get_llm_service
+# Import Cost Estimation Service
+from services.cost_estimation_service import get_cost_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
