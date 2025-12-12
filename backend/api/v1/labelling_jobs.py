@@ -9,11 +9,13 @@ from datetime import datetime, timedelta
 import logging
 import asyncio
 import threading
+import base64
 
 from core.database import SessionLocal
 from models.labelling_job import LabellingJob, LabellingJobRun, LabellingResult
 from models.project import Project, Dataset
 from models.evaluation import Evaluation, ModelConfig
+from models.image import Image
 from models.user import User
 from api.v1.auth import get_current_user
 from services.labelling_job_service import get_labelling_job_service
@@ -68,6 +70,7 @@ class LabellingJobResponse(BaseModel):
     project_id: str
     dataset_id: Optional[str]
     dataset_name: Optional[str]
+    thumbnail: Optional[str] = None
     gcs_folder_path: str
     last_processed_timestamp: Optional[datetime]
     frequency_minutes: int
@@ -255,12 +258,28 @@ async def list_labelling_jobs(
     responses = []
     for job in jobs:
         dataset_name = job.dataset.name if job.dataset else None
+        
+        # Fetch thumbnail from latest result
+        thumbnail = None
+        try:
+            latest_result = db.query(LabellingResult).filter(
+                LabellingResult.labelling_job_id == job.id,
+                LabellingResult.image_id.isnot(None)
+            ).order_by(LabellingResult.created_at.desc()).first()
+            
+            if latest_result and latest_result.image and latest_result.image.thumbnail_data:
+                b64_data = base64.b64encode(latest_result.image.thumbnail_data).decode('utf-8')
+                thumbnail = f"data:image/jpeg;base64,{b64_data}"
+        except Exception as e:
+            logger.error(f"Failed to fetch thumbnail for job {job.id}: {e}")
+
         response = LabellingJobResponse(
             id=str(job.id),
             name=job.name,
             project_id=str(job.project_id),
             dataset_id=str(job.dataset_id) if job.dataset_id else None,
             dataset_name=dataset_name,
+            thumbnail=thumbnail,
             gcs_folder_path=job.gcs_folder_path,
             last_processed_timestamp=job.last_processed_timestamp,
             frequency_minutes=job.frequency_minutes,

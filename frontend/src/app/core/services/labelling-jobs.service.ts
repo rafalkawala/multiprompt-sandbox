@@ -9,6 +9,7 @@ export interface LabellingJob {
   project_id: string;
   dataset_id: string | null;
   dataset_name: string | null;
+  thumbnail?: string | null;
   gcs_folder_path: string;
   last_processed_timestamp: string | null;
   frequency_minutes: number;
