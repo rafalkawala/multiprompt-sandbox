@@ -39,8 +39,10 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy application code
 COPY . .
 
-# Create non-root user
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+# Create non-root user and gcloud config directory
+RUN useradd -m -u 1000 appuser && \
+    mkdir -p /home/appuser/.config/gcloud && \
+    chown -R appuser:appuser /app /home/appuser/.config
 USER appuser
 
 # Expose port (Cloud Run uses 8080, local uses 8000)

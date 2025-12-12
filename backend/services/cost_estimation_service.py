@@ -8,6 +8,7 @@ from models.image import Image
 from infrastructure.llm.openai import OpenAIProvider
 from infrastructure.llm.anthropic import AnthropicProvider
 from infrastructure.llm.gemini import GeminiProvider
+from infrastructure.llm.vertex import VertexAIProvider
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,8 @@ class CostEstimationService:
         self._providers = {
             "openai": OpenAIProvider(),
             "anthropic": AnthropicProvider(),
-            "gemini": GeminiProvider()
+            "gemini": GeminiProvider(),
+            "vertex": VertexAIProvider()
         }
 
     def _get_provider(self, provider_name: str):
