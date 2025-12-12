@@ -408,8 +408,36 @@ async def run_evaluation_task(evaluation_id: str):
                     total_row_cost = 0.0
 
                     for step in steps:
-                        # ... (existing loop code) ...
-                        # ...
+                        step_num = step['step_number']
+                        system_message = step.get('system_message')
+                        prompt_template = step['prompt']
+                        
+                        # Substitute variables from previous steps
+                        prompt = substitute_variables(prompt_template, outputs)
+                        
+                        # Call LLM Service
+                        start_time = time.time()
+                        llm_service = get_llm_service()
+                        
+                        response_text, token_count, usage_metadata = await llm_service.generate_content(
+                            provider_name=model_config_data['provider'],
+                            api_key=model_config_data['api_key'],
+                            auth_type=model_config_data['auth_type'],
+                            model_name=model_config_data['model_name'],
+                            prompt=prompt,
+                            image_data=image_data,
+                            mime_type=mime_type,
+                            system_message=system_message,
+                            temperature=model_config_data['temperature'],
+                            max_tokens=model_config_data['max_tokens']
+                        )
+                        
+                        latency = int((time.time() - start_time) * 1000)
+                        total_latency += latency
+                        
+                        # Store output for subsequent steps
+                        outputs[step_num] = response_text
+
                         # Calculate cost for this step
                         step_cost = 0.0
                         step_cost_details = {}
