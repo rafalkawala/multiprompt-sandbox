@@ -163,7 +163,7 @@
       <div class="grid-cell value-cell" *ngFor="let item of comparisonData()">
         <ng-container *ngIf="item.evaluation.actual_cost !== null; else noCost">
           <div class="cost-display">
-            <strong>${{ item.evaluation.actual_cost.toFixed(2) }}</strong>
+            <strong>${{ item.evaluation.actual_cost.toFixed(4).slice(0, -2) }}<span class="small-cost">{{ item.evaluation.actual_cost.toFixed(4).slice(-2) }}</span></strong>
             <span class="cost-detail" *ngIf="item.evaluation.cost_details">
               {{ item.evaluation.cost_details.total_tokens || 0 }} tokens
             </span>

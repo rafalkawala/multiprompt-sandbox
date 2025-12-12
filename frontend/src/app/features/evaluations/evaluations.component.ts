@@ -224,7 +224,7 @@ import { SubselectionDialogComponent, SubselectionConfig } from './subselection-
                 }
                 @if (selectedEvaluation && selectedEvaluation.id === evaluation.id && selectedEvaluation.actual_cost !== null) {
                   <span class="cost-text">
-                    Cost: \${{ (selectedEvaluation.actual_cost ?? 0).toFixed(2) }}
+                    Cost: \${{ (selectedEvaluation.actual_cost ?? 0).toFixed(4).slice(0, -2) }}<span class="small-cost">{{ (selectedEvaluation.actual_cost ?? 0).toFixed(4).slice(-2) }}</span>
                   </span>
                 }
               </div>
@@ -589,6 +589,11 @@ import { SubselectionDialogComponent, SubselectionConfig } from './subselection-
     .cost-text {
       font-weight: 500;
       color: #137333;
+    }
+
+    .small-cost {
+      font-size: 0.75em;
+      color: #80868b;
     }
 
     .estimated-cost-display {
