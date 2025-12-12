@@ -294,14 +294,34 @@ import { SubselectionDialogComponent, SubselectionConfig } from './subselection-
                     </mat-panel-title>
                   </mat-expansion-panel-header>
                   <div class="prompt-content">
-                    <div class="prompt-field">
-                      <strong>System Message:</strong>
-                      <pre>{{ selectedEvaluation.system_message || 'Not specified' }}</pre>
-                    </div>
-                    <div class="prompt-field">
-                      <strong>Question Text:</strong>
-                      <pre>{{ selectedEvaluation.question_text || 'Not specified' }}</pre>
-                    </div>
+                    @if (selectedEvaluation.prompt_chain && selectedEvaluation.prompt_chain.length > 0) {
+                      <mat-accordion multi>
+                        @for (step of selectedEvaluation.prompt_chain; track step.step_number) {
+                          <mat-expansion-panel [expanded]="true">
+                            <mat-expansion-panel-header>
+                              <mat-panel-title>Step {{ step.step_number }}</mat-panel-title>
+                            </mat-expansion-panel-header>
+                            <div class="prompt-field">
+                              <strong>System Message:</strong>
+                              <pre>{{ step.system_message || 'Not specified' }}</pre>
+                            </div>
+                            <div class="prompt-field">
+                              <strong>Prompt:</strong>
+                              <pre>{{ step.prompt }}</pre>
+                            </div>
+                          </mat-expansion-panel>
+                        }
+                      </mat-accordion>
+                    } @else {
+                      <div class="prompt-field">
+                        <strong>System Message:</strong>
+                        <pre>{{ selectedEvaluation.system_message || 'Not specified' }}</pre>
+                      </div>
+                      <div class="prompt-field">
+                        <strong>Question Text:</strong>
+                        <pre>{{ selectedEvaluation.question_text || 'Not specified' }}</pre>
+                      </div>
+                    }
                   </div>
                 </mat-expansion-panel>
               }
