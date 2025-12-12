@@ -155,7 +155,7 @@
 
     mat-card-content {
       flex: 1;
-      padding: 1rem 0;
+      padding: 16px;
 
       .job-info {
         margin-bottom: 1.5rem;
@@ -172,7 +172,7 @@
             font-size: 18px;
             width: 18px;
             height: 18px;
-            color: rgba(0, 0, 0, 0.5);
+            color: rgba(0, 0, 0, 0.7);
           }
 
           .label {
@@ -401,7 +401,7 @@
       mat-card-content {
         .job-info .info-row {
           mat-icon {
-            color: rgba(255, 255, 255, 0.5);
+            color: rgba(255, 255, 255, 0.7);
           }
 
           .label {
