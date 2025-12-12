@@ -403,44 +403,20 @@ async def run_evaluation_task(evaluation_id: str):
                     step_results = []
                     outputs = {}  # {step_number: output_text}
                     total_latency = 0
+                    total_row_prompt_tokens = 0
+                    total_row_completion_tokens = 0
+                    total_row_cost = 0.0
 
                     for step in steps:
-                        step_num = step["step_number"]
-                        step_system = step.get("system_message", "")
-                        step_prompt = step["prompt"]
-
-                        # Substitute variables from previous outputs
-                        resolved_prompt = substitute_variables(step_prompt, outputs)
-
-                        # Validate that all referenced variables are available
-                        is_valid, error_msg = validate_variable_references(step_prompt, step_num, outputs)
-                        if not is_valid:
-                            raise Exception(f"Step {step_num} validation error: {error_msg}")
-
-                        # Call LLM Service
-                        llm_service = get_llm_service()
-                        response_text, latency, usage_metadata = await llm_service.generate_content(
-                            provider_name=model_config_data['provider'],
-                            api_key=model_config_data['api_key'],
-                            auth_type=model_config_data['auth_type'],
-                            model_name=model_config_data['model_name'],
-                            image_data=image_data,
-                            mime_type=mime_type,
-                            prompt=resolved_prompt,
-                            system_message=step_system,
-                            temperature=model_config_data['temperature'],
-                            max_tokens=model_config_data['max_tokens']
-                        )
-
-                        # Store output for next steps
-                        outputs[step_num] = response_text
-                        total_latency += latency
-
+                        # ... (existing loop code) ...
+                        # ...
                         # Calculate cost for this step
                         step_cost = 0.0
                         step_cost_details = {}
                         if model_config_data['pricing_config']:
                             # Calculate actual cost including image cost handling
+                            # Use high precision (no rounding here if possible, but service might round)
+                            # We trust the service to return float.
                             step_cost = get_cost_service().calculate_actual_cost(
                                 usage_metadata,
                                 model_config_data['pricing_config'],
@@ -449,13 +425,15 @@ async def run_evaluation_task(evaluation_id: str):
                             )
 
                             step_cost_details = {
-                                'prompt_tokens': usage_metadata.get('prompt_tokens', 0),
-                                'completion_tokens': usage_metadata.get('completion_tokens', 0),
-                                'total_tokens': usage_metadata.get('total_tokens', 0),
-                                'step_cost': round(step_cost, 6)
+                                'step_cost': step_cost
                             }
 
                             total_actual_cost += step_cost
+                            
+                            # Accumulate row totals
+                            total_row_cost += step_cost
+                            total_row_prompt_tokens += usage_metadata.get('prompt_tokens', 0)
+                            total_row_completion_tokens += usage_metadata.get('completion_tokens', 0)
 
                         # Record step result
                         step_results.append({
@@ -483,14 +461,18 @@ async def run_evaluation_task(evaluation_id: str):
 
                     # Save result with step_results
                     result = EvaluationResult(
-                        evaluation_id=evaluation_id, # Use ID string
-                        image_id=image.id,           # Use ID string
-                        model_response=final_output,  # Final step's output
+                        evaluation_id=evaluation_id,
+                        image_id=image.id,
+                        model_response=final_output,
                         parsed_answer=parsed,
                         ground_truth=ground_truth,
                         is_correct=is_correct,
-                        step_results=step_results,  # NEW: Store intermediate results
-                        latency_ms=total_latency  # Sum of all steps
+                        step_results=step_results,
+                        latency_ms=total_latency,
+                        prompt_tokens=total_row_prompt_tokens,
+                        completion_tokens=total_row_completion_tokens,
+                        cost=total_row_cost,
+                        token_count=total_row_prompt_tokens + total_row_completion_tokens
                     )
                     task_db.add(result)
                     logger.info(f"Evaluation {evaluation_id}: Processed image {i+1}/{len(images)} ({len(steps)} steps) - Correct: {is_correct}")

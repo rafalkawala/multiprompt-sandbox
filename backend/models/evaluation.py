@@ -97,6 +97,9 @@ class EvaluationResult(Base):
     step_results = Column(JSON, nullable=True)
 
     latency_ms = Column(Integer, nullable=True)
+    prompt_tokens = Column(Integer, nullable=True, default=0)
+    completion_tokens = Column(Integer, nullable=True, default=0)
+    cost = Column(Float, nullable=True, default=0.0)
     token_count = Column(Integer, nullable=True)
     error = Column(Text, nullable=True)
 

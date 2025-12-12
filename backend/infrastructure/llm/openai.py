@@ -118,7 +118,7 @@ class OpenAIProvider(ILLMProvider):
         if discount > 0:
             cost = cost * (1 - (discount / 100))
 
-        return round(cost, 6)
+        return cost
 
     async def generate_content(
         self,
