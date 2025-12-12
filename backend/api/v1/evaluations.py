@@ -411,14 +411,19 @@ async def run_evaluation_task(evaluation_id: str):
                         step_num = step['step_number']
                         system_message = step.get('system_message')
                         prompt_template = step['prompt']
-                        
+
                         # Substitute variables from previous steps
                         prompt = substitute_variables(prompt_template, outputs)
-                        
+
+                        # Initialize default values in case of error
+                        response_text = ""
+                        usage_metadata = {'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0}
+                        latency = 0
+
                         # Call LLM Service
                         start_time = time.time()
                         llm_service = get_llm_service()
-                        
+
                         response_text, token_count, usage_metadata = await llm_service.generate_content(
                             provider_name=model_config_data['provider'],
                             api_key=model_config_data['api_key'],
@@ -431,10 +436,10 @@ async def run_evaluation_task(evaluation_id: str):
                             temperature=model_config_data['temperature'],
                             max_tokens=model_config_data['max_tokens']
                         )
-                        
+
                         latency = int((time.time() - start_time) * 1000)
                         total_latency += latency
-                        
+
                         # Store output for subsequent steps
                         outputs[step_num] = response_text
 
@@ -457,7 +462,7 @@ async def run_evaluation_task(evaluation_id: str):
                             }
 
                             total_actual_cost += step_cost
-                            
+
                             # Accumulate row totals
                             total_row_cost += step_cost
                             total_row_prompt_tokens += usage_metadata.get('prompt_tokens', 0)
