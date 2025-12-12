@@ -130,6 +130,7 @@ class EvaluationListItem(BaseModel):
     processed_images: int
     accuracy: Optional[float]
     created_at: datetime
+    results_summary: Optional[Dict[str, Any]] = None
 
 class EvaluationResultItem(BaseModel):
     id: str
@@ -383,10 +384,11 @@ async def run_evaluation_task(evaluation_id: str):
         
         # Progress tracking variables
         task_start_time = time.time()
+        cumulative_latency_ms = 0  # Track total serialized latency for accurate ETA
         
         # Process images in parallel with concurrency limit
         async def process_image(i: int, image: ImageEvalData):
-            nonlocal correct_count, failed_count, error_messages, completed_count, total_actual_cost
+            nonlocal correct_count, failed_count, error_messages, completed_count, total_actual_cost, cumulative_latency_ms
 
             async with semaphore:  # Limit concurrent API calls
                 # Use a dedicated session for this task to ensure thread safety
@@ -469,6 +471,9 @@ async def run_evaluation_task(evaluation_id: str):
 
                         logger.debug(f"Evaluation {evaluation_id}: Image {i+1} Step {step_num} completed - Output: {response_text[:50]}...")
 
+                    # Update cumulative serialized latency (thread-safe update not strictly needed as it's approximate stats)
+                    cumulative_latency_ms += total_latency
+
                     # Use final step's output for accuracy calculation
                     final_step_num = steps[-1]["step_number"]
                     final_output = outputs[final_step_num]
@@ -516,26 +521,42 @@ async def run_evaluation_task(evaluation_id: str):
                     completed_count += 1
                     current_eval.processed_images = completed_count
                     current_eval.progress = int((completed_count / len(images)) * 100)
+
+                    if not current_eval.results_summary:
+                        current_eval.results_summary = {}
+                    # Make a copy to update JSON field (SQLAlchemy requirement for JSON updates)
+                    summary = dict(current_eval.results_summary) if current_eval.results_summary else {}
+
+                    # Update latest images (rolling 5 lines)
+                    latest = summary.get('latest_images', [])
+                    # Add new one with index: "1/10: filename"
+                    latest.append(f"{completed_count}/{len(images)}: {image.filename}")
+                    # Keep only last 5
+                    if len(latest) > 5:
+                        latest = latest[-5:]
+                    summary['latest_images'] = latest
                     
                     # Calculate ETA
-                    # Update only after first batch completes and at start of new batches
-                    if completed_count >= concurrency and completed_count % concurrency == 0:
-                        now = time.time()
-                        elapsed_total = now - task_start_time
-                        avg_time_per_image = elapsed_total / completed_count
+                    # Update only after first batch completes (to get stable average)
+                    if completed_count >= concurrency:
                         remaining_images = len(images) - completed_count
 
-                        # Formula: (avg_time * remaining) / concurrency + single_photo_time
-                        # single_photo_time is approximated as avg_time_per_image
-                        eta_seconds = (avg_time_per_image * remaining_images) / concurrency + avg_time_per_image
+                        # Formula based on user request:
+                        # "time of an average image processing (whole prompt chain) multiplied by number of images divided by batch size"
+                        # We use cumulative_latency_ms to get the actual serialized processing time per image.
+                        if cumulative_latency_ms > 0:
+                            avg_latency_seconds = (cumulative_latency_ms / 1000) / completed_count
+                            eta_seconds = (avg_latency_seconds * remaining_images) / concurrency
+                        else:
+                             # Fallback to wall clock time if latency not available
+                            now = time.time()
+                            elapsed_total = now - task_start_time
+                            avg_wall_time = elapsed_total / completed_count
+                            eta_seconds = avg_wall_time * remaining_images # Wall time already accounts for concurrency
 
-                        if not current_eval.results_summary:
-                            current_eval.results_summary = {}
-                        # Make a copy to update JSON field (SQLAlchemy requirement for JSON updates)
-                        summary = dict(current_eval.results_summary) if current_eval.results_summary else {}
                         summary['eta_seconds'] = round(eta_seconds, 1)
-                        current_eval.results_summary = summary
 
+                    current_eval.results_summary = summary
                     task_db.commit()
                 else:
                      logger.error(f"Could not find evaluation {evaluation_id} to update progress")
@@ -629,7 +650,9 @@ async def run_evaluation_task(evaluation_id: str):
                 'average_cost_per_image': round(evaluation.actual_cost / total_processed, 6) if total_processed > 0 else 0
             }
 
-            evaluation.results_summary = {
+            # Merge with existing summary to preserve progress logs like latest_images
+            final_summary = dict(evaluation.results_summary) if evaluation.results_summary else {}
+            final_summary.update({
                 'correct': correct_count,
                 'total': total_processed,
                 'successful': successful_count,
@@ -637,7 +660,13 @@ async def run_evaluation_task(evaluation_id: str):
                 'failure_rate_percent': round(failure_rate, 2),
                 'accuracy_percent': round(evaluation.accuracy * 100, 2),
                 'confusion_matrix': confusion_matrix
-            }
+            })
+
+            # Remove ETA from final result as it's no longer relevant
+            if 'eta_seconds' in final_summary:
+                del final_summary['eta_seconds']
+
+            evaluation.results_summary = final_summary
             db.commit()
 
             logger.info(f"Evaluation {evaluation_id} finished: status={evaluation.status}, accuracy={evaluation.accuracy:.2%}, failed={failed_count}/{total_processed}")
@@ -688,6 +717,22 @@ async def list_evaluations(
 
     evaluations = query.order_by(Evaluation.created_at.desc()).all()
 
+    def get_lite_summary(e):
+        """Return only necessary progress fields for list view to reduce payload size"""
+        if not e.results_summary:
+            return None
+
+        # If running, we want logs and ETA
+        if e.status == 'running':
+            return {
+                'latest_images': e.results_summary.get('latest_images'),
+                'eta_seconds': e.results_summary.get('eta_seconds')
+            }
+
+        # If completed, we might want minimal stats if needed by UI, but UI calculates accuracy separately
+        # For now, return None or minimal to save bandwidth, as detailed results are fetched in detail view
+        return None
+
     return [
         EvaluationListItem(
             id=str(e.id),
@@ -700,7 +745,8 @@ async def list_evaluations(
             total_images=e.total_images,
             processed_images=e.processed_images,
             accuracy=e.accuracy,
-            created_at=e.created_at
+            created_at=e.created_at,
+            results_summary=get_lite_summary(e)
         )
         for e in evaluations
     ]

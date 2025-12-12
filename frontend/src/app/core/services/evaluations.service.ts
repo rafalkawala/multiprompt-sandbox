@@ -97,6 +97,11 @@ export interface EvaluationListItem {
   processed_images: number;
   accuracy: number | null;
   created_at: string;
+  results_summary?: {
+    latest_images?: string[];
+    eta_seconds?: number;
+    [key: string]: any;
+  };
 }
 
 export interface EvaluationResult {
