@@ -36,7 +36,7 @@
   {
     "id": "vertex-gemini-3-pro",
     "provider": "vertex",
-    "model_name": "gemini-3-pro",
+    "model_name": "gemini-3-pro-preview",
     "display_name": "Gemini 3 Pro (Vertex AI)",
     "description": "Next-gen reasoning model via Vertex AI. Includes quota for Pro tier.",
     "endpoint": "vertex-ai",
@@ -77,8 +77,8 @@
     "auth_type": "google_adc",
     "pricing_config": {
       "mode": "token_based",
-      "input_price_per_1m": 0.075,
-      "output_price_per_1m": 0.30,
+      "input_price_per_1m": 0.30,
+      "output_price_per_1m": 2.50,
       "image_price_mode": "per_token",
       "image_token_calc": "fixed_tokens",
       "discount_percent": 0

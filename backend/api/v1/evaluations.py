@@ -238,6 +238,9 @@ async def run_evaluation_task(evaluation_id: str):
 
         # Get related data
         # Detach config data from session to use safely in async
+        # Ensure pricing_config is populated (handle potential None)
+        pricing_config = evaluation.model_config.pricing_config or {}
+
         model_config_data = {
             'provider': evaluation.model_config.provider,
             'api_key': evaluation.model_config.api_key,
@@ -245,7 +248,7 @@ async def run_evaluation_task(evaluation_id: str):
             'model_name': evaluation.model_config.model_name,
             'temperature': evaluation.model_config.temperature,
             'max_tokens': evaluation.model_config.max_tokens,
-            'pricing_config': evaluation.model_config.pricing_config,
+            'pricing_config': pricing_config,
             'concurrency': getattr(evaluation.model_config, 'concurrency', 3)
         }
 

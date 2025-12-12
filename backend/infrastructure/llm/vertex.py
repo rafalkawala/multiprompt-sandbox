@@ -77,7 +77,9 @@ class VertexAIProvider(ILLMProvider):
         if has_image:
             mode = pricing_config.get('image_price_mode', 'per_image')
             if mode == 'per_image':
+                # Fixed price per image (e.g. Gemini 3 Pro)
                 cost += float(pricing_config.get('image_price_val', 0))
+            # If mode is 'per_token', we assume p_tokens already includes image tokens (Vertex AI standard behavior)
 
         discount = float(pricing_config.get('discount_percent', 0))
         if discount > 0:
