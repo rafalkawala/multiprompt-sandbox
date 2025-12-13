@@ -27,3 +27,8 @@
 ## Infrastructure (Terraform)
 *   **Private IP:** Do not assign public IPs to Cloud SQL instances.
 *   **State Management:** Use remote backend (GCS) if configured, otherwise be careful with local state.
+
+## Testing
+*   **Strategy:** See [`06_TESTING_STRATEGY.md`](./06_TESTING_STRATEGY.md) for full details.
+*   **Rule:** All new logic must have corresponding unit tests.
+*   **Mocking:** Strictly mock all external APIs (Vertex AI, GCS) in unit tests.

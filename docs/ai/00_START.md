@@ -26,6 +26,7 @@ Welcome. This directory contains the context you need to work on this repository
 | [`03_STANDARDS.md`](./03_STANDARDS.md) | **Standards**: Coding conventions, patterns, and "Do's & Don'ts". |
 | [`04_COMMANDS.md`](./04_COMMANDS.md) | **Commands**: Build, run, test, and deploy commands. |
 | [`05_MAINTENANCE.md`](./05_MAINTENANCE.md) | **Maintenance**: How to keep this documentation up to date. |
+| [`06_TESTING_STRATEGY.md`](./06_TESTING_STRATEGY.md) | **Testing**: detailed backend and frontend testing strategy. |
 
 ## 🚀 Getting Started
 
