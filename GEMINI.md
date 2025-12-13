@@ -1,4 +1,4 @@
-# Claude Code - Context Entry Point
+# Gemini CLI - Context Entry Point
 
 ## 🛑 STOP & READ
 To save context window (tokens) and ensure you have the latest info, follow this procedure:
