@@ -2,11 +2,20 @@
 
 Welcome. This directory contains the context you need to work on this repository.
 
-## 🛑 Directives
+## 🧠 Memory & Context Management
+
+**Crucial:** You are responsible for managing the project's "memory".
+*   These documentation files (`docs/ai/*`) are your long-term memory.
+*   **Update them** whenever you learn something new about the architecture, add a feature, or change a pattern.
+*   If you do not update them, your future self (and other agents) will be lost.
+
+## 🛑 Token Efficiency Directives
 
 1.  **Do not memorize the entire codebase.** Use these docs to find what you need.
-2.  **Update these docs.** If you implement a new pattern, change the architecture, or find these docs outdated, you **MUST** update the relevant file in `docs/ai/`.
-3.  **Read only what is necessary.** To save tokens, read the specific file relevant to your task.
+2.  **Read only what is necessary.** To save tokens, read ONLY the specific file relevant to your task.
+    *   Need to build? Read `04_COMMANDS.md`.
+    *   Need to write code? Read `03_STANDARDS.md`.
+    *   Need to find a file? Read `01_MAP.md`.
 
 ## 📂 Documentation Map
 

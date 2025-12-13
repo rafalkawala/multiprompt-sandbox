@@ -1,14 +1,18 @@
-# Documentation Maintenance
+# Documentation Maintenance = Memory Management
 
-You are responsible for keeping this documentation up to date.
+**This documentation is the project's Long-Term Memory.**
 
-## When to Update
-*   **New Feature:** If you add a major feature, update `01_MAP.md` if the structure changes, or `02_TECH_STACK.md` if new libraries are added.
-*   **Refactoring:** If you change a core pattern (e.g., how DB sessions are handled), update `03_STANDARDS.md`.
-*   **New Command:** If you add a script or make command, update `04_COMMANDS.md`.
-*   **Correction:** If you find something here is false, fix it immediately.
+As an AI assistant (Claude, Gemini, or others), you are responsible for maintaining this memory. If you change the code but do not update these docs, you are creating "technical debt" in the form of lost context.
+
+## When to Update (Memory Triggers)
+*   **New Feature:** Added a new module? Update `01_MAP.md`. Added a new library? Update `02_TECH_STACK.md`.
+*   **Refactoring:** Changed how the DB works? Update `03_STANDARDS.md`.
+*   **New Command:** Added a useful script? Update `04_COMMANDS.md`.
+*   **Correction:** Found a lie in the docs? Fix it immediately.
 
 ## How to Update
 1.  Read the relevant file.
 2.  Edit the file with the new information.
 3.  Include the documentation update in your commit/PR.
+
+**Goal:** A new agent starting from zero should be able to read these files and understand the project state *without* reading the entire codebase.

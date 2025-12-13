@@ -12,12 +12,18 @@ This document outlines the high-level structure of the repository.
 
 ## Backend Structure (`backend/`)
 
-*   `app/` or `src/`: (Verify actual structure: currently seems flat or `backend/` root is the app root).
-*   `core/`: Core utilities (HTTP client, config).
+*   `main.py`: Application entry point.
+*   `api/`: API Routers and Controllers.
+*   `config/`: Configuration files (e.g., `models.json`).
+*   `core/`: Core utilities (HTTP client, config loaders).
 *   `infrastructure/`: External service adapters (LLM, Storage, DB).
-*   `domain/`: Domain models (if Clean Architecture is strictly followed).
-*   `api/`: API Routers/Controllers.
+*   `models/`: SQLAlchemy ORM models and Pydantic schemas.
+*   `scripts/`: Utility scripts (seed data, validation, tests).
+    *   `seed_admin.py`: Create initial admin user.
+    *   `validate_model_costs.py`: Check model pricing logic.
+*   `services/`: Business logic layer (Service Pattern).
 *   `tests/`: `pytest` suite.
+*   `alembic/`: Database migration scripts.
 
 ## Frontend Structure (`frontend/`)
 
@@ -28,6 +34,7 @@ This document outlines the high-level structure of the repository.
 ## Key Configuration Files
 
 *   `backend/requirements.txt`: Python dependencies.
+*   `backend/config/models.json`: AI Model definitions and pricing.
 *   `frontend/package.json`: JS/TS dependencies.
 *   `infrastructure/main.tf`: Terraform entry point.
 *   `CLAUDE.md` / `GEMINI.md`: AI Assistant entry points.

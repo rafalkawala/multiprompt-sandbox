@@ -3,6 +3,8 @@
 ## Environment Setup
 ```bash
 conda activate multiprompt-sandbox
+cp .env.example .env
+# Edit .env with your keys
 ```
 
 ## Backend
@@ -16,6 +18,9 @@ uvicorn main:app --reload
 
 # Run Tests
 pytest
+
+# Admin User Setup
+python scripts/seed_admin.py
 ```
 
 ## Frontend
