@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Tuple
 from datetime import datetime
 from io import BytesIO
-import logging
+import structlog
 import os
 import uuid
 import shutil
@@ -28,7 +28,7 @@ from core.image_utils import generate_thumbnail
 from services.storage_service import get_storage_provider
 from core.interfaces.storage import IStorageProvider
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
@@ -105,6 +105,12 @@ class DatasetResponse(BaseModel):
     created_at: datetime
     image_count: int
     images: Optional[List[ImageResponse]] = None
+    processing_status: Optional[str] = 'ready'
+    total_files: Optional[int] = 0
+    processed_files: Optional[int] = 0
+    failed_files: Optional[int] = 0
+    processing_started_at: Optional[datetime] = None
+    processing_completed_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -198,7 +204,13 @@ async def list_datasets(
             name=d.name,
             project_id=str(d.project_id),
             created_at=d.created_at,
-            image_count=len(d.images) if d.images else 0
+            image_count=len(d.images) if d.images else 0,
+            processing_status=d.processing_status,
+            total_files=d.total_files,
+            processed_files=d.processed_files,
+            failed_files=d.failed_files,
+            processing_started_at=d.processing_started_at,
+            processing_completed_at=d.processing_completed_at
         )
         for d in project.datasets
     ]

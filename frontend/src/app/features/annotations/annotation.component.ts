@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, HostListener } from '@angular/core';
+import { Component, OnInit, signal, HostListener, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -14,7 +14,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { EvaluationsService, AnnotationStats } from '../../core/services/evaluations.service';
-import { ProjectsService, Project, ImageItem } from '../../core/services/projects.service';
+import { ProjectsService, Project, ImageItem, DatasetDetail, ProcessingStatus } from '../../core/services/projects.service';
+import { interval, Subscription } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
 
 @Component({
   selector: 'app-annotation',
@@ -41,6 +43,69 @@ import { ProjectsService, Project, ImageItem } from '../../core/services/project
         <div class="loading">
           <mat-spinner diameter="40"></mat-spinner>
         </div>
+      } @else if (!isDatasetReady()) {
+        <!-- Dataset Processing Blocker -->
+        <mat-card class="processing-blocker">
+          <mat-card-header>
+            <button mat-icon-button [routerLink]="['/projects', projectId]" matTooltip="Back to Project" style="margin-right: 16px;">
+              <mat-icon>arrow_back</mat-icon>
+            </button>
+            <mat-card-title>Dataset Loading in Progress</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="blocker-content">
+              <mat-icon class="blocker-icon">cloud_upload</mat-icon>
+              <h2>{{ datasetName }}</h2>
+
+              @if (datasetProcessingStatus() === 'uploading') {
+                <p class="status-message">Uploading images to storage...</p>
+              } @else if (datasetProcessingStatus() === 'processing') {
+                <p class="status-message">Generating thumbnails and processing images...</p>
+              } @else if (datasetProcessingStatus() === 'failed') {
+                <p class="status-message error">Dataset processing failed. Please try re-uploading or contact support.</p>
+              } @else {
+                <p class="status-message">Preparing dataset...</p>
+              }
+
+              @if (processingProgress()) {
+                <div class="progress-details">
+                  <div class="progress-stats">
+                    <span><strong>{{ processingProgress()!.processed_files }}</strong> of <strong>{{ processingProgress()!.total_files }}</strong> images processed</span>
+                    @if (processingProgress()!.failed_files > 0) {
+                      <span class="failed-count">{{ processingProgress()!.failed_files }} failed</span>
+                    }
+                  </div>
+                  <mat-progress-bar mode="determinate" [value]="processingProgress()!.progress_percent"></mat-progress-bar>
+                  <p class="progress-percent">{{ processingProgress()!.progress_percent }}% complete</p>
+                </div>
+              } @else {
+                <mat-spinner diameter="40" style="margin: 24px auto;"></mat-spinner>
+              }
+
+              <p class="wait-message">
+                <mat-icon>info</mat-icon>
+                Annotation will be available once all images are ready. This page will update automatically.
+              </p>
+
+              @if (processingProgress()?.errors && processingProgress()!.errors!.length > 0) {
+                <div class="error-list">
+                  <h4>Processing Errors:</h4>
+                  <ul>
+                    @for (error of processingProgress()!.errors; track error) {
+                      <li>{{ error }}</li>
+                    }
+                  </ul>
+                </div>
+              }
+            </div>
+          </mat-card-content>
+          <mat-card-actions>
+            <button mat-raised-button color="primary" [routerLink]="['/projects', projectId]">
+              <mat-icon>arrow_back</mat-icon>
+              Back to Project
+            </button>
+          </mat-card-actions>
+        </mat-card>
       } @else {
         <!-- Header -->
         <div class="header">
@@ -388,9 +453,133 @@ import { ProjectsService, Project, ImageItem } from '../../core/services/project
         }
       }
     }
+
+    /* Dataset Processing Blocker Styles */
+    .processing-blocker {
+      max-width: 800px;
+      margin: 48px auto;
+      padding: 24px;
+
+      mat-card-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 24px;
+
+        mat-card-title {
+          font-size: 24px;
+          font-weight: 500;
+          color: #202124;
+        }
+      }
+
+      .blocker-content {
+        text-align: center;
+        padding: 24px;
+
+        .blocker-icon {
+          font-size: 72px;
+          width: 72px;
+          height: 72px;
+          color: #1a73e8;
+          margin-bottom: 16px;
+        }
+
+        h2 {
+          margin: 16px 0;
+          color: #202124;
+          font-size: 28px;
+          font-weight: 400;
+        }
+
+        .status-message {
+          font-size: 16px;
+          color: #5f6368;
+          margin: 16px 0;
+
+          &.error {
+            color: #d93025;
+          }
+        }
+
+        .progress-details {
+          margin: 32px 0;
+
+          .progress-stats {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 12px;
+            font-size: 16px;
+            color: #202124;
+
+            .failed-count {
+              color: #d93025;
+              font-weight: 500;
+            }
+          }
+
+          .progress-percent {
+            margin-top: 8px;
+            font-size: 14px;
+            color: #5f6368;
+          }
+        }
+
+        .wait-message {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          margin-top: 32px;
+          padding: 16px;
+          background-color: #e8f0fe;
+          border-radius: 8px;
+          color: #1967d2;
+          font-size: 14px;
+
+          mat-icon {
+            font-size: 20px;
+            width: 20px;
+            height: 20px;
+          }
+        }
+
+        .error-list {
+          margin-top: 24px;
+          padding: 16px;
+          background-color: #fce8e6;
+          border-radius: 8px;
+          text-align: left;
+
+          h4 {
+            margin: 0 0 12px 0;
+            color: #d93025;
+            font-size: 16px;
+          }
+
+          ul {
+            margin: 0;
+            padding-left: 24px;
+            color: #5f6368;
+
+            li {
+              margin: 4px 0;
+              font-size: 14px;
+            }
+          }
+        }
+      }
+
+      mat-card-actions {
+        display: flex;
+        justify-content: center;
+        padding: 16px 0 0 0;
+      }
+    }
   `]
 })
-export class AnnotationComponent implements OnInit {
+export class AnnotationComponent implements OnInit, OnDestroy {
   project = signal<Project | null>(null);
   stats = signal<AnnotationStats | null>(null);
   currentImage = signal<ImageItem | null>(null);
@@ -398,6 +587,13 @@ export class AnnotationComponent implements OnInit {
   loading = signal(true);
   saving = signal(false);
   imageUrl = signal<string>('');
+
+  // Dataset processing status tracking
+  datasetProcessingStatus = signal<string | null>(null);
+  processingProgress = signal<ProcessingStatus | null>(null);
+  isDatasetReady = signal(false);
+
+  private statusPollingSubscription?: Subscription;
 
   projectId = '';
   datasetId = '';
@@ -441,6 +637,18 @@ export class AnnotationComponent implements OnInit {
 
       const dataset = datasets?.find(d => d.id === this.datasetId);
       this.datasetName = dataset?.name || '';
+
+      // Check dataset processing status BEFORE loading images
+      if (dataset) {
+        this.checkDatasetStatus(dataset);
+      }
+
+      // If dataset is not ready, don't load images yet
+      if (!this.isDatasetReady()) {
+        this.loading.set(false);
+        return;
+      }
+
       const imageCount = stats?.total_images || 1000; // Use stats total, fallback to 1000
 
       // Load all images metadata at once (only metadata, images loaded lazily)
@@ -677,6 +885,76 @@ export class AnnotationComponent implements OnInit {
         this.loadPreviousImage();
         event.preventDefault();
         break;
+    }
+  }
+
+  ngOnDestroy() {
+    // Clean up polling subscription
+    if (this.statusPollingSubscription) {
+      this.statusPollingSubscription.unsubscribe();
+    }
+  }
+
+  /**
+   * Check dataset processing status and start polling if needed
+   */
+  checkDatasetStatus(dataset: DatasetDetail) {
+    const status = dataset.processing_status || 'ready';
+    this.datasetProcessingStatus.set(status);
+
+    // Determine if dataset is ready for annotation
+    const readyStatuses = ['ready', 'completed'];
+    this.isDatasetReady.set(readyStatuses.includes(status));
+
+    if (status === 'processing' || status === 'uploading') {
+      // Dataset is still processing, start polling
+      this.startStatusPolling();
+    } else if (status === 'failed') {
+      this.snackBar.open('Dataset processing failed. Some images may not be available.', 'Close', { duration: 5000 });
+    }
+  }
+
+  /**
+   * Start polling for dataset processing status updates
+   */
+  startStatusPolling() {
+    // Poll every 3 seconds
+    this.statusPollingSubscription = interval(3000)
+      .pipe(
+        switchMap(() => this.projectsService.getProcessingStatus(this.projectId, this.datasetId))
+      )
+      .subscribe({
+        next: (status: ProcessingStatus) => {
+          this.processingProgress.set(status);
+          this.datasetProcessingStatus.set(status.processing_status);
+
+          // Check if processing is complete
+          if (status.processing_status === 'completed' || status.processing_status === 'ready') {
+            this.isDatasetReady.set(true);
+            this.stopStatusPolling();
+            this.snackBar.open('Dataset ready! You can now start annotating.', 'Close', { duration: 3000 });
+            // Reload images to get the thumbnails
+            this.loadData();
+          } else if (status.processing_status === 'failed') {
+            this.isDatasetReady.set(false);
+            this.stopStatusPolling();
+            this.snackBar.open('Dataset processing failed. Please contact support.', 'Close', { duration: 5000 });
+          }
+        },
+        error: (err) => {
+          console.error('Failed to fetch processing status:', err);
+          // Continue polling even on error
+        }
+      });
+  }
+
+  /**
+   * Stop polling for processing status
+   */
+  stopStatusPolling() {
+    if (this.statusPollingSubscription) {
+      this.statusPollingSubscription.unsubscribe();
+      this.statusPollingSubscription = undefined;
     }
   }
 }

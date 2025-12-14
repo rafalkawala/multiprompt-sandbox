@@ -973,10 +973,25 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
   loadDatasets() {
     this.projectsService.getDatasets(this.projectId).subscribe({
       next: (datasets) => {
-        this.datasets.set(datasets);
-        this.loading.set(false);
-        // Load images for each dataset
-        datasets.forEach(d => this.loadImages(d.id, true));
+        // Don't display datasets until images are loaded
+        // Load images for each dataset first
+        const imageLoadPromises = datasets.map(d =>
+          this.loadImagesAsync(d.id, true)
+        );
+
+        // Wait for all initial image loads to complete
+        Promise.all(imageLoadPromises)
+          .then(() => {
+            // Only now set the datasets and stop loading
+            this.datasets.set(datasets);
+            this.loading.set(false);
+          })
+          .catch((err) => {
+            console.error('Failed to load images:', err);
+            // Still show datasets even if images failed to load
+            this.datasets.set(datasets);
+            this.loading.set(false);
+          });
       },
       error: (err) => {
         console.error('Failed to load datasets:', err);
@@ -985,37 +1000,57 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
     });
   }
 
-  loadImages(datasetId: string, reset: boolean = false) {
-    if (this.loadingImages[datasetId]) return;
-
-    this.loadingImages[datasetId] = true;
-    
-    if (reset) {
-      this.datasetOffsets[datasetId] = 0;
-      this.datasetImages[datasetId] = [];
-      this.hasMoreImages[datasetId] = false;
-    }
-
-    const skip = this.datasetOffsets[datasetId] || 0;
-
-    this.projectsService.getImages(this.projectId, datasetId, skip, this.PAGE_SIZE).subscribe({
-      next: (images) => {
-        if (reset) {
-          this.datasetImages[datasetId] = images;
-        } else {
-          this.datasetImages[datasetId] = [...(this.datasetImages[datasetId] || []), ...images];
-        }
-        
-        // Update offset and check if we have more
-        this.datasetOffsets[datasetId] = skip + images.length;
-        this.hasMoreImages[datasetId] = images.length === this.PAGE_SIZE;
-        
-        this.loadingImages[datasetId] = false;
-      },
-      error: (err) => {
-        console.error(`Failed to load images for dataset ${datasetId}:`, err);
-        this.loadingImages[datasetId] = false;
+  /**
+   * Load images asynchronously and return a Promise.
+   * Used for initial dataset loading to ensure images are loaded before displaying.
+   */
+  loadImagesAsync(datasetId: string, reset: boolean = false): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.loadingImages[datasetId]) {
+        resolve();
+        return;
       }
+
+      this.loadingImages[datasetId] = true;
+
+      if (reset) {
+        this.datasetOffsets[datasetId] = 0;
+        this.datasetImages[datasetId] = [];
+        this.hasMoreImages[datasetId] = false;
+      }
+
+      const skip = this.datasetOffsets[datasetId] || 0;
+
+      this.projectsService.getImages(this.projectId, datasetId, skip, this.PAGE_SIZE).subscribe({
+        next: (images) => {
+          if (reset) {
+            this.datasetImages[datasetId] = images;
+          } else {
+            this.datasetImages[datasetId] = [...(this.datasetImages[datasetId] || []), ...images];
+          }
+
+          // Update offset and check if we have more
+          this.datasetOffsets[datasetId] = skip + images.length;
+          this.hasMoreImages[datasetId] = images.length === this.PAGE_SIZE;
+
+          this.loadingImages[datasetId] = false;
+          resolve();
+        },
+        error: (err) => {
+          console.error(`Failed to load images for dataset ${datasetId}:`, err);
+          this.loadingImages[datasetId] = false;
+          reject(err);
+        }
+      });
+    });
+  }
+
+  /**
+   * Load images for a dataset (for "Load More" functionality).
+   */
+  loadImages(datasetId: string, reset: boolean = false) {
+    this.loadImagesAsync(datasetId, reset).catch(err => {
+      console.error(`Failed to load images for dataset ${datasetId}:`, err);
     });
   }
 

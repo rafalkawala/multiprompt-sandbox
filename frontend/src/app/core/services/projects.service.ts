@@ -70,6 +70,12 @@ export interface DatasetDetail {
   created_at: string;
   image_count: number;
   images?: ImageItem[];
+  processing_status?: string; // 'ready', 'uploading', 'processing', 'completed', 'failed'
+  total_files?: number;
+  processed_files?: number;
+  failed_files?: number;
+  processing_started_at?: string;
+  processing_completed_at?: string;
 }
 
 export interface BatchUploadResponse {
