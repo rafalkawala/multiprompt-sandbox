@@ -9,7 +9,7 @@ from datetime import datetime
 import httpx
 import base64
 import os
-import logging
+import structlog
 import json
 import time
 import asyncio
@@ -37,7 +37,7 @@ from core.http_client import HttpClient
 # Import Helper
 from api.v1.evaluations_helper import ImageEvalData
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 def get_db():

@@ -12,6 +12,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
+import structlog
+from core.logging_config import configure_logging
 
 from core.config import settings
 from core.database import SessionLocal
@@ -19,11 +21,8 @@ from api.v1 import api_router
 from models.user import User, UserRole
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+configure_logging()
+logger = structlog.get_logger(__name__)
 
 # Create FastAPI app
 app = FastAPI(

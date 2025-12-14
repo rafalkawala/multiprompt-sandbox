@@ -10,7 +10,7 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from typing import Optional
 import httpx
-import logging
+import structlog
 import base64
 import json
 from urllib.parse import urlparse
@@ -19,7 +19,7 @@ from core.config import settings
 from core.database import SessionLocal
 from models.user import User, UserRole
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 

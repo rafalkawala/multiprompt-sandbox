@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timedelta
-import logging
+import structlog
 import asyncio
 import threading
 import base64
@@ -22,7 +22,7 @@ from services.labelling_job_service import get_labelling_job_service
 from services.cloud_tasks_service import get_cloud_tasks_service
 from core.config import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 

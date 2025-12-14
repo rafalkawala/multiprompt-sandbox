@@ -4,13 +4,13 @@ Agent endpoints for LangChain agent operations
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
-import logging
+import structlog
 
 from services.agent_service import AgentService
 from api.v1.auth import get_current_user
 from models.user import User
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 

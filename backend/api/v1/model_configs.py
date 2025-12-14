@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 import httpx
-import logging
+import structlog
 import time
 import json
 import io
@@ -19,7 +19,7 @@ from models.user import User
 from api.v1.auth import get_current_user
 from services.llm_service import get_llm_service
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 def get_db():

@@ -2,10 +2,10 @@
 LangChain agent service implementation
 """
 from typing import Optional, Dict, Any
-import logging
+import structlog
 from core.config import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 try:
     from langchain_google_genai import ChatGoogleGenerativeAI

@@ -2,7 +2,7 @@
 Internal task endpoints for Cloud Tasks to call.
 These endpoints are protected and should only be called by Cloud Tasks.
 """
-import logging
+import structlog
 import asyncio
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Header
@@ -13,7 +13,7 @@ from services.labelling_job_service import get_labelling_job_service
 from services.cloud_tasks_service import get_cloud_tasks_service
 from models.labelling_job import LabellingJob
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 

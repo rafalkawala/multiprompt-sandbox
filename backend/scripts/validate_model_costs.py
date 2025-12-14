@@ -2,7 +2,7 @@
 import json
 import os
 import sys
-import logging
+import structlog
 from typing import Dict, Any
 
 # Adjust path to include backend root
@@ -24,8 +24,7 @@ from infrastructure.llm.openai import OpenAIProvider
 from infrastructure.llm.anthropic import AnthropicProvider
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(message)s')
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 PROVIDERS = {
     "gemini": GeminiProvider(),

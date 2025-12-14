@@ -2,15 +2,14 @@
 import asyncio
 import os
 import sys
-import logging
+import structlog
 import json
 from google.auth import default
 from google.auth.transport.requests import Request
 import httpx
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 async def test_vertex_connection():
     """

@@ -1,4 +1,4 @@
-import logging
+import structlog
 import base64
 from typing import Optional, Dict, List, Any, Union
 from sqlalchemy.orm import Session
@@ -10,7 +10,7 @@ from infrastructure.llm.anthropic import AnthropicProvider
 from infrastructure.llm.gemini import GeminiProvider
 from infrastructure.llm.vertex import VertexAIProvider
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class CostEstimationService:
     """Service for estimating and calculating costs for LLM operations"""

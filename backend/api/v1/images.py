@@ -6,7 +6,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional
-import logging
+import structlog
 import base64
 import os
 
@@ -17,7 +17,7 @@ from models.user import User
 from models.image import Image
 from services.llm_service import get_llm_service
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 

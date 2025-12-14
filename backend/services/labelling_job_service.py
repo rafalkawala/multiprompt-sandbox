@@ -1,5 +1,5 @@
 import asyncio
-import logging
+import structlog
 import uuid
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple, Optional
@@ -16,7 +16,7 @@ from services.cloud_tasks_service import get_cloud_tasks_service
 from services.llm_service import get_llm_service
 from core.config import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class LabellingJobService:

@@ -1,7 +1,7 @@
 import time
 import httpx
 import os
-import logging
+import structlog
 from typing import Tuple, Optional, Dict, Any, List
 from core.interfaces.llm import ILLMProvider
 from core.http_client import HttpClient
@@ -9,7 +9,7 @@ from core.config import settings
 from google.auth import default
 from google.auth.transport.requests import Request
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class VertexAIProvider(ILLMProvider):
     """

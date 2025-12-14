@@ -2,7 +2,7 @@ from functools import lru_cache
 from typing import Optional, Tuple, Dict, Any
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception
 import httpx
-import logging
+import structlog
 import os
 
 from core.config import settings
@@ -11,7 +11,7 @@ from infrastructure.llm.vertex import VertexAIProvider
 from infrastructure.llm.openai import OpenAIProvider
 from infrastructure.llm.anthropic import AnthropicProvider
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 def is_rate_limit_error(exception):
     """Return True if exception is a 429 Rate Limit error"""

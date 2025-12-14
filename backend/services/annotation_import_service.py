@@ -5,12 +5,12 @@ import pandas as pd
 from typing import Optional, Dict, List, Any
 from io import BytesIO
 from sqlalchemy.orm import Session
-import logging
+import structlog
 
 from models.project import Project, Dataset
 from models.image import Image, Annotation
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class AnnotationImportService:

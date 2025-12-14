@@ -1,9 +1,9 @@
-import logging
+import structlog
 from google.cloud import tasks_v2
 from google.protobuf import timestamp_pb2
 from core.config import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class CloudTasksService:
