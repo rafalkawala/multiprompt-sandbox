@@ -234,6 +234,15 @@ import { SubselectionDialogComponent, SubselectionConfig } from './subselection-
                   <span class="progress-text">{{ ((evaluation.processed_images / evaluation.total_images) * 100).toFixed(0) }}% complete</span>
                   <span class="eta-text">{{ getEta(evaluation) }}</span>
                 </div>
+
+                @if ((evaluation.results_summary?.latest_images?.length ?? 0) > 0) {
+                  <div class="processing-log">
+                    <div class="log-title">Recent Activity:</div>
+                    @for (log of evaluation.results_summary!.latest_images!; track log) {
+                      <div class="log-line">{{ log }}</div>
+                    }
+                  </div>
+                }
               }
             </mat-card-content>
             <mat-card-actions>
@@ -641,6 +650,30 @@ import { SubselectionDialogComponent, SubselectionConfig } from './subselection-
 
     .eta-text {
       font-style: italic;
+    }
+
+    .processing-log {
+      margin-top: 12px;
+      padding: 8px;
+      background: #f8f9fa;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      color: #5f6368;
+      border: 1px solid #e0e0e0;
+    }
+
+    .log-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #202124;
+    }
+
+    .log-line {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.4;
     }
 
     .count-text {
@@ -1270,6 +1303,17 @@ export class EvaluationsComponent implements OnInit {
       return '';
     }
     
+    // Prefer backend calculated ETA if available
+    if (evaluation.results_summary?.eta_seconds) {
+      const remainingSeconds = evaluation.results_summary.eta_seconds;
+      if (remainingSeconds < 60) {
+        return `~${Math.ceil(remainingSeconds)}s remaining`;
+      } else {
+        return `~${Math.ceil(remainingSeconds / 60)}m remaining`;
+      }
+    }
+
+    // Fallback to simple calculation (less accurate)
     if (evaluation.processed_images < 2) {
       return 'Calculating ETA...';
     }
