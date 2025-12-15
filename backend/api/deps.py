@@ -6,8 +6,6 @@ from api.v1.auth import get_current_user
 from core.database import SessionLocal
 from sqlalchemy.orm import Session
 
-__all__ = ['get_db', 'require_write_access', 'get_current_user']
-
 def get_db() -> Generator[Session, None, None]:
     """Database session dependency"""
     db = SessionLocal()

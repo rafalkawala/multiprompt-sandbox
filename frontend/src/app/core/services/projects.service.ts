@@ -168,8 +168,8 @@ export class ProjectsService extends BaseApiService {
     const formData = new FormData();
     formData.append('files', file);
 
-    return this.http.post<{images: ImageItem[], errors?: string[], summary?: string}>(
-      `${this.API_URL}/projects/${projectId}/datasets/${datasetId}/images`,
+    return this.post<{images: ImageItem[], errors?: string[], summary?: string}>(
+      `/projects/${projectId}/datasets/${datasetId}/images`,
       formData,
       {
         reportProgress: true,

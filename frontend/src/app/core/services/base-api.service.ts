@@ -23,8 +23,8 @@ export class BaseApiService {
     return this.http.get<T>(`${this.API_URL}${path}`, { params: httpParams });
   }
 
-  protected post<T>(path: string, body: any): Observable<T> {
-    return this.http.post<T>(`${this.API_URL}${path}`, body);
+  protected post<T>(path: string, body: any, options?: any): Observable<T> {
+    return this.http.post<T>(`${this.API_URL}${path}`, body, options);
   }
 
   protected patch<T>(path: string, body: any): Observable<T> {

@@ -55,7 +55,7 @@ class ProjectService:
         self.db.commit()
         self.db.refresh(project)
 
-        logger.info("project_created", project_name=project.name, user_email=current_user.email, project_id=str(project.id))
+        logger.info(f"Created project: {project.name} by user: {current_user.email}")
         return project
 
     def update_project(self, project_id: str, project_data, current_user: User) -> Project:
@@ -89,7 +89,7 @@ class ProjectService:
         self.db.commit()
         self.db.refresh(project)
 
-        logger.info("project_updated", project_id=project_id, project_name=project.name, user_id=str(current_user.id))
+        logger.info(f"Updated project: {project.name}")
         return project
 
     def delete_project(self, project_id: str, current_user: User) -> str:
@@ -107,5 +107,5 @@ class ProjectService:
         self.db.delete(project)
         self.db.commit()
 
-        logger.info("project_deleted", project_id=project_id, project_name=project_name, user_id=str(current_user.id))
+        logger.info(f"Deleted project: {project_name}")
         return project_name
