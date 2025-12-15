@@ -235,10 +235,10 @@ import { SubselectionDialogComponent, SubselectionConfig } from './subselection-
                   <span class="eta-text">{{ getEta(evaluation) }}</span>
                 </div>
 
-                @if (evaluation.results_summary?.latest_images && evaluation.results_summary?.latest_images.length > 0) {
+                @if ((evaluation.results_summary?.latest_images?.length ?? 0) > 0) {
                   <div class="processing-log">
                     <div class="log-title">Recent Activity:</div>
-                    @for (log of evaluation.results_summary?.latest_images; track log) {
+                    @for (log of evaluation.results_summary!.latest_images!; track log) {
                       <div class="log-line">{{ log }}</div>
                     }
                   </div>
