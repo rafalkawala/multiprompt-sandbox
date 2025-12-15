@@ -225,4 +225,28 @@ export class AuthService {
     this.errorSignal.set(null);
     console.log('[Auth Service] logout - complete');
   }
+
+  handleSessionExpired(): void {
+    console.log('[Auth Service] Handling session expiration');
+
+    // Clear token
+    try {
+      localStorage.removeItem('dev_access_token');
+      sessionStorage.removeItem('dev_access_token');
+    } catch (error) {
+      console.warn('[Auth Service] Failed to clear tokens:', error);
+    }
+
+    // Clear user state
+    this.userSignal.set(null);
+
+    // Set error message to be displayed on login screen
+    this.errorSignal.set({
+      message: 'Your session has expired. Please sign in again.',
+      code: 'SESSION_EXPIRED'
+    });
+
+    // Navigate to root to ensure login screen is shown (though signal change handles view update)
+    this.router.navigate(['/']);
+  }
 }
