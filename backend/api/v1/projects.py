@@ -8,34 +8,13 @@ from typing import List, Optional
 from datetime import datetime
 import structlog
 
-from core.database import SessionLocal
-from models.project import Project, Dataset
 from models.user import User
-from api.v1.auth import get_current_user
+from api.deps import get_db, require_write_access, get_current_user
+from services.project_service import ProjectService
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
-
-
-def require_write_access(current_user: User = Depends(get_current_user)) -> User:
-    """Require user to have write access (not a viewer)"""
-    from models.user import UserRole
-    if current_user.role == UserRole.VIEWER.value:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Viewers have read-only access. Cannot create, update, or delete resources."
-        )
-    return current_user
-
-
-def get_db():
-    """Database session dependency"""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 # Pydantic models
@@ -107,7 +86,8 @@ async def list_projects(
     db: Session = Depends(get_db)
 ):
     """List all projects (visible to all authenticated users)"""
-    projects = db.query(Project).order_by(Project.created_at.desc()).all()
+    project_service = ProjectService(db)
+    projects = project_service.list_projects()
 
     return [
         ProjectListResponse(
@@ -135,35 +115,8 @@ async def create_project(
     db: Session = Depends(get_db)
 ):
     """Create a new project (requires write access)"""
-
-    # Validate question_type
-    valid_types = ['binary', 'multiple_choice', 'text', 'count']
-    if project_data.question_type not in valid_types:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid question_type. Must be one of: {valid_types}"
-        )
-
-    # Multiple choice requires options
-    if project_data.question_type == 'multiple_choice' and not project_data.question_options:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="question_options required for multiple_choice type"
-        )
-
-    project = Project(
-        name=project_data.name,
-        description=project_data.description,
-        question_text=project_data.question_text,
-        question_type=project_data.question_type,
-        question_options=project_data.question_options,
-        created_by_id=current_user.id
-    )
-    db.add(project)
-    db.commit()
-    db.refresh(project)
-
-    logger.info(f"Created project: {project.name} by user: {current_user.email}")
+    project_service = ProjectService(db)
+    project = project_service.create_project(project_data, current_user)
 
     return ProjectResponse(
         id=str(project.id),
@@ -187,14 +140,8 @@ async def get_project(
     db: Session = Depends(get_db)
 ):
     """Get project by ID (visible to all authenticated users)"""
-
-    project = db.query(Project).filter(Project.id == project_id).first()
-
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found"
-        )
+    project_service = ProjectService(db)
+    project = project_service.get_project(project_id)
 
     datasets = [
         DatasetResponse(
@@ -229,43 +176,8 @@ async def update_project(
     db: Session = Depends(get_db)
 ):
     """Update project (requires write access, owner can edit their own projects)"""
-
-    project = db.query(Project).filter(Project.id == project_id).first()
-
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found"
-        )
-
-    # Only the project owner can edit their project
-    if str(project.created_by_id) != str(current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only edit your own projects"
-        )
-
-    if project_data.name is not None:
-        project.name = project_data.name
-    if project_data.description is not None:
-        project.description = project_data.description
-    if project_data.question_text is not None:
-        project.question_text = project_data.question_text
-    if project_data.question_type is not None:
-        valid_types = ['binary', 'multiple_choice', 'text', 'count']
-        if project_data.question_type not in valid_types:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid question_type. Must be one of: {valid_types}"
-            )
-        project.question_type = project_data.question_type
-    if project_data.question_options is not None:
-        project.question_options = project_data.question_options
-
-    db.commit()
-    db.refresh(project)
-
-    logger.info(f"Updated project: {project.name}")
+    project_service = ProjectService(db)
+    project = project_service.update_project(project_id, project_data, current_user)
 
     datasets = [
         DatasetResponse(
@@ -299,26 +211,7 @@ async def delete_project(
     db: Session = Depends(get_db)
 ):
     """Delete project and all its datasets/images (requires write access, owner only)"""
-
-    project = db.query(Project).filter(Project.id == project_id).first()
-
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found"
-        )
-
-    # Only the project owner can delete their project
-    if str(project.created_by_id) != str(current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only delete your own projects"
-        )
-
-    project_name = project.name
-    db.delete(project)
-    db.commit()
-
-    logger.info(f"Deleted project: {project_name}")
+    project_service = ProjectService(db)
+    project_name = project_service.delete_project(project_id, current_user)
 
     return {"message": f"Project '{project_name}' deleted successfully"}

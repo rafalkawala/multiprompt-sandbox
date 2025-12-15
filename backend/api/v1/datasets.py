@@ -15,12 +15,11 @@ import shutil
 import base64
 import asyncio
 
-from core.database import SessionLocal
 from core.config import settings
 from models.project import Project, Dataset
 from models.image import Image, Annotation
 from models.user import User
-from api.v1.auth import get_current_user
+from api.deps import get_db, require_write_access, get_current_user
 
 from core.image_utils import generate_thumbnail
 
@@ -49,26 +48,6 @@ def is_valid_image_file(filename: str, content_type: str) -> bool:
     # Fallback: check file extension
     _, ext = os.path.splitext(filename)
     return ext in ALLOWED_IMAGE_EXTENSIONS
-
-
-def require_write_access(current_user: User = Depends(get_current_user)) -> User:
-    """Require user to have write access (not a viewer)"""
-    from models.user import UserRole
-    if current_user.role == UserRole.VIEWER.value:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Viewers have read-only access. Cannot create, update, or delete resources."
-        )
-    return current_user
-
-
-def get_db():
-    """Database session dependency"""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 # Pydantic models
