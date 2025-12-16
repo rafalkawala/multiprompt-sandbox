@@ -24,11 +24,11 @@ import { switchMap } from 'rxjs/operators';
   selector: 'app-edit-project-dialog',
   standalone: true,
   imports: [
-    CommonModule, 
-    FormsModule, 
-    MatButtonModule, 
-    MatInputModule, 
-    MatFormFieldModule, 
+    CommonModule,
+    FormsModule,
+    MatButtonModule,
+    MatInputModule,
+    MatFormFieldModule,
     MatDialogModule,
     MatSelectModule
   ],
@@ -40,7 +40,7 @@ import { switchMap } from 'rxjs/operators';
           <mat-label>Project Name</mat-label>
           <input matInput [(ngModel)]="data.name" required>
         </mat-form-field>
-        
+
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Description</mat-label>
           <textarea matInput [(ngModel)]="data.description" rows="3"></textarea>
@@ -90,6 +90,76 @@ export class EditProjectDialogComponent {
   constructor(
     public dialogRef: MatDialogRef<EditProjectDialogComponent>,
     @Inject(MAT_DIALOG_DATA) public data: any
+  ) {}
+}
+
+@Component({
+  selector: 'app-cancel-upload-dialog',
+  standalone: true,
+  imports: [
+    CommonModule,
+    MatButtonModule,
+    MatDialogModule,
+    MatIconModule
+  ],
+  template: `
+    <h2 mat-dialog-title>
+      <mat-icon color="warn" style="vertical-align: middle; margin-right: 8px;">warning</mat-icon>
+      Cancel Upload?
+    </h2>
+    <mat-dialog-content>
+      <p><strong>Are you sure you want to cancel this upload?</strong></p>
+      <p>Already uploaded files have been saved and will appear in the dataset.</p>
+      <div class="warning-box">
+        <mat-icon>info</mat-icon>
+        <div>
+          <p><strong>Important:</strong> If you cancel now, the dataset may be partially loaded.</p>
+          <p>You will need to manually delete the dataset and re-upload all files if you want a complete upload.</p>
+        </div>
+      </div>
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+      <button mat-button [mat-dialog-close]="false">Continue Upload</button>
+      <button mat-raised-button color="warn" [mat-dialog-close]="true">Yes, Cancel Upload</button>
+    </mat-dialog-actions>
+  `,
+  styles: [`
+    mat-dialog-content {
+      min-width: 400px;
+      padding: 20px 24px;
+    }
+    .warning-box {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+      padding: 16px;
+      background-color: #fff3e0;
+      border-left: 4px solid #ff9800;
+      border-radius: 4px;
+
+      mat-icon {
+        color: #ff9800;
+        flex-shrink: 0;
+      }
+
+      p {
+        margin: 0 0 8px 0;
+        &:last-child {
+          margin-bottom: 0;
+        }
+      }
+    }
+    @media (max-width: 600px) {
+      mat-dialog-content {
+        min-width: unset;
+        width: 100%;
+      }
+    }
+  `]
+})
+export class CancelUploadDialogComponent {
+  constructor(
+    public dialogRef: MatDialogRef<CancelUploadDialogComponent>
   ) {}
 }
 
@@ -379,9 +449,9 @@ export class EditProjectDialogComponent {
 
     <!-- Upload Blocker Overlay -->
     @if (showUploadBlocker()) {
-      <div class="upload-blocker-overlay" (click)="cancelUpload()">
-        <div class="upload-blocker-content" (click)="$event.stopPropagation()">
-          <button mat-icon-button class="close-button" (click)="cancelUpload()" matTooltip="Cancel Upload (ESC)">
+      <div class="upload-blocker-overlay">
+        <div class="upload-blocker-content">
+          <button mat-icon-button class="close-button" (click)="confirmCancelUpload()" matTooltip="Cancel Upload">
             <mat-icon>close</mat-icon>
           </button>
           <mat-spinner diameter="80"></mat-spinner>
@@ -393,7 +463,7 @@ export class EditProjectDialogComponent {
               <mat-progress-bar mode="determinate" [value]="(uploadProgress().current / uploadProgress().total) * 100"></mat-progress-bar>
             </div>
           }
-          <p class="cancel-hint">Press ESC or click × to cancel</p>
+          <p class="cancel-hint">Click × to cancel upload</p>
         </div>
       </div>
     }
@@ -898,7 +968,7 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
         if (this.showUploadBlocker()) {
-          this.cancelUpload();
+          this.confirmCancelUpload();
         } else if (this.selectedImage()) {
           this.closeImageDetail();
         }
@@ -913,11 +983,25 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
 
   private uploadCancelled = false;
 
-  cancelUpload() {
+  confirmCancelUpload() {
+    const dialogRef = this.dialog.open(CancelUploadDialogComponent, {
+      width: '500px',
+      maxWidth: '95vw',
+      disableClose: true
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result === true) {
+        this.cancelUpload();
+      }
+    });
+  }
+
+  private cancelUpload() {
     this.uploadCancelled = true;
     this.showUploadBlocker.set(false);
     this.uploadingDatasetId = null;
-    this.snackBar.open('Upload cancelled', 'Close', { duration: 3000 });
+    this.snackBar.open('Upload cancelled. Already uploaded files have been saved.', 'Close', { duration: 5000 });
   }
 
   openEditDialog() {
