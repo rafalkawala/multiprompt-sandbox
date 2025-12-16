@@ -250,7 +250,8 @@ async def run_evaluation_task(evaluation_id: str):
             'temperature': evaluation.model_config.temperature,
             'max_tokens': evaluation.model_config.max_tokens,
             'pricing_config': pricing_config,
-            'concurrency': getattr(evaluation.model_config, 'concurrency', 3)
+            'concurrency': getattr(evaluation.model_config, 'concurrency', 3),
+            'retry_config': evaluation.model_config.retry_config
         }
 
         project_data = {
@@ -436,7 +437,8 @@ async def run_evaluation_task(evaluation_id: str):
                             mime_type=mime_type,
                             system_message=system_message,
                             temperature=model_config_data['temperature'],
-                            max_tokens=model_config_data['max_tokens']
+                            max_tokens=model_config_data['max_tokens'],
+                            retry_config=model_config_data['retry_config']
                         )
 
                         latency = int((time.time() - start_time) * 1000)

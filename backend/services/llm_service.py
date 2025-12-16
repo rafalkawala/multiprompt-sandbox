@@ -1,6 +1,6 @@
 from functools import lru_cache
 from typing import Optional, Tuple, Dict, Any
-from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception, RetryCallState
 import httpx
 import structlog
 import os
@@ -13,10 +13,12 @@ from infrastructure.llm.anthropic import AnthropicProvider
 
 logger = structlog.get_logger(__name__)
 
-def is_rate_limit_error(exception):
-    """Return True if exception is a 429 Rate Limit error"""
+def is_retryable_error(exception):
+    """Return True if exception should be retried (429 rate limit or 5xx server errors)"""
     if isinstance(exception, httpx.HTTPStatusError):
-        return exception.response.status_code == 429
+        status_code = exception.response.status_code
+        # Retry on rate limiting (429) and server errors (500-599)
+        return status_code == 429 or (500 <= status_code < 600)
     return False
 
 class LLMService:
@@ -28,12 +30,45 @@ class LLMService:
             "anthropic": AnthropicProvider()
         }
 
-    @retry(
-        retry=retry_if_exception(is_rate_limit_error),
-        stop=stop_after_attempt(3),
-        wait=wait_fixed(2),
-        before_sleep=lambda retry_state: logger.warning(f"Rate limit hit (429). Retrying... (Attempt {retry_state.attempt_number})")
-    )
+    def _create_retry_decorator(self, retry_config: Optional[Dict[str, Any]]):
+        """Create a retry decorator with model-specific configuration"""
+        # Default retry configuration
+        max_attempts = 5
+        initial_wait = 2
+        max_wait = 30
+        exponential_base = 2
+
+        # Override with model-specific config if provided
+        if retry_config:
+            max_attempts = retry_config.get('max_attempts', max_attempts)
+            initial_wait = retry_config.get('initial_wait', initial_wait)
+            max_wait = retry_config.get('max_wait', max_wait)
+            exponential_base = retry_config.get('exponential_base', exponential_base)
+
+        def log_retry(retry_state: RetryCallState):
+            """Log retry attempts with structured logging"""
+            if retry_state.outcome and retry_state.outcome.failed:
+                exception = retry_state.outcome.exception()
+                status_code = exception.response.status_code if isinstance(exception, httpx.HTTPStatusError) else None
+                wait_time = retry_state.next_action.sleep if retry_state.next_action else 0
+
+                logger.warning(
+                    "llm_retry_attempt",
+                    attempt=retry_state.attempt_number,
+                    max_attempts=max_attempts,
+                    status_code=status_code,
+                    wait_seconds=round(wait_time, 1),
+                    error_type=type(exception).__name__
+                )
+
+        return retry(
+            retry=retry_if_exception(is_retryable_error),
+            stop=stop_after_attempt(max_attempts),
+            wait=wait_exponential(multiplier=initial_wait, max=max_wait, exp_base=exponential_base),
+            before_sleep=log_retry,
+            reraise=True
+        )
+
     async def generate_content(
         self,
         provider_name: str,
@@ -45,7 +80,8 @@ class LLMService:
         mime_type: Optional[str] = None,
         system_message: Optional[str] = None,
         temperature: float = 0.0,
-        max_tokens: int = 1024
+        max_tokens: int = 1024,
+        retry_config: Optional[Dict[str, Any]] = None
     ) -> Tuple[str, int, Dict[str, Any]]:
 
         provider = self._providers.get(provider_name)
@@ -65,21 +101,28 @@ class LLMService:
             elif provider_name == "vertex":
                 # Vertex AI provider uses API key or ADC
                 final_api_key = os.environ.get("VERTEX_AI_API_KEY") or os.environ.get("GEMINI_API_KEY")
-            
-            if final_api_key:
-                logger.info(f"Using environment variable API key for {provider_name}")
 
-        return await provider.generate_content(
-            api_key=final_api_key,
-            auth_type=auth_type,
-            model_name=model_name,
-            image_data=image_data,
-            mime_type=mime_type,
-            prompt=prompt,
-            system_message=system_message,
-            temperature=temperature,
-            max_tokens=max_tokens
-        )
+            if final_api_key:
+                logger.info("using_env_api_key", provider=provider_name)
+
+        # Create retry-wrapped function with model-specific config
+        retry_decorator = self._create_retry_decorator(retry_config)
+
+        @retry_decorator
+        async def _call_provider():
+            return await provider.generate_content(
+                api_key=final_api_key,
+                auth_type=auth_type,
+                model_name=model_name,
+                image_data=image_data,
+                mime_type=mime_type,
+                prompt=prompt,
+                system_message=system_message,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+
+        return await _call_provider()
 
 @lru_cache()
 def get_llm_service() -> LLMService:

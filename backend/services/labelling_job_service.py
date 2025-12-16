@@ -374,7 +374,8 @@ class LabellingJobService:
                         prompt=job.question_text,
                         system_message=job.system_message,
                         temperature=model_config.temperature,
-                        max_tokens=model_config.max_tokens
+                        max_tokens=model_config.max_tokens,
+                        retry_config=model_config.retry_config
                     )
 
                     # Parse answer (reuse evaluation logic)

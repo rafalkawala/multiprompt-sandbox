@@ -41,6 +41,7 @@ class ModelConfigCreate(BaseModel):
     concurrency: int = Field(default=3, ge=1, le=100, description="Number of parallel API calls (1-100)")
     additional_params: Optional[dict] = None
     pricing_config: Optional[dict] = None  # Cost tracking configuration
+    retry_config: Optional[dict] = None  # Retry configuration: {"max_attempts": 5, "initial_wait": 2, "max_wait": 30, "exponential_base": 2}
 
     @validator('concurrency')
     def validate_concurrency(cls, v):
@@ -59,6 +60,7 @@ class ModelConfigUpdate(BaseModel):
     concurrency: Optional[int] = Field(default=None, ge=1, le=100, description="Number of parallel API calls (1-100)")
     additional_params: Optional[dict] = None
     pricing_config: Optional[dict] = None  # Cost tracking configuration
+    retry_config: Optional[dict] = None  # Retry configuration
     is_active: Optional[bool] = None
 
     @validator('concurrency')
@@ -78,6 +80,7 @@ class ModelConfigResponse(BaseModel):
     concurrency: int
     additional_params: Optional[dict]
     pricing_config: Optional[dict]
+    retry_config: Optional[dict]
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -129,6 +132,7 @@ async def export_model_configs(
             "concurrency": c.concurrency,
             "additional_params": c.additional_params,
             "pricing_config": c.pricing_config,
+            "retry_config": c.retry_config,
             "is_active": c.is_active
             # Exclude API Key for security
         }
@@ -186,6 +190,7 @@ async def import_model_configs(
             existing.concurrency = item.get("concurrency", existing.concurrency)
             existing.additional_params = item.get("additional_params", existing.additional_params)
             existing.pricing_config = item.get("pricing_config", existing.pricing_config)
+            existing.retry_config = item.get("retry_config", existing.retry_config)
             existing.is_active = item.get("is_active", existing.is_active)
             if "api_key" in item and item["api_key"]:
                 existing.api_key = item["api_key"]
@@ -204,6 +209,7 @@ async def import_model_configs(
                 concurrency=item.get("concurrency", 3),
                 additional_params=item.get("additional_params", {}),
                 pricing_config=item.get("pricing_config", {}),
+                retry_config=item.get("retry_config"),
                 is_active=item.get("is_active", True),
                 created_by_id=current_user.id
             )
@@ -258,6 +264,7 @@ async def create_model_config(
         concurrency=data.concurrency,
         additional_params=data.additional_params,
         pricing_config=data.pricing_config,
+        retry_config=data.retry_config,
         created_by_id=current_user.id
     )
     db.add(config)
@@ -275,6 +282,7 @@ async def create_model_config(
         concurrency=config.concurrency,
         additional_params=config.additional_params,
         pricing_config=config.pricing_config,
+        retry_config=config.retry_config,
         is_active=config.is_active,
         created_at=config.created_at,
         updated_at=config.updated_at
@@ -305,6 +313,7 @@ async def get_model_config(
         concurrency=config.concurrency,
         additional_params=config.additional_params,
         pricing_config=config.pricing_config,
+        retry_config=config.retry_config,
         is_active=config.is_active,
         created_at=config.created_at,
         updated_at=config.updated_at
@@ -343,6 +352,7 @@ async def update_model_config(
         concurrency=config.concurrency,
         additional_params=config.additional_params,
         pricing_config=config.pricing_config,
+        retry_config=config.retry_config,
         is_active=config.is_active,
         created_at=config.created_at,
         updated_at=config.updated_at

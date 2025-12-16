@@ -163,8 +163,8 @@ class OpenAIProvider(ILLMProvider):
 
         latency = int((time.time() - start_time) * 1000)
 
-        if response.status_code != 200:
-            raise Exception(f"OpenAI API error: {response.text}")
+        # Raise HTTPStatusError for non-200 responses (enables retry logic)
+        response.raise_for_status()
 
         result = response.json()
         text = result.get('choices', [{}])[0].get('message', {}).get('content', '')

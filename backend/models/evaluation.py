@@ -25,6 +25,11 @@ class ModelConfig(Base):
     #             "image_price_mode": "per_tile", "image_price_val": 2.50, "discount_percent": 0}
     pricing_config = Column(JSON, nullable=True)
 
+    # Retry configuration for rate limiting and transient errors
+    # Structure: {"max_attempts": 5, "initial_wait": 2, "max_wait": 30, "exponential_base": 2}
+    # Default: 5 attempts with exponential backoff (2s, 4s, 8s, 16s, 30s)
+    retry_config = Column(JSON, nullable=True)
+
     is_active = Column(Boolean, default=True)
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)

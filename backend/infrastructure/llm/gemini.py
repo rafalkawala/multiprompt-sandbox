@@ -127,8 +127,8 @@ class GeminiProvider(ILLMProvider):
 
         latency = int((time.time() - start_time) * 1000)
 
-        if response.status_code != 200:
-            raise Exception(f"Gemini API error: {response.text}")
+        # Raise HTTPStatusError for non-200 responses (enables retry logic)
+        response.raise_for_status()
 
         result = response.json()
         try:

@@ -208,14 +208,11 @@ class VertexAIProvider(ILLMProvider):
 
         latency = int((time.time() - start_time) * 1000)
 
+        # Raise HTTPStatusError for non-200 responses (enables retry logic)
         if response.status_code != 200:
             error_detail = response.text
-            logger.error(f"=== VERTEX AI ERROR DEBUG ===")
-            logger.error(f"Status Code: {response.status_code}")
-            logger.error(f"Response: {error_detail}")
-            logger.error(f"Request was: {request_body}")
-            logger.error(f"=== END ERROR DEBUG ===")
-            raise Exception(f"Vertex AI API error (status {response.status_code}): {error_detail}")
+            logger.error("vertex_ai_error", status_code=response.status_code, response=error_detail, request_body=request_body)
+            response.raise_for_status()
 
         result = response.json()
 
