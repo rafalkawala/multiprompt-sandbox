@@ -159,10 +159,9 @@ async def create_labelling_job(
     Copies prompt configuration from an existing evaluation.
     Auto-creates a dedicated dataset named "Job Output: [JobName]".
     """
-    # Validate project exists and user has access
+    # Validate project exists
     project = db.query(Project).filter(
-        Project.id == job_data.project_id,
-        Project.created_by_id == current_user.id
+        Project.id == job_data.project_id
     ).first()
 
     if not project:
@@ -245,9 +244,7 @@ async def list_labelling_jobs(
     current_user: User = Depends(get_current_user)
 ):
     """List all labelling jobs, optionally filtered by project"""
-    query = db.query(LabellingJob).filter(
-        LabellingJob.created_by_id == current_user.id
-    )
+    query = db.query(LabellingJob)
 
     if project_id:
         query = query.filter(LabellingJob.project_id == project_id)
@@ -308,8 +305,7 @@ async def get_labelling_job(
 ):
     """Get a specific labelling job by ID"""
     job = db.query(LabellingJob).filter(
-        LabellingJob.id == job_id,
-        LabellingJob.created_by_id == current_user.id
+        LabellingJob.id == job_id
     ).first()
 
     if not job:
@@ -352,8 +348,7 @@ async def update_labelling_job(
 ):
     """Update a labelling job"""
     job = db.query(LabellingJob).filter(
-        LabellingJob.id == job_id,
-        LabellingJob.created_by_id == current_user.id
+        LabellingJob.id == job_id
     ).first()
 
     if not job:
@@ -421,8 +416,7 @@ async def delete_labelling_job(
 ):
     """Delete a labelling job and its associated dataset"""
     job = db.query(LabellingJob).filter(
-        LabellingJob.id == job_id,
-        LabellingJob.created_by_id == current_user.id
+        LabellingJob.id == job_id
     ).first()
 
     if not job:
@@ -454,8 +448,7 @@ async def trigger_labelling_job(
 ):
     """Manually trigger a labelling job execution"""
     job = db.query(LabellingJob).filter(
-        LabellingJob.id == job_id,
-        LabellingJob.created_by_id == current_user.id
+        LabellingJob.id == job_id
     ).first()
 
     if not job:
@@ -488,10 +481,9 @@ async def get_job_runs(
     current_user: User = Depends(get_current_user)
 ):
     """Get execution history for a labelling job"""
-    # Verify job access
+    # Verify job exists
     job = db.query(LabellingJob).filter(
-        LabellingJob.id == job_id,
-        LabellingJob.created_by_id == current_user.id
+        LabellingJob.id == job_id
     ).first()
 
     if not job:
@@ -536,10 +528,9 @@ async def get_job_results(
     current_user: User = Depends(get_current_user)
 ):
     """Get labeling results for a job, optionally filtered by run"""
-    # Verify job access
+    # Verify job exists
     job = db.query(LabellingJob).filter(
-        LabellingJob.id == job_id,
-        LabellingJob.created_by_id == current_user.id
+        LabellingJob.id == job_id
     ).first()
 
     if not job:

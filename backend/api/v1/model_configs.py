@@ -115,9 +115,7 @@ async def export_model_configs(
     db: Session = Depends(get_db)
 ):
     """Export all model configurations as JSON"""
-    configs = db.query(ModelConfig).filter(
-        ModelConfig.created_by_id == current_user.id
-    ).all()
+    configs = db.query(ModelConfig).all()
 
     export_data = []
     for c in configs:
@@ -175,8 +173,7 @@ async def import_model_configs(
         if "id" in item and item["id"]:
             # Try to match by ID for update
             existing = db.query(ModelConfig).filter(
-                ModelConfig.id == item["id"],
-                ModelConfig.created_by_id == current_user.id
+                ModelConfig.id == item["id"]
             ).first()
 
         if existing:
@@ -229,9 +226,7 @@ async def list_model_configs(
     db: Session = Depends(get_db)
 ):
     """List all model configurations for current user"""
-    configs = db.query(ModelConfig).filter(
-        ModelConfig.created_by_id == current_user.id
-    ).order_by(ModelConfig.created_at.desc()).all()
+    configs = db.query(ModelConfig).order_by(ModelConfig.created_at.desc()).all()
 
     return [
         ModelConfigListItem(
@@ -296,8 +291,7 @@ async def get_model_config(
 ):
     """Get a specific model configuration"""
     config = db.query(ModelConfig).filter(
-        ModelConfig.id == config_id,
-        ModelConfig.created_by_id == current_user.id
+        ModelConfig.id == config_id
     ).first()
     if not config:
         raise HTTPException(status_code=404, detail="Model config not found")
@@ -328,8 +322,7 @@ async def update_model_config(
 ):
     """Update a model configuration"""
     config = db.query(ModelConfig).filter(
-        ModelConfig.id == config_id,
-        ModelConfig.created_by_id == current_user.id
+        ModelConfig.id == config_id
     ).first()
     if not config:
         raise HTTPException(status_code=404, detail="Model config not found")
@@ -366,8 +359,7 @@ async def delete_model_config(
 ):
     """Delete a model configuration"""
     config = db.query(ModelConfig).filter(
-        ModelConfig.id == config_id,
-        ModelConfig.created_by_id == current_user.id
+        ModelConfig.id == config_id
     ).first()
     if not config:
         raise HTTPException(status_code=404, detail="Model config not found")
@@ -385,8 +377,7 @@ async def test_model_config(
 ):
     """Test a model configuration with a simple text prompt"""
     config = db.query(ModelConfig).filter(
-        ModelConfig.id == config_id,
-        ModelConfig.created_by_id == current_user.id
+        ModelConfig.id == config_id
     ).first()
     if not config:
         raise HTTPException(status_code=404, detail="Model config not found")

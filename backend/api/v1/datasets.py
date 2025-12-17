@@ -165,11 +165,8 @@ async def list_datasets(
 ):
     """List all datasets in a project"""
 
-    # Verify project exists and belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -215,11 +212,8 @@ async def delete_dataset(
             detail="Dataset not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -270,11 +264,8 @@ async def upload_images(
             detail="Dataset not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -441,11 +432,8 @@ async def list_images(
             detail="Dataset not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -517,11 +505,8 @@ async def get_image_url(
             detail="Image not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -573,11 +558,8 @@ async def get_image_file(
             detail="Image not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -640,11 +622,8 @@ async def get_image_thumbnail(
             detail="Image not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -691,11 +670,8 @@ async def delete_image(
             detail="Image not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -776,11 +752,8 @@ async def batch_upload_images(
             detail="Dataset not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -1034,11 +1007,8 @@ async def get_processing_status(
             detail="Dataset not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(

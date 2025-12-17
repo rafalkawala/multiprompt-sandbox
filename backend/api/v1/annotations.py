@@ -306,10 +306,9 @@ async def export_annotations(
 ):
     """Export all annotations for a dataset to CSV"""
 
-    # Verify project and dataset access
+    # Verify project exists
     project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
+        Project.id == project_id
     ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -369,10 +368,9 @@ async def download_template(
 ):
     """Generate a sample CSV template based on project type"""
 
-    # Verify access
+    # Verify project exists
     project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
+        Project.id == project_id
     ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -469,10 +467,9 @@ async def preview_import(
 ):
     """Preview CSV import with validation (dry run)"""
 
-    # Verify access
+    # Verify project exists
     project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
+        Project.id == project_id
     ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -513,10 +510,9 @@ async def confirm_import(
 ):
     """Apply CSV import after validation"""
 
-    # Verify access
+    # Verify project exists
     project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
+        Project.id == project_id
     ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")

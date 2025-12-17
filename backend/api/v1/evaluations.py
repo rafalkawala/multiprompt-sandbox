@@ -728,7 +728,7 @@ async def list_evaluations(
     db: Session = Depends(get_db)
 ):
     """List evaluations"""
-    query = db.query(Evaluation).filter(Evaluation.created_by_id == current_user.id)
+    query = db.query(Evaluation)
     if project_id:
         query = query.filter(Evaluation.project_id == project_id)
 
@@ -802,8 +802,7 @@ async def create_evaluation(
         raise HTTPException(status_code=404, detail="Dataset not found")
 
     model_config = db.query(ModelConfig).filter(
-        ModelConfig.id == data.model_config_id,
-        ModelConfig.created_by_id == current_user.id
+        ModelConfig.id == data.model_config_id
     ).first()
     if not model_config:
         raise HTTPException(status_code=404, detail="Model config not found")
@@ -866,8 +865,7 @@ async def get_evaluation(
 ):
     """Get evaluation details"""
     evaluation = db.query(Evaluation).filter(
-        Evaluation.id == evaluation_id,
-        Evaluation.created_by_id == current_user.id
+        Evaluation.id == evaluation_id
     ).first()
     if not evaluation:
         raise HTTPException(status_code=404, detail="Evaluation not found")
@@ -905,8 +903,7 @@ async def estimate_evaluation_cost(
 ):
     """Estimate the cost of running an evaluation"""
     evaluation = db.query(Evaluation).filter(
-        Evaluation.id == evaluation_id,
-        Evaluation.created_by_id == current_user.id
+        Evaluation.id == evaluation_id
     ).first()
     if not evaluation:
         raise HTTPException(status_code=404, detail="Evaluation not found")
@@ -994,8 +991,7 @@ async def get_evaluation_results(
 ):
     """Get evaluation results with filtering"""
     evaluation = db.query(Evaluation).filter(
-        Evaluation.id == evaluation_id,
-        Evaluation.created_by_id == current_user.id
+        Evaluation.id == evaluation_id
     ).first()
     if not evaluation:
         raise HTTPException(status_code=404, detail="Evaluation not found")
@@ -1071,8 +1067,7 @@ async def delete_evaluation(
 ):
     """Delete an evaluation"""
     evaluation = db.query(Evaluation).filter(
-        Evaluation.id == evaluation_id,
-        Evaluation.created_by_id == current_user.id
+        Evaluation.id == evaluation_id
     ).first()
     if not evaluation:
         raise HTTPException(status_code=404, detail="Evaluation not found")
