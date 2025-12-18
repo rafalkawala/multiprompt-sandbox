@@ -1,6 +1,7 @@
 import logging
 from typing import Optional, List
 from functools import lru_cache
+from core.retry_utils import get_retry_decorator
 from core.domain.embedding.schema import EmbeddingResponse
 from infrastructure.embedding.google_multimodal import GoogleMultimodalEmbeddingProvider
 
@@ -16,6 +17,7 @@ class EmbeddingService:
         self._default_provider = "google_multimodal"
         self._default_model = "multimodalembedding@001"
 
+    @get_retry_decorator()
     async def generate_embeddings(
         self,
         text: Optional[str] = None,
