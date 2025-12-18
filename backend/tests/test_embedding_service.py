@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
 from services.embedding_service import EmbeddingService
+from core.domain.embedding.schema import EmbeddingResponse, VideoEmbeddingSegment
 
 @pytest.fixture
 def mock_google_provider():
@@ -11,9 +12,11 @@ def mock_google_provider():
 async def test_generate_embeddings_text(mock_google_provider):
     # Setup
     provider_instance = mock_google_provider.return_value
-    provider_instance.generate_embeddings = AsyncMock(return_value={
-        "text_embedding": [0.1, 0.2, 0.3]
-    })
+    mock_response = EmbeddingResponse(
+        text_embedding=[0.1, 0.2, 0.3],
+        dimension=1408
+    )
+    provider_instance.generate_embeddings = AsyncMock(return_value=mock_response)
 
     service = EmbeddingService()
 
@@ -21,8 +24,8 @@ async def test_generate_embeddings_text(mock_google_provider):
     result = await service.generate_embeddings(text="Hello world")
 
     # Verify
-    assert "text_embedding" in result
-    assert result["text_embedding"] == [0.1, 0.2, 0.3]
+    assert isinstance(result, EmbeddingResponse)
+    assert result.text_embedding == [0.1, 0.2, 0.3]
     provider_instance.generate_embeddings.assert_called_once()
     call_args = provider_instance.generate_embeddings.call_args
     assert call_args.kwargs['text'] == "Hello world"
@@ -32,9 +35,11 @@ async def test_generate_embeddings_text(mock_google_provider):
 async def test_generate_embeddings_image(mock_google_provider):
     # Setup
     provider_instance = mock_google_provider.return_value
-    provider_instance.generate_embeddings = AsyncMock(return_value={
-        "image_embedding": [0.4, 0.5, 0.6]
-    })
+    mock_response = EmbeddingResponse(
+        image_embedding=[0.4, 0.5, 0.6],
+        dimension=1408
+    )
+    provider_instance.generate_embeddings = AsyncMock(return_value=mock_response)
 
     service = EmbeddingService()
 
@@ -42,8 +47,8 @@ async def test_generate_embeddings_image(mock_google_provider):
     result = await service.generate_embeddings(image_path="gs://bucket/image.jpg")
 
     # Verify
-    assert "image_embedding" in result
-    assert result["image_embedding"] == [0.4, 0.5, 0.6]
+    assert isinstance(result, EmbeddingResponse)
+    assert result.image_embedding == [0.4, 0.5, 0.6]
     provider_instance.generate_embeddings.assert_called_once()
     call_args = provider_instance.generate_embeddings.call_args
     assert call_args.kwargs['image_path'] == "gs://bucket/image.jpg"

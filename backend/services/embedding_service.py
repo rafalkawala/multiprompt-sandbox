@@ -1,6 +1,7 @@
 import logging
 from typing import Optional, List
 from functools import lru_cache
+from core.domain.embedding.schema import EmbeddingResponse
 from infrastructure.embedding.google_multimodal import GoogleMultimodalEmbeddingProvider
 
 logger = logging.getLogger(__name__)
@@ -8,7 +9,7 @@ logger = logging.getLogger(__name__)
 class EmbeddingService:
     def __init__(self):
         # We can support multiple providers here, similar to LLMService.
-        # For now, we only implement Google Multimodal.
+        # Future providers (e.g., CLIP) can be added here.
         self._providers = {
             "google_multimodal": GoogleMultimodalEmbeddingProvider()
         }
@@ -24,9 +25,9 @@ class EmbeddingService:
         video_bytes: Optional[bytes] = None,
         provider_name: Optional[str] = None,
         model_name: Optional[str] = None,
-        dimension: int = 1408,
+        dimension: Optional[int] = None,
         video_segment_config: Optional[dict] = None
-    ) -> dict:
+    ) -> EmbeddingResponse:
         """
         Generate embeddings for the provided input(s).
 
@@ -38,11 +39,11 @@ class EmbeddingService:
             video_bytes: Raw bytes of the video.
             provider_name: Name of the provider to use (default: google_multimodal).
             model_name: Name of the model to use (default: multimodalembedding@001).
-            dimension: Output dimension (128, 256, 512, 1408).
+            dimension: Output dimension (e.g. 128, 256, 512, 1408).
             video_segment_config: Configuration for video segments.
 
         Returns:
-             Dictionary with embeddings.
+             EmbeddingResponse with embeddings.
         """
         provider_key = provider_name or self._default_provider
         provider = self._providers.get(provider_key)

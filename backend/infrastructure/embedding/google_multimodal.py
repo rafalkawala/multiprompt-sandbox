@@ -6,6 +6,7 @@ from functools import partial
 import vertexai
 from vertexai.vision_models import Image, MultiModalEmbeddingModel, Video, VideoSegmentConfig
 from core.interfaces.embedding import IEmbeddingProvider
+from core.domain.embedding.schema import EmbeddingResponse, VideoEmbeddingSegment
 
 logger = logging.getLogger(__name__)
 
@@ -28,28 +29,34 @@ class GoogleMultimodalEmbeddingProvider(IEmbeddingProvider):
         image_bytes: Optional[bytes] = None,
         video_path: Optional[str] = None,
         video_bytes: Optional[bytes] = None,
-        dimension: int = 1408,
+        dimension: Optional[int] = None,
         video_segment_config: Optional[dict] = None
-    ) -> dict:
+    ) -> EmbeddingResponse:
         """
         Generates embeddings using Google Vertex AI Multimodal Embedding Model.
         """
 
         try:
-            # Load model (this might also block, but usually it's fast if not downloading large files,
-            # and from_pretrained for vertexai models is often just configuration.
-            # However, for strict non-blocking, we could also offload this).
             model = MultiModalEmbeddingModel.from_pretrained(model_name)
 
             image = None
             if image_path:
-                image = Image.load_from_file(image_path)
+                if image_path.startswith("gs://"):
+                    # Use constructor for explicit GCS handling if needed,
+                    # though load_from_file also supports it.
+                    # Explicit is better for clarity.
+                    image = Image(gcs_uri=image_path)
+                else:
+                    image = Image.load_from_file(image_path)
             elif image_bytes:
                 image = Image(image_bytes)
 
             video = None
             if video_path:
-                video = Video.load_from_file(video_path)
+                if video_path.startswith("gs://"):
+                    video = Video(gcs_uri=video_path)
+                else:
+                    video = Video.load_from_file(video_path)
             elif video_bytes:
                 video = Video(video_bytes)
 
@@ -61,40 +68,41 @@ class GoogleMultimodalEmbeddingProvider(IEmbeddingProvider):
                     interval_sec=video_segment_config.get('interval_sec')
                 )
 
-            # Offload the blocking SDK call to a separate thread
+            # Use 1408 as default if not specified for Google's model
+            target_dimension = dimension if dimension is not None else 1408
+
             loop = asyncio.get_running_loop()
 
-            # Use partial to pass arguments to the synchronous function
-            # The get_embeddings method of the model
             func = partial(
                 model.get_embeddings,
                 image=image,
                 video=video,
                 contextual_text=text,
-                dimension=dimension,
+                dimension=target_dimension,
                 video_segment_config=vsc
             )
 
             embeddings = await loop.run_in_executor(None, func)
 
-            result = {}
+            response = EmbeddingResponse(dimension=target_dimension)
+
             if embeddings.text_embedding:
-                result["text_embedding"] = embeddings.text_embedding
+                response.text_embedding = embeddings.text_embedding
 
             if embeddings.image_embedding:
-                result["image_embedding"] = embeddings.image_embedding
+                response.image_embedding = embeddings.image_embedding
 
             if embeddings.video_embeddings:
-                result["video_embeddings"] = [
-                    {
-                        "start_offset_sec": ve.start_offset_sec,
-                        "end_offset_sec": ve.end_offset_sec,
-                        "embedding": ve.embedding
-                    }
+                response.video_embeddings = [
+                    VideoEmbeddingSegment(
+                        start_offset_sec=ve.start_offset_sec,
+                        end_offset_sec=ve.end_offset_sec,
+                        embedding=ve.embedding
+                    )
                     for ve in embeddings.video_embeddings
                 ]
 
-            return result
+            return response
 
         except Exception as e:
             logger.error(f"Error generating embeddings with model {model_name}: {str(e)}")
