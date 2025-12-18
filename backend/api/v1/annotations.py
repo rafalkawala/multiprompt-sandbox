@@ -13,23 +13,15 @@ import pandas as pd
 import re
 import structlog
 
-from core.database import SessionLocal
 from models.image import Image, Annotation
 from models.project import Project, Dataset
 from models.user import User
-from api.v1.auth import get_current_user
+from api.deps import get_db, get_current_user
 from services.annotation_import_service import AnnotationImportService
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 # Schemas
 class AnnotationCreate(BaseModel):

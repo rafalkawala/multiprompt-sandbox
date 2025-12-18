@@ -17,7 +17,7 @@ from models.project import Project, Dataset
 from models.evaluation import Evaluation, ModelConfig
 from models.image import Image
 from models.user import User
-from api.v1.auth import get_current_user
+from api.deps import get_db, require_write_access, get_current_user
 from services.labelling_job_service import get_labelling_job_service
 from services.cloud_tasks_service import get_cloud_tasks_service
 from core.config import settings
@@ -25,26 +25,6 @@ from core.config import settings
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
-
-
-def require_write_access(current_user: User = Depends(get_current_user)) -> User:
-    """Require user to have write access (not a viewer)"""
-    from models.user import UserRole
-    if current_user.role == UserRole.VIEWER.value:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Viewers have read-only access. Cannot create, update, or delete resources."
-        )
-    return current_user
-
-
-def get_db():
-    """Database session dependency"""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 # Pydantic schemas

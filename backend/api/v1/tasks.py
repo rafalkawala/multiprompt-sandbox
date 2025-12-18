@@ -7,7 +7,7 @@ import asyncio
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
-from core.database import SessionLocal
+from api.deps import get_db
 from services.image_processing_service import ImageProcessingService
 from services.labelling_job_service import get_labelling_job_service
 from services.cloud_tasks_service import get_cloud_tasks_service
@@ -16,15 +16,6 @@ from models.labelling_job import LabellingJob
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
-
-
-def get_db():
-    """Dependency to get database session"""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 @router.post("/internal/tasks/process-dataset/{dataset_id}")

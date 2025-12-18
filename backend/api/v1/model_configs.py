@@ -13,21 +13,13 @@ import time
 import json
 import io
 
-from core.database import SessionLocal
 from models.evaluation import ModelConfig
 from models.user import User
-from api.v1.auth import get_current_user
+from api.deps import get_db, get_current_user
 from services.llm_service import get_llm_service
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 # Schemas
 class ModelConfigCreate(BaseModel):

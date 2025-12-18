@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '../../../environments/environment';
+import { BaseApiService } from './base-api.service';
 
 export interface LabellingJob {
   id: string;
@@ -75,65 +75,60 @@ export interface LabellingResult {
 @Injectable({
   providedIn: 'root'
 })
-export class LabellingJobsService {
-  private apiUrl = `${environment.apiUrl}/labelling-jobs`;
+export class LabellingJobsService extends BaseApiService {
 
-  constructor(private http: HttpClient) {}
+  constructor(http: HttpClient) {
+    super(http);
+  }
 
   /**
    * Get all labelling jobs, optionally filtered by project
    */
   getLabellingJobs(projectId?: string): Observable<LabellingJob[]> {
-    let params = new HttpParams();
-    if (projectId) {
-      params = params.set('project_id', projectId);
-    }
-    return this.http.get<LabellingJob[]>(this.apiUrl, { params });
+    const params = projectId ? { project_id: projectId } : undefined;
+    return this.get<LabellingJob[]>('/labelling-jobs', params);
   }
 
   /**
    * Get a specific labelling job by ID
    */
   getLabellingJob(jobId: string): Observable<LabellingJob> {
-    return this.http.get<LabellingJob>(`${this.apiUrl}/${jobId}`);
+    return this.get<LabellingJob>(`/labelling-jobs/${jobId}`);
   }
 
   /**
    * Create a new labelling job
    */
   createLabellingJob(data: CreateLabellingJob): Observable<LabellingJob> {
-    return this.http.post<LabellingJob>(this.apiUrl, data);
+    return this.post<LabellingJob>('/labelling-jobs', data);
   }
 
   /**
    * Update a labelling job
    */
   updateLabellingJob(jobId: string, data: UpdateLabellingJob): Observable<LabellingJob> {
-    return this.http.patch<LabellingJob>(`${this.apiUrl}/${jobId}`, data);
+    return this.patch<LabellingJob>(`/labelling-jobs/${jobId}`, data);
   }
 
   /**
    * Delete a labelling job
    */
   deleteLabellingJob(jobId: string): Observable<void> {
-    return this.http.delete<void>(`${this.apiUrl}/${jobId}`);
+    return this.delete<void>(`/labelling-jobs/${jobId}`);
   }
 
   /**
    * Manually trigger a labelling job execution
    */
   triggerJob(jobId: string): Observable<any> {
-    return this.http.post(`${this.apiUrl}/${jobId}/trigger`, {});
+    return this.post(`/labelling-jobs/${jobId}/trigger`, {});
   }
 
   /**
    * Get execution history for a labelling job
    */
   getJobRuns(jobId: string, limit: number = 50, offset: number = 0): Observable<LabellingJobRun[]> {
-    let params = new HttpParams()
-      .set('limit', limit.toString())
-      .set('offset', offset.toString());
-    return this.http.get<LabellingJobRun[]>(`${this.apiUrl}/${jobId}/runs`, { params });
+    return this.get<LabellingJobRun[]>(`/labelling-jobs/${jobId}/runs`, { limit, offset });
   }
 
   /**
@@ -145,14 +140,10 @@ export class LabellingJobsService {
     limit: number = 100,
     offset: number = 0
   ): Observable<LabellingResult[]> {
-    let params = new HttpParams()
-      .set('limit', limit.toString())
-      .set('offset', offset.toString());
-
+    const params: any = { limit, offset };
     if (runId) {
-      params = params.set('run_id', runId);
+      params['run_id'] = runId;
     }
-
-    return this.http.get<LabellingResult[]>(`${this.apiUrl}/${jobId}/results`, { params });
+    return this.get<LabellingResult[]>(`/labelling-jobs/${jobId}/results`, params);
   }
 }

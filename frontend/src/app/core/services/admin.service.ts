@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../environments/environment';
+import { BaseApiService } from './base-api.service';
 
 export interface AdminUser {
   id: string;
@@ -22,28 +22,29 @@ export interface UpdateUserRequest {
 @Injectable({
   providedIn: 'root'
 })
-export class AdminService {
-  private readonly API_URL = environment.apiUrl;
+export class AdminService extends BaseApiService {
 
-  constructor(private http: HttpClient) {}
+  constructor(http: HttpClient) {
+    super(http);
+  }
 
   getUsers() {
-    return this.http.get<AdminUser[]>(`${this.API_URL}/users`);
+    return this.get<AdminUser[]>('/users');
   }
 
   getUser(userId: string) {
-    return this.http.get<AdminUser>(`${this.API_URL}/users/${userId}`);
+    return this.get<AdminUser>(`/users/${userId}`);
   }
 
   createUser(email: string, role: string) {
-    return this.http.post<AdminUser>(`${this.API_URL}/users`, { email, role });
+    return this.post<AdminUser>('/users', { email, role });
   }
 
   updateUser(userId: string, data: UpdateUserRequest) {
-    return this.http.patch<AdminUser>(`${this.API_URL}/users/${userId}`, data);
+    return this.patch<AdminUser>(`/users/${userId}`, data);
   }
 
   deleteUser(userId: string) {
-    return this.http.delete(`${this.API_URL}/users/${userId}`);
+    return this.delete(`/users/${userId}`);
   }
 }

@@ -8,22 +8,12 @@ from typing import List, Optional
 from datetime import datetime
 import structlog
 
-from core.database import SessionLocal
 from models.user import User, UserRole
-from api.v1.auth import get_current_user
+from api.deps import get_db, get_current_user
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
-
-
-def get_db():
-    """Database session dependency"""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 # Pydantic models
