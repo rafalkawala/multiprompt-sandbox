@@ -12,7 +12,7 @@ import os
 
 from core.config import settings
 from core.database import SessionLocal
-from api.v1.auth import get_current_user
+from api.deps import get_db, get_current_user
 from models.user import User
 from models.image import Image
 from services.llm_service import get_llm_service
@@ -23,13 +23,6 @@ router = APIRouter()
 
 # Allowed image extensions (with leading dot)
 ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.JPG', '.JPEG', '.PNG', '.GIF', '.WEBP'}
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 @router.get("/{image_id}/thumbnail")
 async def get_image_thumbnail(

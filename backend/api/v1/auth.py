@@ -16,7 +16,7 @@ import json
 from urllib.parse import urlparse
 
 from core.config import settings
-from core.database import SessionLocal
+from core.database import get_db, SessionLocal
 from models.user import User, UserRole
 
 logger = structlog.get_logger(__name__)
@@ -35,15 +35,6 @@ oauth.register(
     server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
     client_kwargs={'scope': 'openid email profile'}
 )
-
-
-def get_db():
-    """Database session dependency"""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

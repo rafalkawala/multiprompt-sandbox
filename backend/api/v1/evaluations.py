@@ -24,7 +24,8 @@ from models.evaluation import ModelConfig, Evaluation, EvaluationResult
 from models.project import Project, Dataset
 from models.image import Image, Annotation
 from models.user import User
-from api.v1.auth import get_current_user
+from api.deps import get_db, get_current_user
+# from services.evaluation_service import EvaluationService
 
 # Import Storage Service
 from services.storage_service import get_storage_provider
@@ -39,13 +40,6 @@ from api.v1.evaluations_helper import ImageEvalData
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 # Schemas
 class EvaluationCreate(BaseModel):
@@ -697,11 +691,8 @@ async def list_evaluations(
     db: Session = Depends(get_db)
 ):
     """List evaluations"""
-    query = db.query(Evaluation).filter(Evaluation.created_by_id == current_user.id)
-    if project_id:
-        query = query.filter(Evaluation.project_id == project_id)
-
-    evaluations = query.order_by(Evaluation.created_at.desc()).all()
+    service = EvaluationService(db)
+    evaluations = service.list_evaluations(project_id, current_user)
 
     return [
         EvaluationListItem(
@@ -720,20 +711,6 @@ async def list_evaluations(
         for e in evaluations
     ]
 
-def run_evaluation_in_thread(evaluation_id: str):
-    """Wrapper to run async evaluation task in a thread with its own event loop"""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(run_evaluation_task(evaluation_id))
-    finally:
-        # Clean up HTTP clients for this loop
-        try:
-            loop.run_until_complete(HttpClient.close())
-        except Exception as e:
-            logger.error(f"Error closing HTTP client: {e}")
-        loop.close()
-
 @router.post("", response_model=EvaluationResponse)
 async def create_evaluation(
     data: EvaluationCreate,
@@ -741,49 +718,8 @@ async def create_evaluation(
     db: Session = Depends(get_db)
 ):
     """Create and start a new evaluation (runs in background thread)"""
-    # Verify project and dataset
-    project = db.query(Project).filter(Project.id == data.project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    dataset = db.query(Dataset).filter(
-        Dataset.id == data.dataset_id,
-        Dataset.project_id == data.project_id
-    ).first()
-    if not dataset:
-        raise HTTPException(status_code=404, detail="Dataset not found")
-
-    model_config = db.query(ModelConfig).filter(
-        ModelConfig.id == data.model_config_id,
-        ModelConfig.created_by_id == current_user.id
-    ).first()
-    if not model_config:
-        raise HTTPException(status_code=404, detail="Model config not found")
-
-    # Create evaluation
-    evaluation = Evaluation(
-        name=data.name,
-        project_id=data.project_id,
-        dataset_id=data.dataset_id,
-        model_config_id=data.model_config_id,
-        system_message=data.system_message,
-        question_text=data.question_text,
-        prompt_chain=data.prompt_chain,  # Multi-phase prompting
-        selection_config=data.selection_config,
-        created_by_id=current_user.id
-    )
-    db.add(evaluation)
-    db.commit()
-    db.refresh(evaluation)
-
-    # Start evaluation in a background thread (survives even if user closes page)
-    thread = threading.Thread(
-        target=run_evaluation_in_thread,
-        args=(str(evaluation.id),),
-        daemon=True  # Daemon thread won't prevent app shutdown
-    )
-    thread.start()
-    logger.info(f"Started evaluation {evaluation.id} in background thread")
+    service = EvaluationService(db)
+    evaluation = service.create_evaluation(data, current_user)
 
     return EvaluationResponse(
         id=str(evaluation.id),
@@ -817,12 +753,8 @@ async def get_evaluation(
     db: Session = Depends(get_db)
 ):
     """Get evaluation details"""
-    evaluation = db.query(Evaluation).filter(
-        Evaluation.id == evaluation_id,
-        Evaluation.created_by_id == current_user.id
-    ).first()
-    if not evaluation:
-        raise HTTPException(status_code=404, detail="Evaluation not found")
+    service = EvaluationService(db)
+    evaluation = service.get_evaluation(evaluation_id, current_user)
 
     return EvaluationResponse(
         id=str(evaluation.id),
@@ -1022,13 +954,6 @@ async def delete_evaluation(
     db: Session = Depends(get_db)
 ):
     """Delete an evaluation"""
-    evaluation = db.query(Evaluation).filter(
-        Evaluation.id == evaluation_id,
-        Evaluation.created_by_id == current_user.id
-    ).first()
-    if not evaluation:
-        raise HTTPException(status_code=404, detail="Evaluation not found")
-
-    db.delete(evaluation)
-    db.commit()
-    return {"message": "Evaluation deleted"}
+    service = EvaluationService(db)
+    message = service.delete_evaluation(evaluation_id, current_user)
+    return {"message": message}
