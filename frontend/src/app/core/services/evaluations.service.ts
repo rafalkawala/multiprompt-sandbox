@@ -297,17 +297,4 @@ export class EvaluationsService {
       `${this.API_URL}/projects/${projectId}/datasets/${datasetId}/annotations/import/${jobId}`
     );
   }
-
-  // Legacy (deprecated)
-  previewImport(projectId: string, datasetId: string, file: File) {
-    const formData = new FormData();
-    formData.append('file', file);
-    return this.http.post<any>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/annotations/import/preview`, formData);
-  }
-
-  confirmImport(projectId: string, datasetId: string, file: File) {
-    const formData = new FormData();
-    formData.append('file', file);
-    return this.http.post<any>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/annotations/import/confirm`, formData);
-  }
 }
