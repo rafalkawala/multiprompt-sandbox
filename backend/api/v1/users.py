@@ -6,13 +6,13 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from datetime import datetime
-import logging
+import structlog
 
 from core.database import SessionLocal
 from models.user import User, UserRole
 from api.v1.auth import get_current_user
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 

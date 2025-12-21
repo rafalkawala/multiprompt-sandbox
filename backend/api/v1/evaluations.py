@@ -9,7 +9,7 @@ from datetime import datetime
 import httpx
 import base64
 import os
-import logging
+import structlog
 import json
 import time
 import asyncio
@@ -30,8 +30,14 @@ from api.v1.auth import get_current_user
 from services.storage_service import get_storage_provider
 # Import LLM Service
 from services.llm_service import get_llm_service
+# Import Cost Estimation Service
+from services.cost_estimation_service import get_cost_service
+# Import HttpClient for cleanup
+from core.http_client import HttpClient
+# Import Helper
+from api.v1.evaluations_helper import ImageEvalData
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 def get_db():
@@ -105,6 +111,9 @@ class EvaluationResponse(BaseModel):
     question_text: Optional[str]
     prompt_chain: Optional[List[Dict[str, Any]]] = None  # Multi-phase prompting
     selection_config: Optional[Dict[str, Any]] = None
+    estimated_cost: Optional[float] = None  # Cost estimation before execution
+    actual_cost: Optional[float] = None  # Actual cost after execution
+    cost_details: Optional[Dict[str, Any]] = None  # Detailed cost breakdown
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
     created_at: datetime
@@ -121,6 +130,7 @@ class EvaluationListItem(BaseModel):
     processed_images: int
     accuracy: Optional[float]
     created_at: datetime
+    results_summary: Optional[Dict[str, Any]] = None
 
 class EvaluationResultItem(BaseModel):
     id: str
@@ -153,20 +163,20 @@ async def get_image_data(storage_path: str) -> tuple:
         logger.error(f"Failed to download image {storage_path}: {e}")
         raise
 
-async def preload_images(images: list) -> dict:
+async def preload_images(images: List[ImageEvalData]) -> dict:
     """Pre-load all images in parallel for faster evaluation
 
     Returns: dict mapping image_id -> (base64_data, mime_type)
     """
     image_cache = {}
 
-    async def load_image(image):
+    async def load_image(image: ImageEvalData):
         try:
             # Storage provider handles async/sync logic
             image_data, mime_type = await get_image_data(image.storage_path)
             return image.id, (image_data, mime_type)
         except Exception as e:
-            logger.error(f"Failed to preload image {image.id} (dataset: {image.dataset_id}, filename: {image.filename}, storage_path: {image.storage_path}, processing_status: {image.processing_status}): {e}")
+            logger.error(f"Failed to preload image {image.id} (dataset: {image.dataset_id}, filename: {image.filename}, storage_path: {image.storage_path}): {e}")
             return image.id, None
 
     # Load all images in parallel
@@ -228,8 +238,27 @@ async def run_evaluation_task(evaluation_id: str):
         db.commit()
 
         # Get related data
-        model_config = evaluation.model_config
-        project = evaluation.project
+        # Detach config data from session to use safely in async
+        # Ensure pricing_config is populated (handle potential None)
+        pricing_config = evaluation.model_config.pricing_config or {}
+
+        model_config_data = {
+            'provider': evaluation.model_config.provider,
+            'api_key': evaluation.model_config.api_key,
+            'auth_type': evaluation.model_config.auth_type,
+            'model_name': evaluation.model_config.model_name,
+            'temperature': evaluation.model_config.temperature,
+            'max_tokens': evaluation.model_config.max_tokens,
+            'pricing_config': pricing_config,
+            'concurrency': getattr(evaluation.model_config, 'concurrency', 3),
+            'retry_config': evaluation.model_config.retry_config
+        }
+
+        project_data = {
+            'question_type': evaluation.project.question_type,
+            'question_options': evaluation.project.question_options,
+            'question_text': evaluation.project.question_text
+        }
 
         # Get images with annotations (Apply Selection Config)
         # Exclude failed images, but include pending/completed (for backwards compatibility)
@@ -266,20 +295,31 @@ async def run_evaluation_task(evaluation_id: str):
                     query = query.filter(Image.id.in_(image_ids))
                     logger.info(f"Evaluation {evaluation_id}: Manual selection mode with {len(image_ids)} image IDs")
         
-        images = query.all()
+        image_objects = query.all()
 
-        evaluation.total_images = len(images)
+        evaluation.total_images = len(image_objects)
         db.commit()
 
-        if not images:
+        if not image_objects:
             evaluation.status = 'failed'
             evaluation.error_message = 'No annotated images in dataset (or selection criteria matched none)'
             db.commit()
             return
 
+        # Convert SQLA objects to safe Data Class
+        images: List[ImageEvalData] = []
+        for img in image_objects:
+            images.append(ImageEvalData(
+                id=str(img.id),
+                dataset_id=str(img.dataset_id),
+                filename=img.filename,
+                storage_path=img.storage_path,
+                ground_truth=img.annotation.answer_value
+            ))
+
         # Log selected images for debugging
         logger.info(f"Evaluation {evaluation_id}: Selected {len(images)} images from dataset {evaluation.dataset_id}")
-        logger.debug(f"Evaluation {evaluation_id}: Image IDs: {[str(img.id) for img in images[:10]]}")  # Log first 10 IDs
+        logger.debug(f"Evaluation {evaluation_id}: Image IDs: {[img.id for img in images[:10]]}")  # Log first 10 IDs
 
         # Load prompt chain (multi-phase) or fallback to legacy single prompt
         if evaluation.prompt_chain and len(evaluation.prompt_chain) > 0:
@@ -293,15 +333,15 @@ async def run_evaluation_task(evaluation_id: str):
             else:
                 # Get system prompt from config based on question type
                 system_message = get_system_prompt(
-                    project.question_type,
-                    project.question_options if project.question_type == 'multiple_choice' else None
+                    project_data['question_type'],
+                    project_data['question_options'] if project_data['question_type'] == 'multiple_choice' else None
                 )
 
             # Build user prompt (just the question)
             if evaluation.question_text:
                 prompt = evaluation.question_text
             else:
-                prompt = project.question_text
+                prompt = project_data['question_text']
 
             # Create single-step chain for backward compatibility
             steps = [{
@@ -311,22 +351,33 @@ async def run_evaluation_task(evaluation_id: str):
             }]
             logger.info(f"Evaluation {evaluation_id}: Using legacy single-prompt mode")
 
+        # Close the main session before starting async tasks to avoid thread-safety issues
+        db.close()
+
         # Preload all images in parallel for faster processing
         logger.info(f"Evaluation {evaluation_id}: Preloading {len(images)} images...")
         image_cache = await preload_images(images)
 
         if len(image_cache) == 0:
-            evaluation.status = 'failed'
-            evaluation.error_message = 'Failed to load any images'
-            db.commit()
+            # Need a new session to update status
+            db = SessionLocal()
+            try:
+                eval_obj = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+                if eval_obj:
+                    eval_obj.status = 'failed'
+                    eval_obj.error_message = 'Failed to load any images'
+                    db.commit()
+            finally:
+                db.close()
             return
 
         correct_count = 0
         failed_count = 0
         error_messages = []
+        total_actual_cost = 0.0
 
         # Get concurrency limit from model config
-        concurrency = getattr(model_config, 'concurrency', 3)
+        concurrency = model_config_data.get('concurrency', 3)
         semaphore = asyncio.Semaphore(concurrency)
 
         # Track completed images (not index-based, to avoid race conditions in parallel processing)
@@ -334,12 +385,15 @@ async def run_evaluation_task(evaluation_id: str):
         
         # Progress tracking variables
         task_start_time = time.time()
+        cumulative_latency_ms = 0  # Track total serialized latency for accurate ETA
         
         # Process images in parallel with concurrency limit
-        async def process_image(i: int, image):
-            nonlocal correct_count, failed_count, error_messages, completed_count
+        async def process_image(i: int, image: ImageEvalData):
+            nonlocal correct_count, failed_count, error_messages, completed_count, total_actual_cost, cumulative_latency_ms
 
             async with semaphore:  # Limit concurrent API calls
+                # Use a dedicated session for this task to ensure thread safety
+                task_db = SessionLocal()
                 try:
                     # Get cached image data
                     cached_data = image_cache.get(image.id)
@@ -352,72 +406,115 @@ async def run_evaluation_task(evaluation_id: str):
                     step_results = []
                     outputs = {}  # {step_number: output_text}
                     total_latency = 0
+                    total_row_prompt_tokens = 0
+                    total_row_completion_tokens = 0
+                    total_row_cost = 0.0
 
                     for step in steps:
-                        step_num = step["step_number"]
-                        step_system = step.get("system_message", "")
-                        step_prompt = step["prompt"]
+                        step_num = step['step_number']
+                        system_message = step.get('system_message')
+                        prompt_template = step['prompt']
 
-                        # Substitute variables from previous outputs
-                        resolved_prompt = substitute_variables(step_prompt, outputs)
+                        # Substitute variables from previous steps
+                        prompt = substitute_variables(prompt_template, outputs)
 
-                        # Validate that all referenced variables are available
-                        is_valid, error_msg = validate_variable_references(step_prompt, step_num, outputs)
-                        if not is_valid:
-                            raise Exception(f"Step {step_num} validation error: {error_msg}")
+                        # Initialize default values in case of error
+                        response_text = ""
+                        usage_metadata = {'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0}
+                        latency = 0
 
                         # Call LLM Service
+                        start_time = time.time()
                         llm_service = get_llm_service()
-                        response_text, latency = await llm_service.generate_content(
-                            provider_name=model_config.provider,
-                            api_key=model_config.api_key,
-                            model_name=model_config.model_name,
+
+                        response_text, token_count, usage_metadata = await llm_service.generate_content(
+                            provider_name=model_config_data['provider'],
+                            api_key=model_config_data['api_key'],
+                            auth_type=model_config_data['auth_type'],
+                            model_name=model_config_data['model_name'],
+                            prompt=prompt,
                             image_data=image_data,
                             mime_type=mime_type,
-                            prompt=resolved_prompt,
-                            system_message=step_system,
-                            temperature=model_config.temperature,
-                            max_tokens=model_config.max_tokens
+                            system_message=system_message,
+                            temperature=model_config_data['temperature'],
+                            max_tokens=model_config_data['max_tokens'],
+                            retry_config=model_config_data['retry_config']
                         )
 
-                        # Store output for next steps
-                        outputs[step_num] = response_text
+                        latency = int((time.time() - start_time) * 1000)
                         total_latency += latency
+
+                        # Store output for subsequent steps
+                        outputs[step_num] = response_text
+
+                        # Calculate cost for this step
+                        step_cost = 0.0
+                        step_cost_details = {}
+                        if model_config_data['pricing_config']:
+                            # Calculate actual cost including image cost handling
+                            # Use high precision (no rounding here if possible, but service might round)
+                            # We trust the service to return float.
+                            step_cost = get_cost_service().calculate_actual_cost(
+                                usage_metadata,
+                                model_config_data['pricing_config'],
+                                has_image=bool(image_data),
+                                provider=model_config_data['provider']
+                            )
+
+                            step_cost_details = {
+                                'step_cost': step_cost
+                            }
+
+                            total_actual_cost += step_cost
+
+                            # Accumulate row totals
+                            total_row_cost += step_cost
+                            total_row_prompt_tokens += usage_metadata.get('prompt_tokens', 0)
+                            total_row_completion_tokens += usage_metadata.get('completion_tokens', 0)
 
                         # Record step result
                         step_results.append({
                             "step_number": step_num,
                             "raw_output": response_text,
                             "latency_ms": latency,
+                            "usage": usage_metadata,
+                            "cost": step_cost_details,
                             "error": None
                         })
 
                         logger.debug(f"Evaluation {evaluation_id}: Image {i+1} Step {step_num} completed - Output: {response_text[:50]}...")
+
+                    # Update cumulative serialized latency (thread-safe update not strictly needed as it's approximate stats)
+                    cumulative_latency_ms += total_latency
 
                     # Use final step's output for accuracy calculation
                     final_step_num = steps[-1]["step_number"]
                     final_output = outputs[final_step_num]
 
                     # Parse and check
-                    parsed = parse_answer(final_output, project.question_type)
-                    ground_truth = image.annotation.answer_value
-                    is_correct = check_answer(parsed, ground_truth, project.question_type)
+                    parsed = parse_answer(final_output, project_data['question_type'])
+                    ground_truth = image.ground_truth
+                    is_correct = check_answer(parsed, ground_truth, project_data['question_type'])
 
                     if is_correct:
                         correct_count += 1
 
                     # Save result with step_results
                     result = EvaluationResult(
-                        evaluation_id=evaluation.id,
+                        evaluation_id=evaluation_id,
                         image_id=image.id,
-                        model_response=final_output,  # Final step's output
+                        model_response=final_output,
                         parsed_answer=parsed,
                         ground_truth=ground_truth,
                         is_correct=is_correct,
-                        step_results=step_results,  # NEW: Store intermediate results
-                        latency_ms=total_latency  # Sum of all steps
+                        step_results=step_results,
+                        latency_ms=total_latency,
+                        prompt_tokens=total_row_prompt_tokens,
+                        completion_tokens=total_row_completion_tokens,
+                        cost=total_row_cost,
+                        token_count=total_row_prompt_tokens + total_row_completion_tokens
                     )
-                    db.add(result)
+                    task_db.add(result)
                     logger.info(f"Evaluation {evaluation_id}: Processed image {i+1}/{len(images)} ({len(steps)} steps) - Correct: {is_correct}")
 
                 except Exception as e:
@@ -427,115 +524,201 @@ async def run_evaluation_task(evaluation_id: str):
                     logger.error(f"Evaluation {evaluation_id}: Failed image {i+1}/{len(images)} - {error_msg}", exc_info=True)
 
                     result = EvaluationResult(
-                        evaluation_id=evaluation.id,
-                        image_id=image.id,
+                        evaluation_id=evaluation_id, # Use ID string
+                        image_id=image.id,           # Use ID string
                         error=str(e),
-                        step_results=step_results if step_results else None  # Save partial results if any steps succeeded
+                        step_results=step_results if 'step_results' in locals() and step_results else None
                     )
-                    db.add(result)
+                    task_db.add(result)
 
                 # Update progress atomically (increment count, not use index)
-                completed_count += 1
-                evaluation.processed_images = completed_count
-                evaluation.progress = int((completed_count / len(images)) * 100)
-                
-                # Calculate ETA
-                # Update only after first batch completes and at start of new batches
-                if completed_count >= concurrency and completed_count % concurrency == 0:
-                    now = time.time()
-                    elapsed_total = now - task_start_time
-                    avg_time_per_image = elapsed_total / completed_count
-                    remaining_images = len(images) - completed_count
-                    
-                    # Formula: (avg_time * remaining) / concurrency + single_photo_time
-                    # single_photo_time is approximated as avg_time_per_image
-                    eta_seconds = (avg_time_per_image * remaining_images) / concurrency + avg_time_per_image
-                    
-                    if not evaluation.results_summary:
-                        evaluation.results_summary = {}
-                    # Make a copy to update JSON field (SQLAlchemy requirement for JSON updates)
-                    summary = dict(evaluation.results_summary) if evaluation.results_summary else {}
-                    summary['eta_seconds'] = round(eta_seconds, 1)
-                    evaluation.results_summary = summary
+                # We need to re-fetch evaluation object in this session
+                current_eval = task_db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+                if current_eval:
+                    completed_count += 1
+                    current_eval.processed_images = completed_count
+                    current_eval.progress = int((completed_count / len(images)) * 100)
 
-                db.commit()
+                    if not current_eval.results_summary:
+                        current_eval.results_summary = {}
+                    # Make a copy to update JSON field (SQLAlchemy requirement for JSON updates)
+                    summary = dict(current_eval.results_summary) if current_eval.results_summary else {}
+
+                    # Update latest images (rolling 5 lines)
+                    latest = summary.get('latest_images', [])
+                    # Add new one with index: "1/10: filename"
+                    latest.append(f"{completed_count}/{len(images)}: {image.filename}")
+                    # Keep only last 5
+                    if len(latest) > 5:
+                        latest = latest[-5:]
+                    summary['latest_images'] = latest
+                    
+                    # Calculate ETA
+                    # Update only after first batch completes (to get stable average)
+                    if completed_count >= concurrency:
+                        remaining_images = len(images) - completed_count
+
+                        # Formula based on user request:
+                        # "time of an average image processing (whole prompt chain) multiplied by number of images divided by batch size"
+                        # We use cumulative_latency_ms to get the actual serialized processing time per image.
+                        if cumulative_latency_ms > 0:
+                            avg_latency_seconds = (cumulative_latency_ms / 1000) / completed_count
+                            eta_seconds = (avg_latency_seconds * remaining_images) / concurrency
+                        else:
+                             # Fallback to wall clock time if latency not available
+                            now = time.time()
+                            elapsed_total = now - task_start_time
+                            avg_wall_time = elapsed_total / completed_count
+                            eta_seconds = avg_wall_time * remaining_images # Wall time already accounts for concurrency
+
+                        summary['eta_seconds'] = round(eta_seconds, 1)
+
+                    current_eval.results_summary = summary
+                    task_db.commit()
+                else:
+                     logger.error(f"Could not find evaluation {evaluation_id} to update progress")
+
+                task_db.close()
 
         # Run all images in parallel with concurrency limit
         await asyncio.gather(*[process_image(i, img) for i, img in enumerate(images)])
 
-        # Calculate metrics
-        total_processed = len(images)
-        successful_count = total_processed - failed_count
-        failure_rate = (failed_count / total_processed * 100) if total_processed > 0 else 0
+        # Final metrics and status update
+        # New session for final update
+        db = SessionLocal()
+        try:
+            evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+            if not evaluation:
+                 logger.error(f"Evaluation {evaluation_id} disappeared during processing")
+                 return
+            
+            # Calculate metrics
+            total_processed = len(images)
+            successful_count = total_processed - failed_count
+            failure_rate = (failed_count / total_processed * 100) if total_processed > 0 else 0
 
-        # Confusion Matrix for Binary Classification
-        confusion_matrix = None
-        if project.question_type == 'binary':
-            tp = 0
-            tn = 0
-            fp = 0
-            fn = 0
-            
-            # Re-query results to calculate matrix (or accumulate during loop)
-            # Since we are in the same transaction, we can query the just-added results
+            # Confusion Matrix for Binary Classification
+            confusion_matrix = None
+            if project_data['question_type'] == 'binary':
+                tp = 0
+                tn = 0
+                fp = 0
+                fn = 0
+                
+                # Re-query results to calculate matrix
+                results = db.query(EvaluationResult).filter(EvaluationResult.evaluation_id == evaluation.id).all()
+                
+                for r in results:
+                    if r.is_correct is None: continue
+
+                    # Ensure we have boolean values
+                    gt = r.ground_truth.get('value') if r.ground_truth else None
+                    pred = r.parsed_answer.get('value') if r.parsed_answer else None
+
+                    if gt is True and pred is True:
+                        tp += 1
+                    elif gt is False and pred is False:
+                        tn += 1
+                    elif gt is False and pred is True:
+                        fp += 1
+                    elif gt is True and pred is False:
+                        fn += 1
+
+                confusion_matrix = {
+                    'tp': tp, 'tn': tn, 'fp': fp, 'fn': fn
+                }
+
+            # Determine if evaluation should be marked as failed due to high failure rate
+            FAILURE_THRESHOLD_PERCENT = 50  # If >50% of predictions fail, mark evaluation as failed
+
+            if failure_rate > FAILURE_THRESHOLD_PERCENT:
+                evaluation.status = 'failed'
+                evaluation.error_message = f"Evaluation failed: {failure_rate:.1f}% of predictions failed ({failed_count}/{total_processed}). Errors: {'; '.join(error_messages[:3])}"
+                if len(error_messages) > 3:
+                    evaluation.error_message += f" (and {len(error_messages) - 3} more errors)"
+                logger.error(f"Evaluation {evaluation_id} marked as failed due to high failure rate: {failure_rate:.1f}%")
+            else:
+                evaluation.status = 'completed'
+                if failed_count > 0:
+                    logger.warning(f"Evaluation {evaluation_id} completed with {failed_count} failures ({failure_rate:.1f}%)")
+
+            evaluation.completed_at = datetime.utcnow()
+            evaluation.accuracy = correct_count / successful_count if successful_count > 0 else 0
+            evaluation.actual_cost = round(total_actual_cost, 4)
+
+            # Calculate cost details breakdown
+            total_prompt_tokens = 0
+            total_completion_tokens = 0
+
+            # Aggregate token counts from all results
             results = db.query(EvaluationResult).filter(EvaluationResult.evaluation_id == evaluation.id).all()
-            
             for r in results:
-                if r.is_correct is None: continue
-                
-                # Ensure we have boolean values
-                gt = r.ground_truth.get('value') if r.ground_truth else None
-                pred = r.parsed_answer.get('value') if r.parsed_answer else None
-                
-                if gt is True and pred is True:
-                    tp += 1
-                elif gt is False and pred is False:
-                    tn += 1
-                elif gt is False and pred is True:
-                    fp += 1
-                elif gt is True and pred is False:
-                    fn += 1
-            
-            confusion_matrix = {
-                'tp': tp, 'tn': tn, 'fp': fp, 'fn': fn
+                if r.step_results:
+                    for step in r.step_results:
+                        usage = step.get('usage', {})
+                        total_prompt_tokens += usage.get('prompt_tokens', 0)
+                        total_completion_tokens += usage.get('completion_tokens', 0)
+
+            evaluation.cost_details = {
+                'total_prompt_tokens': total_prompt_tokens,
+                'total_completion_tokens': total_completion_tokens,
+                'total_tokens': total_prompt_tokens + total_completion_tokens,
+                'total_cost': evaluation.actual_cost,
+                'average_cost_per_image': round(evaluation.actual_cost / total_processed, 6) if total_processed > 0 else 0
             }
 
-        # Determine if evaluation should be marked as failed due to high failure rate
-        FAILURE_THRESHOLD_PERCENT = 50  # If >50% of predictions fail, mark evaluation as failed
+            # Merge with existing summary to preserve progress logs like latest_images
+            final_summary = dict(evaluation.results_summary) if evaluation.results_summary else {}
+            final_summary.update({
+                'correct': correct_count,
+                'total': total_processed,
+                'successful': successful_count,
+                'failed': failed_count,
+                'failure_rate_percent': round(failure_rate, 2),
+                'accuracy_percent': round(evaluation.accuracy * 100, 2),
+                'confusion_matrix': confusion_matrix
+            })
 
-        if failure_rate > FAILURE_THRESHOLD_PERCENT:
-            evaluation.status = 'failed'
-            evaluation.error_message = f"Evaluation failed: {failure_rate:.1f}% of predictions failed ({failed_count}/{total_processed}). Errors: {'; '.join(error_messages[:3])}"
-            if len(error_messages) > 3:
-                evaluation.error_message += f" (and {len(error_messages) - 3} more errors)"
-            logger.error(f"Evaluation {evaluation_id} marked as failed due to high failure rate: {failure_rate:.1f}%")
-        else:
-            evaluation.status = 'completed'
-            if failed_count > 0:
-                logger.warning(f"Evaluation {evaluation_id} completed with {failed_count} failures ({failure_rate:.1f}%)")
+            # Remove ETA from final result as it's no longer relevant
+            if 'eta_seconds' in final_summary:
+                del final_summary['eta_seconds']
 
-        evaluation.completed_at = datetime.utcnow()
-        evaluation.accuracy = correct_count / successful_count if successful_count > 0 else 0
-        evaluation.results_summary = {
-            'correct': correct_count,
-            'total': total_processed,
-            'successful': successful_count,
-            'failed': failed_count,
-            'failure_rate_percent': round(failure_rate, 2),
-            'accuracy_percent': round(evaluation.accuracy * 100, 2),
-            'confusion_matrix': confusion_matrix
-        }
-        db.commit()
+            evaluation.results_summary = final_summary
+            db.commit()
 
-        logger.info(f"Evaluation {evaluation_id} finished: status={evaluation.status}, accuracy={evaluation.accuracy:.2%}, failed={failed_count}/{total_processed}")
+            logger.info(f"Evaluation {evaluation_id} finished: status={evaluation.status}, accuracy={evaluation.accuracy:.2%}, failed={failed_count}/{total_processed}")
+
+        except Exception as e:
+            logger.error(f"Evaluation error: {str(e)}", exc_info=True)
+            db.rollback()  # Rollback any pending transaction
+            # Try to save error to DB
+            try:
+                evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+                if evaluation:
+                    evaluation.status = 'failed'
+                    evaluation.error_message = str(e)
+                    db.commit()
+            except:
+                pass
+        finally:
+            db.close()
 
     except Exception as e:
-        logger.error(f"Evaluation error: {str(e)}", exc_info=True)
-        evaluation.status = 'failed'
-        evaluation.error_message = str(e)
-        db.commit()
-    finally:
-        db.close()
+        logger.error(f"Evaluation setup error: {str(e)}", exc_info=True)
+        try:
+             # Ensure cleanup if possible
+             if 'db' in locals():
+                 db.close()
+             # Recovery session
+             db = SessionLocal()
+             evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+             if evaluation:
+                evaluation.status = 'failed'
+                evaluation.error_message = f"Setup error: {str(e)}"
+                db.commit()
+             db.close()
+        except:
+            pass
 
 # Endpoints
 @router.get("", response_model=List[EvaluationListItem])
@@ -545,11 +728,27 @@ async def list_evaluations(
     db: Session = Depends(get_db)
 ):
     """List evaluations"""
-    query = db.query(Evaluation).filter(Evaluation.created_by_id == current_user.id)
+    query = db.query(Evaluation)
     if project_id:
         query = query.filter(Evaluation.project_id == project_id)
 
     evaluations = query.order_by(Evaluation.created_at.desc()).all()
+
+    def get_lite_summary(e):
+        """Return only necessary progress fields for list view to reduce payload size"""
+        if not e.results_summary:
+            return None
+
+        # If running, we want logs and ETA
+        if e.status == 'running':
+            return {
+                'latest_images': e.results_summary.get('latest_images'),
+                'eta_seconds': e.results_summary.get('eta_seconds')
+            }
+
+        # If completed, we might want minimal stats if needed by UI, but UI calculates accuracy separately
+        # For now, return None or minimal to save bandwidth, as detailed results are fetched in detail view
+        return None
 
     return [
         EvaluationListItem(
@@ -563,7 +762,8 @@ async def list_evaluations(
             total_images=e.total_images,
             processed_images=e.processed_images,
             accuracy=e.accuracy,
-            created_at=e.created_at
+            created_at=e.created_at,
+            results_summary=get_lite_summary(e)
         )
         for e in evaluations
     ]
@@ -575,6 +775,11 @@ def run_evaluation_in_thread(evaluation_id: str):
     try:
         loop.run_until_complete(run_evaluation_task(evaluation_id))
     finally:
+        # Clean up HTTP clients for this loop
+        try:
+            loop.run_until_complete(HttpClient.close())
+        except Exception as e:
+            logger.error(f"Error closing HTTP client: {e}")
         loop.close()
 
 @router.post("", response_model=EvaluationResponse)
@@ -597,8 +802,7 @@ async def create_evaluation(
         raise HTTPException(status_code=404, detail="Dataset not found")
 
     model_config = db.query(ModelConfig).filter(
-        ModelConfig.id == data.model_config_id,
-        ModelConfig.created_by_id == current_user.id
+        ModelConfig.id == data.model_config_id
     ).first()
     if not model_config:
         raise HTTPException(status_code=404, detail="Model config not found")
@@ -647,7 +851,10 @@ async def create_evaluation(
         completed_at=evaluation.completed_at,
         created_at=evaluation.created_at,
         prompt_chain=evaluation.prompt_chain,
-        selection_config=evaluation.selection_config
+        selection_config=evaluation.selection_config,
+        estimated_cost=evaluation.estimated_cost,
+        actual_cost=evaluation.actual_cost,
+        cost_details=evaluation.cost_details
     )
 
 @router.get("/{evaluation_id}", response_model=EvaluationResponse)
@@ -658,8 +865,7 @@ async def get_evaluation(
 ):
     """Get evaluation details"""
     evaluation = db.query(Evaluation).filter(
-        Evaluation.id == evaluation_id,
-        Evaluation.created_by_id == current_user.id
+        Evaluation.id == evaluation_id
     ).first()
     if not evaluation:
         raise HTTPException(status_code=404, detail="Evaluation not found")
@@ -683,8 +889,96 @@ async def get_evaluation(
         completed_at=evaluation.completed_at,
         created_at=evaluation.created_at,
         prompt_chain=evaluation.prompt_chain,
-        selection_config=evaluation.selection_config
+        selection_config=evaluation.selection_config,
+        estimated_cost=evaluation.estimated_cost,
+        actual_cost=evaluation.actual_cost,
+        cost_details=evaluation.cost_details
     )
+
+@router.get("/{evaluation_id}/estimate-cost")
+async def estimate_evaluation_cost(
+    evaluation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Estimate the cost of running an evaluation"""
+    evaluation = db.query(Evaluation).filter(
+        Evaluation.id == evaluation_id
+    ).first()
+    if not evaluation:
+        raise HTTPException(status_code=404, detail="Evaluation not found")
+
+    # Get model config with pricing
+    model_config = db.query(ModelConfig).filter(ModelConfig.id == evaluation.model_config_id).first()
+    if not model_config:
+        raise HTTPException(status_code=404, detail="Model config not found")
+
+    # Get pricing configuration
+    pricing_config = model_config.pricing_config or {}
+    if not pricing_config:
+        return {
+            "estimated_cost": 0,
+            "image_count": 0,
+            "avg_cost_per_image": 0,
+            "details": {"error": "No pricing configuration available for this model"}
+        }
+
+    # Determine image count based on selection_config
+    if evaluation.selection_config:
+        selection_mode = evaluation.selection_config.get('mode', 'all')
+        if selection_mode == 'manual' and 'image_ids' in evaluation.selection_config:
+            image_count = len(evaluation.selection_config['image_ids'])
+        elif selection_mode == 'random' and 'limit' in evaluation.selection_config:
+            total_images = db.query(Image).filter(Image.dataset_id == evaluation.dataset_id).count()
+            image_count = min(evaluation.selection_config['limit'], total_images)
+        else:
+            image_count = db.query(Image).filter(Image.dataset_id == evaluation.dataset_id).count()
+    else:
+        image_count = db.query(Image).filter(Image.dataset_id == evaluation.dataset_id).count()
+
+    # Calculate cost per image
+    input_price_per_1m = pricing_config.get('input_price_per_1m', 0)
+    output_price_per_1m = pricing_config.get('output_price_per_1m', 0)
+    image_price_val = pricing_config.get('image_price_val', 0)
+    discount_percent = pricing_config.get('discount_percent', 0)
+
+    # Estimate token usage (rough estimates)
+    # System message + question text + image tokens
+    estimated_input_tokens = 1000  # Base prompt
+    estimated_output_tokens = 200   # Expected response
+
+    # Calculate text cost
+    text_cost_per_image = (
+        (estimated_input_tokens * input_price_per_1m / 1_000_000) +
+        (estimated_output_tokens * output_price_per_1m / 1_000_000)
+    )
+
+    # Calculate image cost
+    image_cost = image_price_val / 1_000_000  # Convert to per-image cost
+
+    # Total per image
+    cost_per_image = text_cost_per_image + image_cost
+
+    # Apply discount
+    if discount_percent > 0:
+        cost_per_image *= (1 - discount_percent / 100)
+
+    # Total cost
+    total_cost = cost_per_image * image_count
+
+    return {
+        "estimated_cost": round(total_cost, 6),
+        "image_count": image_count,
+        "avg_cost_per_image": round(cost_per_image, 6),
+        "details": {
+            "input_price_per_1m": input_price_per_1m,
+            "output_price_per_1m": output_price_per_1m,
+            "image_price_val": image_price_val,
+            "discount_percent": discount_percent,
+            "estimated_input_tokens": estimated_input_tokens,
+            "estimated_output_tokens": estimated_output_tokens
+        }
+    }
 
 @router.get("/{evaluation_id}/results", response_model=List[EvaluationResultItem])
 async def get_evaluation_results(
@@ -697,8 +991,7 @@ async def get_evaluation_results(
 ):
     """Get evaluation results with filtering"""
     evaluation = db.query(Evaluation).filter(
-        Evaluation.id == evaluation_id,
-        Evaluation.created_by_id == current_user.id
+        Evaluation.id == evaluation_id
     ).first()
     if not evaluation:
         raise HTTPException(status_code=404, detail="Evaluation not found")
@@ -774,8 +1067,7 @@ async def delete_evaluation(
 ):
     """Delete an evaluation"""
     evaluation = db.query(Evaluation).filter(
-        Evaluation.id == evaluation_id,
-        Evaluation.created_by_id == current_user.id
+        Evaluation.id == evaluation_id
     ).first()
     if not evaluation:
         raise HTTPException(status_code=404, detail="Evaluation not found")

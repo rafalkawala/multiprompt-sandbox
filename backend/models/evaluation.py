@@ -13,11 +13,22 @@ class ModelConfig(Base):
     provider = Column(String, nullable=False)  # 'gemini', 'openai', 'anthropic'
     model_name = Column(String, nullable=False)  # e.g., 'gemini-1.5-pro', 'gpt-4o', 'claude-3-sonnet'
     api_key = Column(String, nullable=False)  # encrypted in production
+    auth_type = Column(String, default="api_key", nullable=False)  # 'api_key' only (simplified authentication)
 
     temperature = Column(Float, default=0.0)
     max_tokens = Column(Integer, default=1024)
     concurrency = Column(Integer, default=3)  # Number of parallel API calls
     additional_params = Column(JSON, nullable=True)
+
+    # Pricing configuration
+    # Structure: {"input_price_per_1m": 2.50, "output_price_per_1m": 10.00,
+    #             "image_price_mode": "per_tile", "image_price_val": 2.50, "discount_percent": 0}
+    pricing_config = Column(JSON, nullable=True)
+
+    # Retry configuration for rate limiting and transient errors
+    # Structure: {"max_attempts": 5, "initial_wait": 2, "max_wait": 30, "exponential_base": 2}
+    # Default: 5 attempts with exponential backoff (2s, 4s, 8s, 16s, 30s)
+    retry_config = Column(JSON, nullable=True)
 
     is_active = Column(Boolean, default=True)
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
@@ -45,6 +56,11 @@ class Evaluation(Base):
     accuracy = Column(Float, nullable=True)
     results_summary = Column(JSON, nullable=True)
     error_message = Column(Text, nullable=True)
+
+    # Cost tracking
+    estimated_cost = Column(Float, nullable=True)  # Cost estimation before execution
+    actual_cost = Column(Float, nullable=True)  # Actual cost after execution
+    cost_details = Column(JSON, nullable=True)  # Detailed cost breakdown
 
     # Evaluation prompts (saved at creation time, editable before starting)
     system_message = Column(Text, nullable=True)
@@ -86,6 +102,9 @@ class EvaluationResult(Base):
     step_results = Column(JSON, nullable=True)
 
     latency_ms = Column(Integer, nullable=True)
+    prompt_tokens = Column(Integer, nullable=True, default=0)
+    completion_tokens = Column(Integer, nullable=True, default=0)
+    cost = Column(Float, nullable=True, default=0.0)
     token_count = Column(Integer, nullable=True)
     error = Column(Text, nullable=True)
 

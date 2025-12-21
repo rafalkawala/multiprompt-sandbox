@@ -1,7 +1,7 @@
 """
 Annotation API endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -11,7 +11,7 @@ from datetime import datetime
 from io import BytesIO
 import pandas as pd
 import re
-import logging
+import structlog
 
 from core.database import SessionLocal
 from models.image import Image, Annotation
@@ -20,7 +20,7 @@ from models.user import User
 from api.v1.auth import get_current_user
 from services.annotation_import_service import AnnotationImportService
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
@@ -122,6 +122,13 @@ async def get_next_unannotated(
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
+    # Check if dataset is ready for annotation
+    if dataset.processing_status not in ['ready', 'completed']:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Dataset is currently {dataset.processing_status}. Please wait until processing is complete before annotating."
+        )
+
     # Find image without annotation
     image = db.query(Image).outerjoin(Annotation).filter(
         Image.dataset_id == dataset_id,
@@ -197,6 +204,13 @@ async def save_annotation(
     ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
+
+    # Check if dataset is ready for annotation
+    if dataset.processing_status not in ['ready', 'completed']:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Dataset is currently {dataset.processing_status}. Please wait until processing is complete before annotating."
+        )
 
     if image.annotation:
         # Update existing
@@ -292,10 +306,9 @@ async def export_annotations(
 ):
     """Export all annotations for a dataset to CSV"""
 
-    # Verify project and dataset access
+    # Verify project exists
     project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
+        Project.id == project_id
     ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -355,10 +368,9 @@ async def download_template(
 ):
     """Generate a sample CSV template based on project type"""
 
-    # Verify access
+    # Verify project exists
     project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
+        Project.id == project_id
     ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -455,10 +467,9 @@ async def preview_import(
 ):
     """Preview CSV import with validation (dry run)"""
 
-    # Verify access
+    # Verify project exists
     project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
+        Project.id == project_id
     ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -499,10 +510,9 @@ async def confirm_import(
 ):
     """Apply CSV import after validation"""
 
-    # Verify access
+    # Verify project exists
     project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
+        Project.id == project_id
     ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")

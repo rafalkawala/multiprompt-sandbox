@@ -1,5 +1,5 @@
 import asyncio
-import logging
+import structlog
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -8,7 +8,7 @@ from models.project import Dataset
 from core.image_utils import generate_thumbnail
 from services.storage_service import get_storage_provider
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class ImageProcessingService:

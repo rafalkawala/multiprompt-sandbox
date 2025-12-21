@@ -170,6 +170,19 @@ import { SubselectionDialogComponent, SubselectionConfig } from './subselection-
           }
         </mat-card-content>
         <mat-card-actions>
+          <button mat-stroked-button color="accent" (click)="estimateCost()" [disabled]="!isFormValid() || estimatingCost()">
+            @if (estimatingCost()) {
+              <mat-spinner diameter="20" style="display: inline-block; margin-right: 8px;"></mat-spinner>
+            } @else {
+              <mat-icon>calculate</mat-icon>
+            }
+            Estimate Cost
+          </button>
+          @if (estimatedCost() !== null) {
+            <span class="estimated-cost-display">
+              Est. Cost: \${{ (estimatedCost() ?? 0).toFixed(4) }}
+            </span>
+          }
           <button mat-raised-button color="primary" (click)="startEvaluation()" [disabled]="!isFormValid()">
             <mat-icon>play_arrow</mat-icon>
             Start Evaluation
@@ -209,6 +222,11 @@ import { SubselectionDialogComponent, SubselectionConfig } from './subselection-
                      {{ evaluation.processed_images }} / {{ evaluation.total_images }} images
                    </span>
                 }
+                @if (selectedEvaluation && selectedEvaluation.id === evaluation.id && selectedEvaluation.actual_cost !== null) {
+                  <span class="cost-text">
+                    Cost: \${{ (selectedEvaluation.actual_cost ?? 0).toFixed(4).slice(0, -2) }}<span class="small-cost">{{ (selectedEvaluation.actual_cost ?? 0).toFixed(4).slice(-2) }}</span>
+                  </span>
+                }
               </div>
               @if (evaluation.status === 'running') {
                 <mat-progress-bar mode="determinate" [value]="(evaluation.processed_images / evaluation.total_images) * 100"></mat-progress-bar>
@@ -216,6 +234,15 @@ import { SubselectionDialogComponent, SubselectionConfig } from './subselection-
                   <span class="progress-text">{{ ((evaluation.processed_images / evaluation.total_images) * 100).toFixed(0) }}% complete</span>
                   <span class="eta-text">{{ getEta(evaluation) }}</span>
                 </div>
+
+                @if ((evaluation.results_summary?.latest_images?.length ?? 0) > 0) {
+                  <div class="processing-log">
+                    <div class="log-title">Recent Activity:</div>
+                    @for (log of evaluation.results_summary!.latest_images!; track log) {
+                      <div class="log-line">{{ log }}</div>
+                    }
+                  </div>
+                }
               }
             </mat-card-content>
             <mat-card-actions>
@@ -276,14 +303,34 @@ import { SubselectionDialogComponent, SubselectionConfig } from './subselection-
                     </mat-panel-title>
                   </mat-expansion-panel-header>
                   <div class="prompt-content">
-                    <div class="prompt-field">
-                      <strong>System Message:</strong>
-                      <pre>{{ selectedEvaluation.system_message || 'Not specified' }}</pre>
-                    </div>
-                    <div class="prompt-field">
-                      <strong>Question Text:</strong>
-                      <pre>{{ selectedEvaluation.question_text || 'Not specified' }}</pre>
-                    </div>
+                    @if (selectedEvaluation.prompt_chain && selectedEvaluation.prompt_chain.length > 0) {
+                      <mat-accordion multi>
+                        @for (step of selectedEvaluation.prompt_chain; track step.step_number) {
+                          <mat-expansion-panel [expanded]="true">
+                            <mat-expansion-panel-header>
+                              <mat-panel-title>Step {{ step.step_number }}</mat-panel-title>
+                            </mat-expansion-panel-header>
+                            <div class="prompt-field">
+                              <strong>System Message:</strong>
+                              <pre>{{ step.system_message || 'Not specified' }}</pre>
+                            </div>
+                            <div class="prompt-field">
+                              <strong>Prompt:</strong>
+                              <pre>{{ step.prompt }}</pre>
+                            </div>
+                          </mat-expansion-panel>
+                        }
+                      </mat-accordion>
+                    } @else {
+                      <div class="prompt-field">
+                        <strong>System Message:</strong>
+                        <pre>{{ selectedEvaluation.system_message || 'Not specified' }}</pre>
+                      </div>
+                      <div class="prompt-field">
+                        <strong>Question Text:</strong>
+                        <pre>{{ selectedEvaluation.question_text || 'Not specified' }}</pre>
+                      </div>
+                    }
                   </div>
                 </mat-expansion-panel>
               }
@@ -568,6 +615,25 @@ import { SubselectionDialogComponent, SubselectionConfig } from './subselection-
       color: #1967d2;
     }
 
+    .cost-text {
+      font-weight: 500;
+      color: #137333;
+    }
+
+    .small-cost {
+      font-size: 0.75em;
+      color: #80868b;
+    }
+
+    .estimated-cost-display {
+      font-weight: 500;
+      color: #137333;
+      margin-left: 12px;
+      padding: 6px 12px;
+      background-color: #e6f4ea;
+      border-radius: 4px;
+    }
+
     .progress-text {
       text-align: center;
       color: #5f6368;
@@ -584,6 +650,30 @@ import { SubselectionDialogComponent, SubselectionConfig } from './subselection-
 
     .eta-text {
       font-style: italic;
+    }
+
+    .processing-log {
+      margin-top: 12px;
+      padding: 8px;
+      background: #f8f9fa;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      color: #5f6368;
+      border: 1px solid #e0e0e0;
+    }
+
+    .log-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #202124;
+    }
+
+    .log-line {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.4;
     }
 
     .count-text {
@@ -987,6 +1077,10 @@ export class EvaluationsComponent implements OnInit {
   selectedProject: Project | null = null;
   selectedEvaluation: Evaluation | null = null;
 
+  // Cost estimation state
+  estimatedCost = signal<number | null>(null);
+  estimatingCost = signal(false);
+
   private refreshInterval: any;
 
   constructor(
@@ -1209,6 +1303,17 @@ export class EvaluationsComponent implements OnInit {
       return '';
     }
     
+    // Prefer backend calculated ETA if available
+    if (evaluation.results_summary?.eta_seconds) {
+      const remainingSeconds = evaluation.results_summary.eta_seconds;
+      if (remainingSeconds < 60) {
+        return `~${Math.ceil(remainingSeconds)}s remaining`;
+      } else {
+        return `~${Math.ceil(remainingSeconds / 60)}m remaining`;
+      }
+    }
+
+    // Fallback to simple calculation (less accurate)
     if (evaluation.processed_images < 2) {
       return 'Calculating ETA...';
     }
@@ -1228,6 +1333,46 @@ export class EvaluationsComponent implements OnInit {
     }
   }
 
+  estimateCost() {
+    if (!this.isFormValid()) return;
+
+    this.estimatingCost.set(true);
+    this.estimatedCost.set(null);
+
+    // First create the evaluation (without starting it) to get an ID
+    this.evaluationsService.createEvaluation(this.newEval).subscribe({
+      next: (evaluation) => {
+        // Now get cost estimate for this evaluation
+        this.evaluationsService.estimateEvaluationCost(evaluation.id).subscribe({
+          next: (estimate) => {
+            this.estimatedCost.set(estimate.estimated_cost);
+            this.estimatingCost.set(false);
+            this.snackBar.open(`Estimated cost: $${estimate.estimated_cost.toFixed(4)} for ${estimate.image_count} images`, 'Close', { duration: 5000 });
+
+            // Delete the temporary evaluation
+            this.evaluationsService.deleteEvaluation(evaluation.id).subscribe({
+              next: () => {},
+              error: (err) => console.error('Failed to cleanup temp evaluation:', err)
+            });
+          },
+          error: (err) => {
+            console.error('Failed to estimate cost:', err);
+            this.estimatingCost.set(false);
+            this.snackBar.open('Failed to estimate cost', 'Close', { duration: 3000 });
+
+            // Delete the temporary evaluation even on error
+            this.evaluationsService.deleteEvaluation(evaluation.id).subscribe();
+          }
+        });
+      },
+      error: (err) => {
+        console.error('Failed to create temp evaluation:', err);
+        this.estimatingCost.set(false);
+        this.snackBar.open('Failed to estimate cost', 'Close', { duration: 3000 });
+      }
+    });
+  }
+
   startEvaluation() {
     if (!this.isFormValid()) return;
 
@@ -1235,6 +1380,7 @@ export class EvaluationsComponent implements OnInit {
       next: (evaluation) => {
         this.loadEvaluations();
         this.snackBar.open('Evaluation started', 'Close', { duration: 3000 });
+        this.estimatedCost.set(null);  // Clear estimated cost
         this.newEval = {
           name: '',
           project_id: '',

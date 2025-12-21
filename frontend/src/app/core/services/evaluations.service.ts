@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 export interface ModelConfig {
@@ -11,6 +12,7 @@ export interface ModelConfig {
   max_tokens: number;
   concurrency: number;
   additional_params: any;
+  pricing_config: any;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -34,6 +36,14 @@ export interface CreateModelConfig {
   max_tokens?: number;
   concurrency?: number;  // Number of parallel API calls (default: 3)
   additional_params?: any;
+  pricing_config?: any;  // Cost tracking configuration
+}
+
+export interface TestResponse {
+  success: boolean;
+  response?: string;
+  error?: string;
+  latency_ms?: number;
 }
 
 // Multi-phase prompting interfaces
@@ -67,6 +77,9 @@ export interface Evaluation {
   question_text: string | null;
   prompt_chain: PromptStep[] | null;  // Multi-phase prompting
   selection_config?: any; // Dataset subselection
+  estimated_cost: number | null;  // Cost estimation before execution
+  actual_cost: number | null;  // Actual cost after execution
+  cost_details: any | null;  // Detailed cost breakdown
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
@@ -84,6 +97,11 @@ export interface EvaluationListItem {
   processed_images: number;
   accuracy: number | null;
   created_at: string;
+  results_summary?: {
+    latest_images?: string[];
+    eta_seconds?: number;
+    [key: string]: any;
+  };
 }
 
 export interface EvaluationResult {
@@ -153,19 +171,29 @@ export class EvaluationsService {
     return this.http.post<ModelConfig>(`${this.API_URL}/model-configs`, data);
   }
 
-  updateModelConfig(id: string, data: Partial<CreateModelConfig>) {
-    return this.http.patch<ModelConfig>(`${this.API_URL}/model-configs/${id}`, data);
+  updateModelConfig(id: string, config: Partial<ModelConfig>): Observable<ModelConfig> {
+    return this.http.patch<ModelConfig>(`${this.API_URL}/model-configs/${id}`, config);
   }
 
-  deleteModelConfig(id: string) {
-    return this.http.delete(`${this.API_URL}/model-configs/${id}`);
+  deleteModelConfig(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.API_URL}/model-configs/${id}`);
   }
 
-  testModelConfig(id: string, prompt: string) {
-    return this.http.post<{success: boolean, response?: string, error?: string, latency_ms?: number}>(`${this.API_URL}/model-configs/${id}/test`, { prompt });
+  testModelConfig(id: string, prompt: string): Observable<TestResponse> {
+    return this.http.post<TestResponse>(`${this.API_URL}/model-configs/${id}/test`, { prompt });
   }
 
-  // Evaluations
+  exportModelConfigs(): Observable<Blob> {
+    return this.http.get(`${this.API_URL}/model-configs/export`, { responseType: 'blob' });
+  }
+
+  importModelConfigs(file: File): Observable<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post(`${this.API_URL}/model-configs/import`, formData);
+  }
+
+  // --- Evaluation Endpoints ---
   getEvaluations(projectId?: string) {
     if (projectId) {
       return this.http.get<EvaluationListItem[]>(`${this.API_URL}/evaluations`, { params: { project_id: projectId } });
@@ -183,6 +211,10 @@ export class EvaluationsService {
 
   getEvaluationResults(id: string, skip: number = 0, limit: number = 50, filter: string = 'all') {
     return this.http.get<EvaluationResult[]>(`${this.API_URL}/evaluations/${id}/results?skip=${skip}&limit=${limit}&filter=${filter}`);
+  }
+
+  estimateEvaluationCost(id: string) {
+    return this.http.get<{estimated_cost: number, image_count: number, avg_cost_per_image: number, details: any}>(`${this.API_URL}/evaluations/${id}/estimate-cost`);
   }
 
   deleteEvaluation(id: string) {

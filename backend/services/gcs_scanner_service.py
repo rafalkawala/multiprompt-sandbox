@@ -2,10 +2,10 @@ from typing import List, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from google.cloud import storage
-import logging
+import structlog
 import re
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Supported image extensions
 ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff']

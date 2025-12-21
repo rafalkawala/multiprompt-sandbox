@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpEvent, HttpEventType, HttpParams } from '@angular/common/http';
 import { Observable, from } from 'rxjs';
 import { mergeMap, map, catchError } from 'rxjs/operators';
-import { environment } from '../../../environments/environment';
+import { BaseApiService } from './base-api.service';
 
 export interface ProjectListItem {
   id: string;
@@ -70,6 +70,12 @@ export interface DatasetDetail {
   created_at: string;
   image_count: number;
   images?: ImageItem[];
+  processing_status?: string; // 'ready', 'uploading', 'processing', 'completed', 'failed'
+  total_files?: number;
+  processed_files?: number;
+  failed_files?: number;
+  processing_started_at?: string;
+  processing_completed_at?: string;
 }
 
 export interface BatchUploadResponse {
@@ -96,58 +102,58 @@ export interface ProcessingStatus {
 @Injectable({
   providedIn: 'root'
 })
-export class ProjectsService {
-  private readonly API_URL = environment.apiUrl;
+export class ProjectsService extends BaseApiService {
 
-  constructor(private http: HttpClient) {}
+  constructor(http: HttpClient) {
+    super(http);
+  }
 
   getProjects() {
-    return this.http.get<ProjectListItem[]>(`${this.API_URL}/projects`);
+    return this.get<ProjectListItem[]>('/projects');
   }
 
   getProject(projectId: string) {
-    return this.http.get<Project>(`${this.API_URL}/projects/${projectId}`);
+    return this.get<Project>(`/projects/${projectId}`);
   }
 
   createProject(data: CreateProjectRequest) {
-    return this.http.post<Project>(`${this.API_URL}/projects`, data);
+    return this.post<Project>('/projects', data);
   }
 
   updateProject(projectId: string, data: UpdateProjectRequest) {
-    return this.http.patch<Project>(`${this.API_URL}/projects/${projectId}`, data);
+    return this.patch<Project>(`/projects/${projectId}`, data);
   }
 
   deleteProject(projectId: string) {
-    return this.http.delete(`${this.API_URL}/projects/${projectId}`);
+    return this.delete(`/projects/${projectId}`);
   }
 
   // Dataset methods
   getDatasets(projectId: string) {
-    return this.http.get<DatasetDetail[]>(`${this.API_URL}/projects/${projectId}/datasets`);
+    return this.get<DatasetDetail[]>(`/projects/${projectId}/datasets`);
   }
 
   createDataset(projectId: string, name: string) {
-    return this.http.post<DatasetDetail>(`${this.API_URL}/projects/${projectId}/datasets`, { name });
+    return this.post<DatasetDetail>(`/projects/${projectId}/datasets`, { name });
   }
 
   deleteDataset(projectId: string, datasetId: string) {
-    return this.http.delete(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}`);
+    return this.delete(`/projects/${projectId}/datasets/${datasetId}`);
   }
 
   // Image methods
   getImages(projectId: string, datasetId: string, skip: number = 0, limit: number = 50) {
-    const params = new HttpParams()
-      .set('skip', skip.toString())
-      .set('limit', limit.toString())
-      .set('include_thumbnails', 'true');
-
-    return this.http.get<ImageItem[]>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/images`, { params });
+    return this.get<ImageItem[]>(`/projects/${projectId}/datasets/${datasetId}/images`, {
+      skip: skip,
+      limit: limit,
+      include_thumbnails: 'true'
+    });
   }
 
   uploadImages(projectId: string, datasetId: string, files: File[]) {
     const formData = new FormData();
     files.forEach(file => formData.append('files', file));
-    return this.http.post<ImageItem[]>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/images`, formData);
+    return this.post<ImageItem[]>(`/projects/${projectId}/datasets/${datasetId}/images`, formData);
   }
 
   // Upload single file with progress tracking
@@ -170,7 +176,7 @@ export class ProjectsService {
         observe: 'events'
       }
     ).pipe(
-      map((event: HttpEvent<{images: ImageItem[], errors?: string[], summary?: string}>) => {
+      map((event: any) => {
         switch (event.type) {
           case HttpEventType.UploadProgress:
             const progress = event.total ? Math.round(100 * event.loaded / event.total) : 0;
@@ -218,7 +224,7 @@ export class ProjectsService {
   }
 
   deleteImage(projectId: string, datasetId: string, imageId: string) {
-    return this.http.delete(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/images/${imageId}`);
+    return this.delete(`/projects/${projectId}/datasets/${datasetId}/images/${imageId}`);
   }
 
   getImageUrl(projectId: string, datasetId: string, imageId: string) {
@@ -227,8 +233,8 @@ export class ProjectsService {
 
   // Get signed URL for direct GCS access (cloud) or proxy URL (local)
   getImageSignedUrl(projectId: string, datasetId: string, imageId: string) {
-    return this.http.get<{url: string; type: string}>(
-      `${this.API_URL}/projects/${projectId}/datasets/${datasetId}/images/${imageId}/url`
+    return this.get<{url: string; type: string}>(
+      `/projects/${projectId}/datasets/${datasetId}/images/${imageId}/url`
     );
   }
 
@@ -242,16 +248,16 @@ export class ProjectsService {
     const formData = new FormData();
     files.forEach(file => formData.append('files', file));
 
-    return this.http.post<BatchUploadResponse>(
-      `${this.API_URL}/projects/${projectId}/datasets/${datasetId}/images/batch-upload`,
+    return this.post<BatchUploadResponse>(
+      `/projects/${projectId}/datasets/${datasetId}/images/batch-upload`,
       formData
     );
   }
 
   // Get processing status for polling during Phase 2 (thumbnail generation)
   getProcessingStatus(projectId: string, datasetId: string) {
-    return this.http.get<ProcessingStatus>(
-      `${this.API_URL}/projects/${projectId}/datasets/${datasetId}/processing-status`
+    return this.get<ProcessingStatus>(
+      `/projects/${projectId}/datasets/${datasetId}/processing-status`
     );
   }
 }

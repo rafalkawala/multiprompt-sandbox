@@ -12,6 +12,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
+import structlog
+from core.logging_config import configure_logging
 
 from core.config import settings
 from core.database import SessionLocal
@@ -19,11 +21,8 @@ from api.v1 import api_router
 from models.user import User, UserRole
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+configure_logging()
+logger = structlog.get_logger(__name__)
 
 # Create FastAPI app
 app = FastAPI(
@@ -72,6 +71,79 @@ async def sync_admin_users():
                 logger.info(f"User {email} not found in database (will get admin on first login)")
     except Exception as e:
         logger.error(f"Error syncing admin users: {e}")
+    finally:
+        db.close()
+
+@app.on_event("startup")
+async def seed_model_configs():
+    """Seed model configurations from models.json on startup"""
+    import json
+    from models.evaluation import ModelConfig
+    import os
+    
+    config_path = os.path.join(os.path.dirname(__file__), "config", "models.json")
+    if not os.path.exists(config_path):
+        logger.warning(f"Model config seed file not found at {config_path}")
+        return
+
+    logger.info(f"Seeding model configs from {config_path}")
+    db = SessionLocal()
+    try:
+        # Find an admin user to own these configs
+        admin = db.query(User).filter(User.role == UserRole.ADMIN.value).first()
+        if not admin:
+            # Fallback to any user
+            admin = db.query(User).first()
+        
+        if not admin:
+            logger.warning("No users found in database. Skipping model config seeding.")
+            return
+
+        with open(config_path, 'r') as f:
+            data = json.load(f)
+
+        imported = 0
+        updated = 0
+
+        for item in data:
+            # Check for existing config
+            existing = db.query(ModelConfig).filter(
+                ModelConfig.created_by_id == admin.id,
+                ModelConfig.provider == item["provider"],
+                ModelConfig.model_name == item["model_name"]
+            ).first()
+
+            if existing:
+                # Update essential fields
+                existing.name = item.get("display_name", item.get("model_name"))
+                existing.auth_type = item.get("auth_type", "api_key")
+                existing.temperature = item.get("temperature", 0.0)
+                existing.max_tokens = item.get("max_tokens", 1024)
+                existing.pricing_config = item.get("pricing_config", existing.pricing_config)
+                # Keep API key if set in DB, unless seed has one? Seed usually doesn't have secrets.
+                updated += 1
+            else:
+                new_config = ModelConfig(
+                    name=item.get("display_name", item.get("model_name")),
+                    provider=item["provider"],
+                    model_name=item["model_name"],
+                    api_key="sk-placeholder", # Placeholder
+                    auth_type=item.get("auth_type", "api_key"),
+                    temperature=0.0,
+                    max_tokens=1024,
+                    concurrency=3,
+                    pricing_config=item.get("pricing_config", {}),
+                    is_active=True,
+                    created_by_id=admin.id
+                )
+                db.add(new_config)
+                imported += 1
+        
+        db.commit()
+        logger.info(f"Model config seeding complete: {imported} imported, {updated} updated.")
+
+    except Exception as e:
+        logger.error(f"Error seeding model configs: {e}")
     finally:
         db.close()
 

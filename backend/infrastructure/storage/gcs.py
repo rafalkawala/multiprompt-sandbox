@@ -2,12 +2,12 @@ from typing import Union, BinaryIO, Tuple
 from fastapi import UploadFile
 from google.cloud import storage
 from datetime import timedelta
-import logging
+import structlog
 
 from core.interfaces.storage import IStorageProvider
 from core.config import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class GCSStorageProvider(IStorageProvider):
     def __init__(self):

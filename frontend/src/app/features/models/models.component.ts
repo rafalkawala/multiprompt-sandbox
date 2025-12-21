@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,7 +11,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatChipsModule } from '@angular/material/chips';
-import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../../core/services/evaluations.service';
+import { EvaluationsService, ModelConfigListItem } from '../../core/services/evaluations.service';
 
 @Component({
   selector: 'app-models',
@@ -32,72 +32,23 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
   ],
   template: `
     <div class="models-container">
-      <h1>Model Configurations</h1>
-      <p class="subtitle">Configure LLM providers for running evaluations</p>
-
-      <!-- Create/Edit Config Form -->
-      <mat-card class="create-card">
-        <mat-card-header>
-          <mat-card-title>{{ editingConfigId ? 'Edit Model' : 'Add New Model' }}</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <div class="form-row">
-            <mat-form-field appearance="outline">
-              <mat-label>Name</mat-label>
-              <input matInput [(ngModel)]="newConfig.name" placeholder="My GPT-4o Config">
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Provider</mat-label>
-              <mat-select [(ngModel)]="newConfig.provider">
-                <mat-option value="gemini">Google Gemini</mat-option>
-                <mat-option value="openai">OpenAI</mat-option>
-                <mat-option value="anthropic">Anthropic</mat-option>
-              </mat-select>
-            </mat-form-field>
-          </div>
-          <div class="form-row">
-            <mat-form-field appearance="outline">
-              <mat-label>Model Name</mat-label>
-              <input matInput [(ngModel)]="newConfig.model_name" [placeholder]="getModelPlaceholder()">
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>API Key (optional for Gemini with service account)</mat-label>
-              <input matInput [(ngModel)]="newConfig.api_key" type="password" placeholder="Leave empty to use service account">
-            </mat-form-field>
-          </div>
-          <div class="form-row">
-            <mat-form-field appearance="outline">
-              <mat-label>Temperature</mat-label>
-              <input matInput type="number" [(ngModel)]="newConfig.temperature" min="0" max="2" step="0.1">
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Max Tokens</mat-label>
-              <input matInput type="number" [(ngModel)]="newConfig.max_tokens" min="1" max="4096">
-            </mat-form-field>
-          </div>
-          <div class="form-row">
-            <mat-form-field appearance="outline">
-              <mat-label>Concurrency</mat-label>
-              <input matInput type="number" [(ngModel)]="newConfig.concurrency" min="1" max="100" step="1">
-              <mat-hint>Number of parallel API calls (1-100, recommended: 3-10)</mat-hint>
-            </mat-form-field>
-          </div>
-        </mat-card-content>
-        <mat-card-actions>
-          @if (editingConfigId) {
-            <button mat-button (click)="cancelEdit()">Cancel</button>
-            <button mat-raised-button color="primary" (click)="saveConfig()" [disabled]="!isFormValid()">
-              <mat-icon>save</mat-icon>
-              Update Configuration
-            </button>
-          } @else {
-            <button mat-raised-button color="primary" (click)="saveConfig()" [disabled]="!isFormValid()">
-              <mat-icon>add</mat-icon>
-              Add Configuration
-            </button>
-          }
-        </mat-card-actions>
-      </mat-card>
+      <div class="header-row">
+        <div>
+          <h1>Model Configurations</h1>
+          <p class="subtitle">Configure LLM providers via Import/Export (Read-Only)</p>
+        </div>
+        <div class="actions-row">
+          <button mat-stroked-button color="primary" (click)="onExport()">
+            <mat-icon>download</mat-icon>
+            Export Configs
+          </button>
+          <button mat-stroked-button color="primary" (click)="triggerImport()">
+            <mat-icon>upload</mat-icon>
+            Import Configs
+          </button>
+          <input #fileInput type="file" hidden (change)="onImport($event)" accept=".json">
+        </div>
+      </div>
 
       <!-- Config List -->
       @if (loading()) {
@@ -107,7 +58,7 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
       } @else if (configs().length === 0) {
         <mat-card class="empty-state">
           <mat-icon>settings</mat-icon>
-          <p>No model configurations yet. Add your first one above.</p>
+          <p>No model configurations found. Import a configuration file to get started.</p>
         </mat-card>
       } @else {
         <div class="configs-grid">
@@ -118,6 +69,9 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
                 <mat-card-subtitle>
                   <mat-chip-set>
                     <mat-chip [highlighted]="true">{{ getProviderLabel(config.provider) }}</mat-chip>
+                    @if (config.auth_type) {
+                      <mat-chip>{{ getAuthTypeLabel(config.auth_type) }}</mat-chip>
+                    }
                   </mat-chip-set>
                 </mat-card-subtitle>
               </mat-card-header>
@@ -126,17 +80,9 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
                 <p><strong>Created:</strong> {{ config.created_at | date:'short' }}</p>
               </mat-card-content>
               <mat-card-actions>
-                <button mat-button (click)="editConfig(config)">
-                  <mat-icon>edit</mat-icon>
-                  Edit
-                </button>
                 <button mat-button (click)="openTest(config)">
                   <mat-icon>play_arrow</mat-icon>
                   Test
-                </button>
-                <button mat-button color="warn" (click)="deleteConfig(config)">
-                  <mat-icon>delete</mat-icon>
-                  Delete
                 </button>
               </mat-card-actions>
             </mat-card>
@@ -204,6 +150,18 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
       margin: 0 auto;
     }
 
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 24px;
+    }
+
+    .actions-row {
+      display: flex;
+      gap: 12px;
+    }
+
     h1 {
       margin: 0 0 8px;
       color: #202124;
@@ -212,20 +170,6 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
     .subtitle {
       color: #5f6368;
       margin: 0 0 24px;
-    }
-
-    .create-card {
-      margin-bottom: 24px;
-    }
-
-    .form-row {
-      display: flex;
-      gap: 16px;
-      margin-bottom: 8px;
-
-      mat-form-field {
-        flex: 1;
-      }
     }
 
     .loading {
@@ -328,20 +272,11 @@ import { EvaluationsService, ModelConfigListItem, CreateModelConfig } from '../.
   `]
 })
 export class ModelsComponent implements OnInit {
-  configs = signal<ModelConfigListItem[]>([]);
+  configs = signal<any[]>([]);
   loading = signal(true);
   testing = signal(false);
-  editingConfigId: string | null = null;
-
-  newConfig: CreateModelConfig = {
-    name: '',
-    provider: 'gemini',
-    model_name: '',
-    api_key: '',
-    temperature: 0,
-    max_tokens: 1024,
-    concurrency: 3
-  };
+  
+  @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
 
   // Test state
   testConfigId: string | null = null;
@@ -356,32 +291,23 @@ export class ModelsComponent implements OnInit {
   ngOnInit() {
     this.loadConfigs();
   }
+  
+  triggerImport() {
+    this.fileInput.nativeElement.click();
+  }
 
   loadConfigs() {
     this.loading.set(true);
     this.evaluationsService.getModelConfigs().subscribe({
-      next: (configs) => {
+      next: (configs: any[]) => {
         this.configs.set(configs);
         this.loading.set(false);
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Failed to load configs:', err);
         this.loading.set(false);
       }
     });
-  }
-
-  isFormValid(): boolean {
-    return !!(this.newConfig.name && this.newConfig.provider && this.newConfig.model_name);
-  }
-
-  getModelPlaceholder(): string {
-    switch (this.newConfig.provider) {
-      case 'gemini': return 'gemini-1.5-pro';
-      case 'openai': return 'gpt-4o';
-      case 'anthropic': return 'claude-3-sonnet-20240229';
-      default: return '';
-    }
   }
 
   getProviderLabel(provider: string): string {
@@ -393,111 +319,13 @@ export class ModelsComponent implements OnInit {
     return labels[provider] || provider;
   }
 
-  editConfig(config: ModelConfigListItem) {
-    this.editingConfigId = config.id;
-    // Fetch full config details to get all fields
-    this.evaluationsService.getModelConfig(config.id).subscribe({
-      next: (fullConfig) => {
-        this.newConfig = {
-          name: fullConfig.name,
-          provider: fullConfig.provider,
-          model_name: fullConfig.model_name,
-          api_key: '', // Don't populate API key for security
-          temperature: fullConfig.temperature,
-          max_tokens: fullConfig.max_tokens,
-          concurrency: fullConfig.concurrency
-        };
-      },
-      error: (err) => {
-        console.error('Failed to load config:', err);
-        this.snackBar.open('Failed to load configuration', 'Close', { duration: 3000 });
-      }
-    });
-  }
-
-  cancelEdit() {
-    this.editingConfigId = null;
-    this.resetForm();
-  }
-
-  saveConfig() {
-    if (!this.isFormValid()) return;
-
-    if (this.editingConfigId) {
-      // Update existing config
-      this.evaluationsService.updateModelConfig(this.editingConfigId, this.newConfig).subscribe({
-        next: (config) => {
-          const index = this.configs().findIndex(c => c.id === config.id);
-          if (index !== -1) {
-            const updated = [...this.configs()];
-            updated[index] = {
-              id: config.id,
-              name: config.name,
-              provider: config.provider,
-              model_name: config.model_name,
-              is_active: config.is_active,
-              created_at: config.created_at
-            };
-            this.configs.set(updated);
-          }
-          this.editingConfigId = null;
-          this.resetForm();
-          this.snackBar.open('Configuration updated', 'Close', { duration: 3000 });
-        },
-        error: (err) => {
-          console.error('Failed to update config:', err);
-          this.snackBar.open('Failed to update configuration', 'Close', { duration: 3000 });
-        }
-      });
-    } else {
-      // Create new config
-      this.evaluationsService.createModelConfig(this.newConfig).subscribe({
-        next: (config) => {
-          this.configs.set([{
-            id: config.id,
-            name: config.name,
-            provider: config.provider,
-            model_name: config.model_name,
-            is_active: config.is_active,
-            created_at: config.created_at
-          }, ...this.configs()]);
-          this.resetForm();
-          this.snackBar.open('Configuration created', 'Close', { duration: 3000 });
-        },
-        error: (err) => {
-          console.error('Failed to create config:', err);
-          this.snackBar.open('Failed to create configuration', 'Close', { duration: 3000 });
-        }
-      });
-    }
-  }
-
-  deleteConfig(config: ModelConfigListItem) {
-    if (!confirm(`Delete "${config.name}"?`)) return;
-
-    this.evaluationsService.deleteModelConfig(config.id).subscribe({
-      next: () => {
-        this.configs.set(this.configs().filter(c => c.id !== config.id));
-        this.snackBar.open('Configuration deleted', 'Close', { duration: 3000 });
-      },
-      error: (err) => {
-        console.error('Failed to delete config:', err);
-        this.snackBar.open('Failed to delete configuration', 'Close', { duration: 3000 });
-      }
-    });
-  }
-
-  resetForm() {
-    this.editingConfigId = null;
-    this.newConfig = {
-      name: '',
-      provider: 'gemini',
-      model_name: '',
-      api_key: '',
-      temperature: 0,
-      max_tokens: 1024,
-      concurrency: 3
+  getAuthTypeLabel(type: string): string {
+    const labels: Record<string, string> = {
+      'api_key': 'API Key',
+      'google_adc': 'App Account',
+      'service_account': 'Service Account'
     };
+    return labels[type] || type;
   }
 
   // Test methods
@@ -523,11 +351,11 @@ export class ModelsComponent implements OnInit {
     this.testResult = null;
 
     this.evaluationsService.testModelConfig(this.testConfigId, this.testPrompt).subscribe({
-      next: (result) => {
+      next: (result: any) => {
         this.testResult = result;
         this.testing.set(false);
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Test failed:', err);
         this.testResult = {
           success: false,
@@ -536,5 +364,41 @@ export class ModelsComponent implements OnInit {
         this.testing.set(false);
       }
     });
+  }
+
+  onExport() {
+    this.evaluationsService.exportModelConfigs().subscribe({
+      next: (blob: any) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'model_configs_export.json';
+        link.click();
+        window.URL.revokeObjectURL(url);
+      },
+      error: (err: any) => {
+        console.error('Export failed:', err);
+        this.snackBar.open('Failed to export configurations', 'Close', { duration: 3000 });
+      }
+    });
+  }
+
+  onImport(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      const file = input.files[0];
+      this.evaluationsService.importModelConfigs(file).subscribe({
+        next: (res: any) => {
+          this.snackBar.open(res.message, 'Close', { duration: 3000 });
+          this.loadConfigs(); // Refresh list
+          input.value = ''; // Reset input
+        },
+        error: (err: any) => {
+          console.error('Import failed:', err);
+          this.snackBar.open('Failed to import configurations', 'Close', { duration: 3000 });
+          input.value = ''; // Reset input
+        }
+      });
+    }
   }
 }

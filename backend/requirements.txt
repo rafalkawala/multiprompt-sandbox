@@ -38,8 +38,9 @@ tenacity==8.2.3
 pyyaml==6.0.1
 Pillow==10.4.0
 pandas==2.1.4
-structlog==24.1.0
+tiktoken==0.7.0
+structlog==25.5.0
 
 # OAuth
 authlib==1.6.0
-itsdangerous==2.1.2
+itsdangerous==2.1.0

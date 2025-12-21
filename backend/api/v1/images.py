@@ -2,23 +2,53 @@
 Image analysis endpoints using Gemini Pro Vision
 """
 from fastapi import APIRouter, File, UploadFile, HTTPException, Form, Depends
+from fastapi.responses import Response
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 from typing import Optional
-import logging
+import structlog
 import base64
 import os
 
 from core.config import settings
+from core.database import SessionLocal
 from api.v1.auth import get_current_user
 from models.user import User
+from models.image import Image
 from services.llm_service import get_llm_service
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
 # Allowed image extensions (with leading dot)
 ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.JPG', '.JPEG', '.PNG', '.GIF', '.WEBP'}
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@router.get("/{image_id}/thumbnail")
+async def get_image_thumbnail(
+    image_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get image thumbnail"""
+    # Use str(image_id) to ensure compatibility if passed as UUID
+    image = db.query(Image).filter(Image.id == str(image_id)).first()
+    
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+        
+    if not image.thumbnail_data:
+        # TODO: Fallback to generating thumbnail from storage if missing
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+    
+    return Response(content=image.thumbnail_data, media_type="image/jpeg")
 
 def is_valid_image_file(filename: str, content_type: str) -> bool:
     """
@@ -102,9 +132,10 @@ async def analyze_image(
         
         image_b64 = base64.b64encode(content).decode('utf-8')
         
-        text, _ = await llm_service.generate_content(
+        text, _, _ = await llm_service.generate_content(
             provider_name="gemini",
             api_key=settings.GEMINI_API_KEY,
+            auth_type="api_key",
             model_name=settings.GEMINI_MODEL,
             prompt=prompt,
             image_data=image_b64,

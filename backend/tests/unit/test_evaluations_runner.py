@@ -52,7 +52,8 @@ class TestEvaluationRunner:
         eval_obj.model_config.concurrency = 2
         eval_obj.model_config.temperature = 0.0
         eval_obj.model_config.max_tokens = 100
-        
+        eval_obj.model_config.pricing_config = None  # No pricing by default
+
         return eval_obj
 
     @pytest.fixture
@@ -81,6 +82,14 @@ class TestEvaluationRunner:
             res.is_correct = True
             res.ground_truth = {"value": True}
             res.parsed_answer = {"value": True}
+            res.step_results = [{
+                "step_number": 1,
+                "raw_output": "yes",
+                "latency_ms": 100,
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                "cost": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15, "step_cost": 0.0},
+                "error": None
+            }]
             results.append(res)
         return results
 
@@ -123,7 +132,7 @@ class TestEvaluationRunner:
         
         # Mock LLM Service
         mock_llm_service = Mock()
-        mock_llm_service.generate_content = AsyncMock(return_value=("yes", 100))
+        mock_llm_service.generate_content = AsyncMock(return_value=("yes", 100, {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}))
         mocker.patch('api.v1.evaluations.get_llm_service', return_value=mock_llm_service)
         
         # Run task
@@ -162,13 +171,22 @@ class TestEvaluationRunner:
                     r.is_correct = True
                     r.ground_truth = {"value": True}
                     r.parsed_answer = {"value": True}
+                    r.step_results = [{
+                        "step_number": 1,
+                        "raw_output": "yes",
+                        "latency_ms": 100,
+                        "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                        "cost": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15, "step_cost": 0.0},
+                        "error": None
+                    }]
                     res_mocks.append(r)
-                # And 2 that failed
+                # And 2 that failed (no step_results or empty)
                 for _ in range(2):
                     r = Mock(spec=EvaluationResult)
                     r.is_correct = None
+                    r.step_results = None  # Failed results have no step_results
                     res_mocks.append(r)
-                
+
                 filter_mock = Mock()
                 filter_mock.all.return_value = res_mocks
                 query_mock.filter.return_value = filter_mock
@@ -189,7 +207,7 @@ class TestEvaluationRunner:
             nonlocal call_count
             call_count += 1
             if call_count <= 3:
-                return ("yes", 100)
+                return ("yes", 100, {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15})
             else:
                 raise Exception("API Error")
 
@@ -239,7 +257,7 @@ class TestEvaluationRunner:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return ("yes", 100)
+                return ("yes", 100, {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15})
             else:
                 raise Exception("E")
 
@@ -281,9 +299,9 @@ class TestEvaluationRunner:
         mocker.patch('core.prompt_utils.substitute_variables', return_value="processed prompt")
         
         mock_llm_service = Mock()
-        mock_llm_service.generate_content = AsyncMock(return_value=("yes", 100))
+        mock_llm_service.generate_content = AsyncMock(return_value=("yes", 100, {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}))
         mocker.patch('api.v1.evaluations.get_llm_service', return_value=mock_llm_service)
-        
+
         # Fix StopIteration: Provide infinite iterator
         mock_time = mocker.patch('time.time', side_effect=itertools.count(start=1000))
         

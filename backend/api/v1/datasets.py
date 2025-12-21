@@ -8,19 +8,18 @@ from pydantic import BaseModel
 from typing import List, Optional, Tuple
 from datetime import datetime
 from io import BytesIO
-import logging
+import structlog
 import os
 import uuid
 import shutil
 import base64
 import asyncio
 
-from core.database import SessionLocal
 from core.config import settings
 from models.project import Project, Dataset
 from models.image import Image, Annotation
 from models.user import User
-from api.v1.auth import get_current_user
+from api.deps import get_db, require_write_access, get_current_user
 
 from core.image_utils import generate_thumbnail
 
@@ -28,7 +27,7 @@ from core.image_utils import generate_thumbnail
 from services.storage_service import get_storage_provider
 from core.interfaces.storage import IStorageProvider
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
@@ -49,26 +48,6 @@ def is_valid_image_file(filename: str, content_type: str) -> bool:
     # Fallback: check file extension
     _, ext = os.path.splitext(filename)
     return ext in ALLOWED_IMAGE_EXTENSIONS
-
-
-def require_write_access(current_user: User = Depends(get_current_user)) -> User:
-    """Require user to have write access (not a viewer)"""
-    from models.user import UserRole
-    if current_user.role == UserRole.VIEWER.value:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Viewers have read-only access. Cannot create, update, or delete resources."
-        )
-    return current_user
-
-
-def get_db():
-    """Database session dependency"""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 # Pydantic models
@@ -105,6 +84,12 @@ class DatasetResponse(BaseModel):
     created_at: datetime
     image_count: int
     images: Optional[List[ImageResponse]] = None
+    processing_status: Optional[str] = 'ready'
+    total_files: Optional[int] = 0
+    processed_files: Optional[int] = 0
+    failed_files: Optional[int] = 0
+    processing_started_at: Optional[datetime] = None
+    processing_completed_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -180,11 +165,8 @@ async def list_datasets(
 ):
     """List all datasets in a project"""
 
-    # Verify project exists and belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -198,7 +180,13 @@ async def list_datasets(
             name=d.name,
             project_id=str(d.project_id),
             created_at=d.created_at,
-            image_count=len(d.images) if d.images else 0
+            image_count=len(d.images) if d.images else 0,
+            processing_status=d.processing_status,
+            total_files=d.total_files,
+            processed_files=d.processed_files,
+            failed_files=d.failed_files,
+            processing_started_at=d.processing_started_at,
+            processing_completed_at=d.processing_completed_at
         )
         for d in project.datasets
     ]
@@ -224,11 +212,8 @@ async def delete_dataset(
             detail="Dataset not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -279,11 +264,8 @@ async def upload_images(
             detail="Dataset not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -450,11 +432,8 @@ async def list_images(
             detail="Dataset not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -526,11 +505,8 @@ async def get_image_url(
             detail="Image not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -582,11 +558,8 @@ async def get_image_file(
             detail="Image not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -649,11 +622,8 @@ async def get_image_thumbnail(
             detail="Image not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -700,11 +670,8 @@ async def delete_image(
             detail="Image not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -785,11 +752,8 @@ async def batch_upload_images(
             detail="Dataset not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(
@@ -1043,11 +1007,8 @@ async def get_processing_status(
             detail="Dataset not found"
         )
 
-    # Verify project belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.created_by_id == current_user.id
-    ).first()
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(

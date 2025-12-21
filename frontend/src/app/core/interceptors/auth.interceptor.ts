@@ -1,6 +1,11 @@
-import { HttpInterceptorFn } from '@angular/common/http';
+import { HttpInterceptorFn, HttpErrorResponse } from '@angular/common/http';
+import { inject } from '@angular/core';
+import { catchError, throwError } from 'rxjs';
+import { AuthService } from '../services/auth.service';
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
+  const authService = inject(AuthService);
+
   // Get token from localStorage or sessionStorage (fallback for iOS Safari)
   let token: string | null = null;
   let source = 'none';
@@ -46,5 +51,16 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     console.log('[Auth Interceptor] No token available, request will rely on cookie');
   }
 
-  return next(req);
+  return next(req).pipe(
+    catchError((error: unknown) => {
+      if (error instanceof HttpErrorResponse && error.status === 401) {
+        // Don't intercept 401s during login flow or initial load to avoid loops
+        if (!req.url.includes('/auth/me') && !req.url.includes('/auth/login')) {
+          console.log('[Auth Interceptor] 401 Unauthorized detected - handling session expiration');
+          authService.handleSessionExpired();
+        }
+      }
+      return throwError(() => error);
+    })
+  );
 };

@@ -1,0 +1,104 @@
+[
+  {
+    "id": "openai-gpt-4o-mini",
+    "provider": "openai",
+    "model_name": "gpt-4o-mini",
+    "display_name": "GPT-4o Mini",
+    "description": "Cost-efficient small model for simple tasks and high volume.",
+    "endpoint": "https://api.openai.com/v1",
+    "auth_type": "api_key",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 0.15,
+      "output_price_per_1m": 0.60,
+      "image_price_mode": "per_tile",
+      "image_token_calc": "openai_tiles",
+      "discount_percent": 0
+    }
+  },
+  {
+    "id": "anthropic-claude-3-5-sonnet",
+    "provider": "anthropic",
+    "model_name": "claude-3-5-sonnet-20240620",
+    "display_name": "Claude 3.5 Sonnet",
+    "description": "Anthropic's most intelligent model. Excellent reasoning and coding capabilities.",
+    "endpoint": "https://api.anthropic.com/v1",
+    "auth_type": "api_key",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 3.00,
+      "output_price_per_1m": 15.00,
+      "image_price_mode": "per_token",
+      "image_token_calc": "anthropic_pixel_ratio",
+      "discount_percent": 0
+    }
+  },
+  {
+    "id": "vertex-gemini-3-pro",
+    "provider": "vertex",
+    "model_name": "gemini-3-pro-preview",
+    "display_name": "Gemini 3 Pro (Vertex AI)",
+    "description": "Next-gen reasoning model via Vertex AI. Includes quota for Pro tier.",
+    "endpoint": "vertex-ai",
+    "auth_type": "google_adc",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 2.00,
+      "output_price_per_1m": 12.00,
+      "image_price_mode": "per_image",
+      "image_price_val": 0.0011,
+      "discount_percent": 0
+    }
+  },
+  {
+    "id": "vertex-gemini-2-5-pro",
+    "provider": "vertex",
+    "model_name": "gemini-2.5-pro",
+    "display_name": "Gemini 2.5 Pro (Vertex AI)",
+    "description": "High-intelligence model via Vertex AI. Includes quota for Pro tier.",
+    "endpoint": "vertex-ai",
+    "auth_type": "google_adc",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 1.25,
+      "output_price_per_1m": 10.00,
+      "image_price_mode": "per_token",
+      "image_token_calc": "fixed_tokens",
+      "discount_percent": 0
+    }
+  },
+  {
+    "id": "vertex-gemini-2-5-flash",
+    "provider": "vertex",
+    "model_name": "gemini-2.5-flash",
+    "display_name": "Gemini 2.5 Flash (Vertex AI)",
+    "description": "Fast and versatile multimodal model via Vertex AI.",
+    "endpoint": "vertex-ai",
+    "auth_type": "google_adc",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 0.30,
+      "output_price_per_1m": 2.50,
+      "image_price_mode": "per_token",
+      "image_token_calc": "fixed_tokens",
+      "discount_percent": 0
+    }
+  },
+  {
+    "id": "vertex-gemini-2-5-flash-lite",
+    "provider": "vertex",
+    "model_name": "gemini-2.5-flash-lite",
+    "display_name": "Gemini 2.5 Flash-Lite (Vertex AI)",
+    "description": "Cost-optimized model via Vertex AI.",
+    "endpoint": "vertex-ai",
+    "auth_type": "google_adc",
+    "pricing_config": {
+      "mode": "token_based",
+      "input_price_per_1m": 0.10,
+      "output_price_per_1m": 0.40,
+      "image_price_mode": "per_token",
+      "image_token_calc": "fixed_tokens",
+      "discount_percent": 0
+    }
+  }
+]

@@ -4,9 +4,9 @@ Image processing utilities for thumbnail generation.
 from io import BytesIO
 from typing import BinaryIO, Union
 from PIL import Image
-import logging
+import structlog
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 THUMBNAIL_SIZE = (256, 256)
 THUMBNAIL_FORMAT = "JPEG"

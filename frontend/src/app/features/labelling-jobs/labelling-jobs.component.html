@@ -101,6 +101,9 @@
     <div class="jobs-grid">
       @for (job of jobs(); track job.id) {
         <mat-card class="job-card">
+          @if (job.thumbnail) {
+            <img mat-card-image [src]="job.thumbnail" alt="Job Thumbnail" class="job-thumbnail" (click)="viewJobDetails(job)">
+          }
           <mat-card-header>
             <mat-card-title>
               <div class="job-title">

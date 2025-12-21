@@ -1,5 +1,5 @@
 import asyncio
-import logging
+import structlog
 import uuid
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple, Optional
@@ -16,7 +16,7 @@ from services.cloud_tasks_service import get_cloud_tasks_service
 from services.llm_service import get_llm_service
 from core.config import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class LabellingJobService:
@@ -364,16 +364,18 @@ class LabellingJobService:
                     # Call LLM Service
                     llm_service = get_llm_service()
                     start = datetime.utcnow()
-                    response_text, latency = await llm_service.generate_content(
+                    response_text, latency, usage_metadata = await llm_service.generate_content(
                         provider_name=model_config.provider,
                         api_key=model_config.api_key,
+                        auth_type=model_config.auth_type,
                         model_name=model_config.model_name,
                         image_data=image_data,
                         mime_type=mime_type,
                         prompt=job.question_text,
                         system_message=job.system_message,
                         temperature=model_config.temperature,
-                        max_tokens=model_config.max_tokens
+                        max_tokens=model_config.max_tokens,
+                        retry_config=model_config.retry_config
                     )
 
                     # Parse answer (reuse evaluation logic)
