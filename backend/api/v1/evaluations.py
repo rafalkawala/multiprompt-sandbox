@@ -288,9 +288,9 @@ async def run_evaluation_task(evaluation_id: str):
             return
 
         # Convert SQLA objects to safe Data Class
-        images: List[ImageEvalData] = []
+        all_images: List[ImageEvalData] = []
         for img in image_objects:
-            images.append(ImageEvalData(
+            all_images.append(ImageEvalData(
                 id=str(img.id),
                 dataset_id=str(img.dataset_id),
                 filename=img.filename,
@@ -298,8 +298,22 @@ async def run_evaluation_task(evaluation_id: str):
                 ground_truth=img.annotation.answer_value
             ))
 
+        # Check for already-processed images (for resume after restart)
+        existing_result_image_ids = set(
+            str(r.image_id) for r in db.query(EvaluationResult.image_id).filter(
+                EvaluationResult.evaluation_id == evaluation_id
+            ).all()
+        )
+
+        # Filter to only unprocessed images
+        images = [img for img in all_images if img.id not in existing_result_image_ids]
+        already_processed = len(all_images) - len(images)
+
+        if already_processed > 0:
+            logger.info(f"Evaluation {evaluation_id}: Resuming - {already_processed} images already processed, {len(images)} remaining")
+
         # Log selected images for debugging
-        logger.info(f"Evaluation {evaluation_id}: Selected {len(images)} images from dataset {evaluation.dataset_id}")
+        logger.info(f"Evaluation {evaluation_id}: Selected {len(all_images)} total images, {len(images)} to process")
         logger.debug(f"Evaluation {evaluation_id}: Image IDs: {[img.id for img in images[:10]]}")  # Log first 10 IDs
 
         # Load prompt chain (multi-phase) or fallback to legacy single prompt
@@ -332,13 +346,35 @@ async def run_evaluation_task(evaluation_id: str):
             }]
             logger.info(f"Evaluation {evaluation_id}: Using legacy single-prompt mode")
 
-        # Update activity before starting processing
-        evaluation.results_summary = {'latest_images': [
-            'Initializing evaluation...',
-            f'Loaded {len(images)} images from dataset',
-            f'Starting image processing (concurrency: {model_config_data.get("concurrency", 3)})...'
-        ]}
-        db.commit()
+        # Handle case where all images already processed (resume found nothing to do)
+        if not images:
+            logger.info(f"Evaluation {evaluation_id}: All {len(all_images)} images already processed, finalizing...")
+            evaluation.status = 'completed'
+            evaluation.processed_images = len(all_images)
+            evaluation.results_summary = {'latest_images': ['All images already processed (resumed)']}
+            db.commit()
+            db.close()
+            # Jump to final metrics calculation
+            # Re-open session for final metrics
+            db = SessionLocal()
+            evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+            # Will continue to final metrics section below
+        else:
+            # Update activity before starting processing
+            if already_processed > 0:
+                activity = [
+                    f'Resuming evaluation...',
+                    f'{already_processed}/{len(all_images)} images already processed',
+                    f'Processing {len(images)} remaining (concurrency: {model_config_data.get("concurrency", 3)})...'
+                ]
+            else:
+                activity = [
+                    'Initializing evaluation...',
+                    f'Loaded {len(all_images)} images from dataset',
+                    f'Starting image processing (concurrency: {model_config_data.get("concurrency", 3)})...'
+                ]
+            evaluation.results_summary = {'latest_images': activity}
+            db.commit()
 
         # Close the main session before starting async tasks to avoid thread-safety issues
         db.close()
@@ -352,8 +388,9 @@ async def run_evaluation_task(evaluation_id: str):
         concurrency = model_config_data.get('concurrency', 3)
         semaphore = asyncio.Semaphore(concurrency)
 
-        # Track completed images (not index-based, to avoid race conditions in parallel processing)
-        completed_count = 0
+        # Track completed images - start from already_processed for correct progress display
+        completed_count = already_processed
+        total_images_count = len(all_images)  # Total for progress display
         
         # Progress tracking variables
         task_start_time = time.time()
@@ -505,7 +542,7 @@ async def run_evaluation_task(evaluation_id: str):
                 if current_eval:
                     completed_count += 1
                     current_eval.processed_images = completed_count
-                    current_eval.progress = int((completed_count / len(images)) * 100)
+                    current_eval.progress = int((completed_count / total_images_count) * 100)
 
                     if not current_eval.results_summary:
                         current_eval.results_summary = {}
@@ -515,16 +552,16 @@ async def run_evaluation_task(evaluation_id: str):
                     # Update latest images (rolling 5 lines)
                     latest = summary.get('latest_images', [])
                     # Add new one with index: "1/10: filename"
-                    latest.append(f"{completed_count}/{len(images)}: {image.filename}")
+                    latest.append(f"{completed_count}/{total_images_count}: {image.filename}")
                     # Keep only last 5
                     if len(latest) > 5:
                         latest = latest[-5:]
                     summary['latest_images'] = latest
-                    
+
                     # Calculate ETA
                     # Update only after first batch completes (to get stable average)
-                    if completed_count >= concurrency:
-                        remaining_images = len(images) - completed_count
+                    if completed_count >= concurrency + already_processed:
+                        remaining_images = total_images_count - completed_count
 
                         # Formula based on user request:
                         # "time of an average image processing (whole prompt chain) multiplied by number of images divided by batch size"
@@ -560,10 +597,13 @@ async def run_evaluation_task(evaluation_id: str):
                  logger.error(f"Evaluation {evaluation_id} disappeared during processing")
                  return
             
-            # Calculate metrics
-            total_processed = len(images)
-            successful_count = total_processed - failed_count
-            failure_rate = (failed_count / total_processed * 100) if total_processed > 0 else 0
+            # Calculate metrics from all results (including resumed)
+            results = db.query(EvaluationResult).filter(EvaluationResult.evaluation_id == evaluation.id).all()
+            total_processed = len(results)
+            # Count failed results (those with error field set)
+            failed_in_results = sum(1 for r in results if r.error is not None)
+            successful_count = total_processed - failed_in_results
+            failure_rate = (failed_in_results / total_processed * 100) if total_processed > 0 else 0
 
             # Confusion Matrix for Binary Classification
             confusion_matrix = None
@@ -572,9 +612,6 @@ async def run_evaluation_task(evaluation_id: str):
                 tn = 0
                 fp = 0
                 fn = 0
-                
-                # Re-query results to calculate matrix
-                results = db.query(EvaluationResult).filter(EvaluationResult.evaluation_id == evaluation.id).all()
                 
                 for r in results:
                     if r.is_correct is None: continue

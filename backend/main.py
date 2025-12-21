@@ -177,15 +177,13 @@ async def restart_interrupted_evaluations():
         logger.info(f"Found {len(interrupted)} stale evaluations (no update in {STALE_THRESHOLD_MINUTES}min), restarting...")
 
         for evaluation in interrupted:
-            # Delete existing results to avoid duplicates on restart
-            deleted_count = db.query(EvaluationResult).filter(
+            # Don't delete existing results - we'll resume from where we left off
+            existing_count = db.query(EvaluationResult).filter(
                 EvaluationResult.evaluation_id == evaluation.id
-            ).delete()
-            logger.info(f"Deleted {deleted_count} existing results for evaluation {evaluation.id}")
+            ).count()
 
-            # Reset progress for clean restart
-            evaluation.processed_images = 0
-            evaluation.results_summary = {'latest_images': ['Restarting interrupted evaluation...']}
+            # Update activity to show resuming
+            evaluation.results_summary = {'latest_images': [f'Resuming evaluation ({existing_count} images already processed)...']}
             db.commit()
 
             # Start in background thread

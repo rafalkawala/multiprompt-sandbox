@@ -119,6 +119,11 @@ class TestEvaluationRunner:
                 filter_mock = Mock()
                 filter_mock.all.return_value = mock_results
                 query_mock.filter.return_value = filter_mock
+            else:
+                # For column queries like db.query(EvaluationResult.image_id) - resume check
+                filter_mock = Mock()
+                filter_mock.all.return_value = []  # No existing results (fresh start)
+                query_mock.filter.return_value = filter_mock
             return query_mock
 
         mock_db_session.query.side_effect = query_side_effect
@@ -174,6 +179,7 @@ class TestEvaluationRunner:
                     r.is_correct = True
                     r.ground_truth = {"value": True}
                     r.parsed_answer = {"value": True}
+                    r.error = None
                     r.step_results = [{
                         "step_number": 1,
                         "raw_output": "yes",
@@ -187,11 +193,17 @@ class TestEvaluationRunner:
                 for _ in range(2):
                     r = Mock(spec=EvaluationResult)
                     r.is_correct = None
+                    r.error = "API Error"
                     r.step_results = None  # Failed results have no step_results
                     res_mocks.append(r)
 
                 filter_mock = Mock()
                 filter_mock.all.return_value = res_mocks
+                query_mock.filter.return_value = filter_mock
+            else:
+                # For column queries like db.query(EvaluationResult.image_id) - resume check
+                filter_mock = Mock()
+                filter_mock.all.return_value = []  # No existing results (fresh start)
                 query_mock.filter.return_value = filter_mock
             return query_mock
 
@@ -245,6 +257,11 @@ class TestEvaluationRunner:
                 filter_mock = Mock()
                 filter_mock.all.return_value = [] # Doesn't matter for this test
                 query_mock.filter.return_value = filter_mock
+            else:
+                # For column queries like db.query(EvaluationResult.image_id) - resume check
+                filter_mock = Mock()
+                filter_mock.all.return_value = []  # No existing results (fresh start)
+                query_mock.filter.return_value = filter_mock
             return query_mock
 
         mock_db_session.query.side_effect = query_side_effect
@@ -294,6 +311,11 @@ class TestEvaluationRunner:
             elif model == EvaluationResult:
                 filter_mock = Mock()
                 filter_mock.all.return_value = []
+                query_mock.filter.return_value = filter_mock
+            else:
+                # For column queries like db.query(EvaluationResult.image_id) - resume check
+                filter_mock = Mock()
+                filter_mock.all.return_value = []  # No existing results (fresh start)
                 query_mock.filter.return_value = filter_mock
             return query_mock
 
