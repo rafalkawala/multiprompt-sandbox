@@ -1,7 +1,7 @@
 """
 Annotation API endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -12,11 +12,16 @@ from io import BytesIO
 import pandas as pd
 import re
 import structlog
+import os
+import uuid
+import shutil
 
 from core.database import SessionLocal
+from core.config import settings
 from models.image import Image, Annotation
 from models.project import Project, Dataset
 from models.user import User
+from models.import_job import AnnotationImportJob, ImportJobStatus
 from api.v1.auth import get_current_user
 from services.annotation_import_service import AnnotationImportService
 
@@ -62,6 +67,20 @@ class AnnotationStats(BaseModel):
     skipped: int
     flagged: int
     remaining: int
+
+class ImportJobResponse(BaseModel):
+    id: str
+    status: ImportJobStatus
+    total_rows: int
+    processed_rows: int
+    created_count: int
+    updated_count: int
+    skipped_count: int
+    error_count: int
+    errors: Optional[List[dict]]
+    created_at: datetime
+    updated_at: datetime
+    completed_at: Optional[datetime]
 
 # Endpoints
 @router.get("/projects/{project_id}/datasets/{dataset_id}/annotations/stats", response_model=AnnotationStats)
@@ -457,20 +476,21 @@ async def download_template(
     )
 
 
-@router.post("/projects/{project_id}/datasets/{dataset_id}/annotations/import/preview")
-async def preview_import(
+@router.post("/projects/{project_id}/datasets/{dataset_id}/annotations/import")
+async def start_import_job(
     project_id: str,
     dataset_id: str,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Preview CSV import with validation (dry run)"""
-
-    # Verify project exists
-    project = db.query(Project).filter(
-        Project.id == project_id
-    ).first()
+    """
+    Start an asynchronous annotation import job.
+    Uploads file to temp storage and starts background processing.
+    """
+    # Verify access
+    project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -481,66 +501,59 @@ async def preview_import(
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
-    # Read file
+    # Save file to temp location
     try:
-        file_bytes = await file.read()
+        # Create temp dir if not exists
+        temp_dir = os.path.join(settings.UPLOAD_DIR, "temp_imports")
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        # Generate safe filename
+        ext = os.path.splitext(file.filename)[1]
+        temp_filename = f"{uuid.uuid4()}{ext}"
+        temp_path = os.path.join(temp_dir, temp_filename)
+        
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to read file: {str(e)}")
+        logger.error(f"Failed to save temp file: {e}")
+        raise HTTPException(status_code=500, detail="Failed to upload file")
 
-    # Validate
-    import_service = AnnotationImportService(project, dataset, db)
-
-    try:
-        preview = import_service.validate_csv(file_bytes)
-        return preview
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to preview import: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to process CSV: {str(e)}")
+    # Create Job
+    service = AnnotationImportService(project, dataset, db)
+    job = service.create_import_job(str(current_user.id), temp_path)
+    
+    # Trigger background task
+    # Note: We pass job.id, not the object, to avoid detached instance issues in async context
+    background_tasks.add_task(service.process_import_job, str(job.id))
+    
+    return {"job_id": str(job.id)}
 
 
-@router.post("/projects/{project_id}/datasets/{dataset_id}/annotations/import/confirm")
-async def confirm_import(
+@router.get("/projects/{project_id}/datasets/{dataset_id}/annotations/import/{job_id}", response_model=ImportJobResponse)
+async def get_import_job_status(
     project_id: str,
     dataset_id: str,
-    file: UploadFile = File(...),
+    job_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Apply CSV import after validation"""
-
-    # Verify project exists
-    project = db.query(Project).filter(
-        Project.id == project_id
-    ).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
+    """Get status of an import job"""
+    # Verify access (optional: check if user owns job or has project access)
+    # We check project access first
     dataset = db.query(Dataset).filter(
-        Dataset.id == dataset_id,
+        Dataset.id == dataset_id, 
         Dataset.project_id == project_id
     ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
-
-    # Read file
-    try:
-        file_bytes = await file.read()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to read file: {str(e)}")
-
-    # Import
-    import_service = AnnotationImportService(project, dataset, db)
-
-    try:
-        result = import_service.apply_import(file_bytes, str(current_user.id))
-        db.commit()
-        return result
-    except ValueError as e:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to import annotations: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to import: {str(e)}")
+        
+    job = db.query(AnnotationImportJob).filter(
+        AnnotationImportJob.id == job_id,
+        AnnotationImportJob.dataset_id == dataset_id
+    ).first()
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    return job

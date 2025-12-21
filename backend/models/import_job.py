@@ -1,0 +1,64 @@
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Enum, JSON
+from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import UUID
+import uuid
+import enum
+from datetime import datetime
+from core.database import Base
+
+class ImportJobStatus(str, enum.Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+class AnnotationImportJob(Base):
+    __tablename__ = "annotation_import_jobs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    dataset_id = Column(UUID(as_uuid=True), ForeignKey("datasets.id"), nullable=False)
+    created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    
+    status = Column(Enum(ImportJobStatus), default=ImportJobStatus.PENDING, nullable=False)
+    
+    # File handling
+    temp_file_path = Column(String, nullable=True)  # Path to temp file if stored
+    
+    # Progress tracking
+    total_rows = Column(Integer, default=0)
+    processed_rows = Column(Integer, default=0)
+    
+    # Stats
+    created_count = Column(Integer, default=0)
+    updated_count = Column(Integer, default=0)
+    skipped_count = Column(Integer, default=0)
+    error_count = Column(Integer, default=0)
+    
+    # Detailed logs
+    errors = Column(JSON, default=list)  # List of error objects
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    dataset = relationship("Dataset")
+    created_by = relationship("User")
+
+    def to_dict(self):
+        return {
+            "id": str(self.id),
+            "dataset_id": str(self.dataset_id),
+            "status": self.status,
+            "total_rows": self.total_rows,
+            "processed_rows": self.processed_rows,
+            "created_count": self.created_count,
+            "updated_count": self.updated_count,
+            "skipped_count": self.skipped_count,
+            "error_count": self.error_count,
+            "errors": self.errors,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None
+        }
