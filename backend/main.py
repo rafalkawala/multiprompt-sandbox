@@ -147,6 +147,46 @@ async def seed_model_configs():
     finally:
         db.close()
 
+@app.on_event("startup")
+async def restart_interrupted_evaluations():
+    """Restart evaluations that were interrupted by backend restart"""
+    import threading
+    from models.evaluation import Evaluation
+    from api.v1.evaluations import run_evaluation_in_thread
+
+    db = SessionLocal()
+    try:
+        # Find evaluations that were running when backend died
+        interrupted = db.query(Evaluation).filter(
+            Evaluation.status == 'running'
+        ).all()
+
+        if not interrupted:
+            logger.info("No interrupted evaluations to restart")
+            return
+
+        logger.info(f"Found {len(interrupted)} interrupted evaluations, restarting...")
+
+        for evaluation in interrupted:
+            # Reset progress for clean restart
+            evaluation.processed_images = 0
+            evaluation.results_summary = {'latest_images': ['Restarting interrupted evaluation...']}
+            db.commit()
+
+            # Start in background thread
+            thread = threading.Thread(
+                target=run_evaluation_in_thread,
+                args=(str(evaluation.id),),
+                daemon=True
+            )
+            thread.start()
+            logger.info(f"Restarted evaluation {evaluation.id}: {evaluation.name}")
+
+    except Exception as e:
+        logger.error(f"Error restarting interrupted evaluations: {e}")
+    finally:
+        db.close()
+
 @app.on_event("shutdown")
 async def shutdown_event():
     """Close resources on shutdown"""

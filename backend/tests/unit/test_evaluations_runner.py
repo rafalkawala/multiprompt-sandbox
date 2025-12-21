@@ -106,12 +106,14 @@ class TestEvaluationRunner:
             if model == Evaluation:
                 query_mock.filter.return_value.first.return_value = mock_evaluation
             elif model == Image:
-                # For Image query: db.query(Image).join(Annotation).filter(...).all()
+                # For Image query: db.query(Image).options(...).join(Annotation).filter(...).all()
+                options_mock = Mock()
                 join_mock = Mock()
                 filter_mock = Mock()
-                join_mock.filter.return_value = filter_mock
                 filter_mock.all.return_value = mock_images
-                query_mock.join.return_value = join_mock
+                join_mock.filter.return_value = filter_mock
+                options_mock.join.return_value = join_mock
+                query_mock.options.return_value = options_mock
             elif model == EvaluationResult:
                 # For Results query: db.query(EvaluationResult).filter(...).all()
                 filter_mock = Mock()
@@ -123,7 +125,7 @@ class TestEvaluationRunner:
 
         # Mock just-in-time image fetching
         mocker.patch('api.v1.evaluations.get_image_data', return_value=("base64data", "image/jpeg"))
-        
+
         # Mock prompt utils globally
         mocker.patch('core.prompt_utils.validate_variable_references', return_value=(True, None))
         mocker.patch('core.prompt_utils.substitute_variables', return_value="processed prompt")
@@ -153,11 +155,14 @@ class TestEvaluationRunner:
             if model == Evaluation:
                 query_mock.filter.return_value.first.return_value = mock_evaluation
             elif model == Image:
+                # For Image query: db.query(Image).options(...).join(Annotation).filter(...).all()
+                options_mock = Mock()
                 join_mock = Mock()
                 filter_mock = Mock()
-                join_mock.filter.return_value = filter_mock
                 filter_mock.all.return_value = mock_images
-                query_mock.join.return_value = join_mock
+                join_mock.filter.return_value = filter_mock
+                options_mock.join.return_value = join_mock
+                query_mock.options.return_value = options_mock
             elif model == EvaluationResult:
                 # Return 3 correct results, 2 failed (implicitly absent or is_correct=None)
                 # Actually, if failed, is_correct is None usually.
@@ -228,17 +233,20 @@ class TestEvaluationRunner:
             if model == Evaluation:
                 query_mock.filter.return_value.first.return_value = mock_evaluation
             elif model == Image:
+                # For Image query: db.query(Image).options(...).join(Annotation).filter(...).all()
+                options_mock = Mock()
                 join_mock = Mock()
                 filter_mock = Mock()
-                join_mock.filter.return_value = filter_mock
                 filter_mock.all.return_value = mock_images
-                query_mock.join.return_value = join_mock
+                join_mock.filter.return_value = filter_mock
+                options_mock.join.return_value = join_mock
+                query_mock.options.return_value = options_mock
             elif model == EvaluationResult:
                 filter_mock = Mock()
                 filter_mock.all.return_value = [] # Doesn't matter for this test
                 query_mock.filter.return_value = filter_mock
             return query_mock
-            
+
         mock_db_session.query.side_effect = query_side_effect
 
         # Mock just-in-time image fetching
@@ -275,17 +283,20 @@ class TestEvaluationRunner:
             if model == Evaluation:
                 query_mock.filter.return_value.first.return_value = mock_evaluation
             elif model == Image:
+                # For Image query: db.query(Image).options(...).join(Annotation).filter(...).all()
+                options_mock = Mock()
                 join_mock = Mock()
                 filter_mock = Mock()
-                join_mock.filter.return_value = filter_mock
                 filter_mock.all.return_value = mock_images
-                query_mock.join.return_value = join_mock
+                join_mock.filter.return_value = filter_mock
+                options_mock.join.return_value = join_mock
+                query_mock.options.return_value = options_mock
             elif model == EvaluationResult:
                 filter_mock = Mock()
                 filter_mock.all.return_value = []
                 query_mock.filter.return_value = filter_mock
             return query_mock
-            
+
         mock_db_session.query.side_effect = query_side_effect
 
         # Mock just-in-time image fetching

@@ -2,7 +2,7 @@
 Evaluation API endpoints with LLM integrations
 """
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -208,6 +208,8 @@ async def run_evaluation_task(evaluation_id: str):
 
         evaluation.status = 'running'
         evaluation.started_at = datetime.utcnow()
+        # Initialize results_summary with startup activity
+        evaluation.results_summary = {'latest_images': ['Initializing evaluation...']}
         db.commit()
 
         # Get related data
@@ -235,7 +237,8 @@ async def run_evaluation_task(evaluation_id: str):
 
         # Get images with annotations (Apply Selection Config)
         # Exclude failed images, but include pending/completed (for backwards compatibility)
-        query = db.query(Image).join(Annotation).filter(
+        # Use joinedload to eagerly fetch annotations and avoid N+1 queries
+        query = db.query(Image).options(joinedload(Image.annotation)).join(Annotation).filter(
             Image.dataset_id == evaluation.dataset_id,
             Image.processing_status != 'failed'
         )
@@ -271,6 +274,11 @@ async def run_evaluation_task(evaluation_id: str):
         image_objects = query.all()
 
         evaluation.total_images = len(image_objects)
+        # Update activity with image count
+        evaluation.results_summary = {'latest_images': [
+            'Initializing evaluation...',
+            f'Loaded {len(image_objects)} images from dataset'
+        ]}
         db.commit()
 
         if not image_objects:
@@ -323,6 +331,14 @@ async def run_evaluation_task(evaluation_id: str):
                 "prompt": prompt
             }]
             logger.info(f"Evaluation {evaluation_id}: Using legacy single-prompt mode")
+
+        # Update activity before starting processing
+        evaluation.results_summary = {'latest_images': [
+            'Initializing evaluation...',
+            f'Loaded {len(images)} images from dataset',
+            f'Starting image processing (concurrency: {model_config_data.get("concurrency", 3)})...'
+        ]}
+        db.commit()
 
         # Close the main session before starting async tasks to avoid thread-safety issues
         db.close()
