@@ -3,7 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from core.database import Base
 
 class ImportJobStatus(str, enum.Enum):
@@ -38,8 +38,8 @@ class AnnotationImportJob(Base):
     errors = Column(JSON, default=list)  # List of error objects
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     completed_at = Column(DateTime, nullable=True)
 
     # Relationships

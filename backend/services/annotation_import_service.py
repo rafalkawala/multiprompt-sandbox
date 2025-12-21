@@ -6,8 +6,8 @@ from typing import Optional, Dict, List, Any
 from io import BytesIO
 import os
 import asyncio
-from datetime import datetime
-from sqlalchemy.orm import Session
+from datetime import datetime, timezone
+from sqlalchemy.orm import Session, joinedload
 import structlog
 import uuid
 
@@ -27,13 +27,12 @@ class AnnotationImportService:
     BINARY_FALSE_VALUES = {'no', 'n', 'false', 'f', '0', '0.0'}
     
     BATCH_SIZE = 100
+    MAX_STORED_ERRORS = 1000
 
     def __init__(self, project: Project, dataset: Dataset, db_session: Session):
         self.project = project
         self.dataset = dataset
         self.db = db_session
-        # Track filename usage for handling duplicates
-        self._filename_usage_count = {}
 
     def create_import_job(self, user_id: str, temp_file_path: str) -> AnnotationImportJob:
         """Create a new import job record"""
@@ -70,15 +69,9 @@ class AnnotationImportService:
             if not os.path.exists(job.temp_file_path):
                 raise FileNotFoundError(f"Temp file not found: {job.temp_file_path}")
 
-            # 1. Count total rows first (fast)
-            # We iterate just to count, or read first pass. 
-            # For really large files, this might be slow, but pandas is fast.
-            # Let's count while chunking to be safe, or just estimate? 
-            # Better to know total for progress bar.
-            # 'pd.read_csv' with iterator=True doesn't give length.
-            # We can get length by counting lines?
+            # 1. Count total rows first
             try:
-                with open(job.temp_file_path, 'r') as f:
+                with open(job.temp_file_path, 'r', encoding='utf-8') as f:
                     job.total_rows = sum(1 for row in f) - 1 # minus header
                     if job.total_rows < 0: job.total_rows = 0
             except Exception:
@@ -101,11 +94,8 @@ class AnnotationImportService:
             
             for chunk in chunk_iterator:
                 # Process this chunk
-                # We need to keep track of row numbers across chunks
-                # pandas range index in chunk resets? No, but let's be safe.
                 start_row = processed_count + 2 # +1 header +1 1-based
                 
-                # We need a new 'validate_chunk' that does bulk lookups
                 chunk_results = service.process_chunk(chunk, start_row, str(job.created_by_id))
                 
                 # Update job stats
@@ -118,7 +108,7 @@ class AnnotationImportService:
                 # Append errors (limit to prevent massive JSON)
                 if chunk_results['errors']:
                     current_errors = list(job.errors) if job.errors else []
-                    if len(current_errors) < 1000: # Max 1000 errors stored
+                    if len(current_errors) < self.MAX_STORED_ERRORS:
                         current_errors.extend(chunk_results['errors'])
                         job.errors = current_errors
                 
@@ -130,26 +120,34 @@ class AnnotationImportService:
 
             # Done
             job.status = ImportJobStatus.COMPLETED
-            job.completed_at = datetime.utcnow()
+            job.completed_at = datetime.now(timezone.utc)
             db.commit()
             
             # Cleanup file
+            # We keep the file for debugging if needed, or delete on success.
+            # Review Recommendation: Keep temp files for 24-48 hours. 
+            # For now, we will delete on success to save space, but log failure on deletion.
+            # If we want to implement delayed cleanup, we need a cron job.
             if os.path.exists(job.temp_file_path):
                 try:
                     os.remove(job.temp_file_path)
-                except:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to delete temp file {job.temp_file_path}: {e}")
 
         except Exception as e:
             logger.error(f"Import job {job_id} failed: {e}", exc_info=True)
             if job:
                 job.status = ImportJobStatus.FAILED
-                job.errors = (list(job.errors) if job.errors else []) + [{"row": 0, "error": f"System error: {str(e)}"}]
+                # Append system error to errors list
+                error_msg = {"row": 0, "error": f"System error: {str(e)}"}
+                current_errors = list(job.errors) if job.errors else []
+                current_errors.append(error_msg)
+                job.errors = current_errors
                 db.commit()
         finally:
             db.close()
 
-    def process_chunk(self, df: pd.DataFrame, start_row_num: int, user_id: str) -> Dict:
+    def process_chunk(self, df: pd.DataFrame, start_row_num: int, user_id: str) -> Dict[str, Any]:
         """
         Process a chunk of rows: validate and apply changes.
         Optimized for bulk operations where possible.
@@ -161,20 +159,22 @@ class AnnotationImportService:
             'errors': []
         }
         
-        # 1. Bulk fetch images to minimize queries
-        # Get all filenames in this chunk
-        if 'image_filename' not in df.columns:
-            stats['errors'].append({'row': 0, 'error': "Missing 'image_filename' column"})
+        # 0. Validate Columns
+        required_cols = {'image_filename', 'annotation_value'}
+        missing_cols = required_cols - set(df.columns)
+        if missing_cols:
+            stats['errors'].append({'row': 0, 'error': f"Missing columns: {', '.join(missing_cols)}"})
             return stats
 
+        # 1. Bulk fetch images to minimize queries
+        # Get all filenames in this chunk
         filenames = df['image_filename'].dropna().astype(str).unique().tolist()
         
         # Fetch all images with these filenames in this dataset
-        # This ignores duplicates for now, we'll handle them in the loop if needed
-        # Or we can just fallback to one-by-one if duplicates exist?
-        # Let's try to be somewhat efficient: fetch map {filename: [image_obj, ...]}
-        
-        images_query = self.db.query(Image).filter(
+        # Eager load annotations to prevent N+1 queries
+        images_query = self.db.query(Image).options(
+            joinedload(Image.annotation)
+        ).filter(
             Image.dataset_id == self.dataset.id,
             Image.filename.in_(filenames)
         ).all()
@@ -190,34 +190,22 @@ class AnnotationImportService:
             image_map[fname].sort(key=lambda x: x.id)
 
         # 2. Iterate rows and validate/prepare
-        for idx, row in df.iterrows():
+        # Use enumerate to correctly calculate row number in loop
+        for idx, (_, row) in enumerate(df.iterrows()):
             row_num = start_row_num + idx
-            
-            # -- Validation Logic (Reusing existing logic but adapted) --
             
             # Find image
             filename = str(row.get('image_filename', '')).strip()
             
-            # Handle duplicates: we need to track usage within this chunk too?
-            # Global usage tracking is hard across chunks.
-            # Simplified approach: We assume filenames are unique enough or we match the first one?
-            # The original code tracked usage count. That requires state across the whole file.
-            # If we want to support duplicates strictly, we need to know "which" instance of filename this is.
-            # Limitation: We will match the first available image for now. 
-            # If users have duplicate filenames, this simple chunk approach might map multiple CSV rows to the same Image 
-            # if we don't track used IDs.
+            # Duplicate Handling Policy:
+            # If multiple images exist with the same filename in the DB, 
+            # we match the FIRST one (sorted by ID) and update/annotate it.
+            # We do not currently support annotating specific duplicate instances via CSV 
+            # (unless we added ID support back, but filename is primary key in CSV).
             
-            # Let's map filename -> image. 
             target_image = None
             if filename in image_map and image_map[filename]:
                 target_image = image_map[filename][0]
-                # Optimization: if we have duplicates in CSV, we ideally want to consume the image?
-                # But we don't want to remove it from map if multiple CSV rows refer to SAME image (overwrite).
-                # But if multiple CSV rows refer to DIFFERENT images with same name...
-                # The previous logic handled "Duplicate filenames in DB".
-                # It did NOT handle "Duplicate filenames in CSV pointing to same image".
-                # Let's assume 1-to-1 or overwrites.
-                pass
             else:
                 stats['errors'].append({'row': row_num, 'error': f"Image not found: {filename}"})
                 continue
@@ -235,16 +223,6 @@ class AnnotationImportService:
                     self.project.question_options
                 )
                 
-                # Apply to DB
-                # Check for existing annotation
-                # We can't easily bulk fetch annotations unless we loaded them with images.
-                # Assuming lazy loading or separate query.
-                # For 100 rows, 100 queries is okay-ish compared to 10000.
-                
-                # Better: Eager load annotations in the image query above? 
-                # images_query = ...options(joinedload(Image.annotation))...
-                # Let's stick to simple first.
-                
                 if target_image.annotation:
                     # Update
                     target_image.annotation.answer_value = {'value': normalized}
@@ -260,7 +238,8 @@ class AnnotationImportService:
                     self.db.add(ann)
                     stats['created'] += 1
                     
-                    # update relationship manually so next row knows?
+                    # Update relationship manually so next row in this chunk knows it exists
+                    # (In case multiple rows refer to same image - last one wins)
                     target_image.annotation = ann
 
             except ValueError as e:
@@ -332,8 +311,3 @@ class AnnotationImportService:
 
         else:
             raise ValueError(f"Unknown question type: {question_type}")
-
-    # Legacy method for preview (can be removed if unused, or kept for backward compat)
-    def validate_csv(self, file_bytes: bytes) -> Dict:
-        # ... (Previous implementation or deprecated)
-        pass

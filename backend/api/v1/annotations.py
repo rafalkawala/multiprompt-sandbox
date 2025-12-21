@@ -500,6 +500,29 @@ async def start_import_job(
     ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
+        
+    # File validation
+    MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+    
+    # Check size by seeking end
+    try:
+        file.file.seek(0, 2)
+        size = file.file.tell()
+        file.file.seek(0)
+        
+        if size > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=413, 
+                detail=f"File too large. Maximum size is {MAX_FILE_SIZE/1024/1024}MB"
+            )
+            
+        if size == 0:
+            raise HTTPException(status_code=400, detail="Empty file")
+            
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=400, detail=f"Failed to read file: {e}")
 
     # Save file to temp location
     try:
