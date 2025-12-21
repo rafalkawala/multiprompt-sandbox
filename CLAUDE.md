@@ -1,76 +1,25 @@
-# Claude Code Instructions
-## Environment Setup
-**IMPORTANT**: Always use the `multiprompt-sandbox` conda environment for all Python operations.
-```bash
-conda activate multiprompt-sandbox
-```
-Before running any `pip install` commands, ensure this environment is activated.
+# Claude Code - Context Entry Point
 
-## Project Structure
-- `backend/` - FastAPI backend with Python
-- `frontend/` - Angular frontend with TypeScript
-- `infrastructure/` - Terraform/GCP configurations
-- `docs/` - Project documentation
-Files & folder structure is described in a project root file: folder_structure_with_descriptions.md
+## 🛑 STOP & READ
+**You are responsible for the project's memory.**
 
-## Coding Standards
+1.  **Read `docs/ai/00_START.md`** first. It contains the map to the rest of the documentation.
+2.  **Only read specific files** in `docs/ai/` if you need them for your current task (save tokens!).        
+3.  **YOU MUST UPDATE DOCUMENTATION** if you change code, patterns, or structure.
+    *   See `docs/ai/05_MAINTENANCE.md` for instructions.
+    *   Failure to update docs = creating technical debt.
 
-### Logging Standards (Enterprise-Grade)
-We use **structlog** for structured, contextual logging.
-1.  **Library:** Always import from `structlog`.
-    ```python
-    import structlog
-    logger = structlog.get_logger(__name__)
-    ```
-2.  **Contextual Logging:** Do NOT put variables in the message string. Pass them as keyword arguments.
-    *   ❌ **Bad:** `logger.info(f"Processing image {image_id} for job {job_id}")`
-    *   ✅ **Good:** `logger.info("processing_image", image_id=image_id, job_id=job_id)`
-    *   *Why?* This allows us to query logs by field (e.g., `jsonPayload.job_id="123"`) in Google Cloud Logging.
-3.  **Binding Context:** For operations spanning multiple log lines, bind the context early.
-    ```python
-    log = logger.bind(job_id=job_id, user_id=user.id)
-    log.info("job_started")
-    try:
-        ...
-        log.info("job_completed")
-    except Exception:
-        log.exception("job_failed")
-    ```
+## Quick Start
+*   **Environment:** `conda activate multiprompt-sandbox`
+*   **Backend:** `cd backend`, `uvicorn main:app --reload`
+*   **Frontend:** `cd frontend`, `npm start`
+*   **Infra:** `cd infrastructure`, `terraform apply`
 
-## Common Commands
-### Backend Development
-```bash
-conda activate multiprompt-sandbox
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload
-```
+## Key Rules
+*   **No Public IPs** for Cloud SQL.
+*   **Use Alembic** for DB changes.
+*   **Use Signals** in Angular.
+*   **Service Layer** in Backend.
+*   **Git Workflow:** Always create a new branch for changes (e.g., `fix/...`, `feat/...`) and commit them. Do not modify `main` directly.
 
-### Database
-```bash
-docker-compose up -d db
-```
-
-### Frontend Development
-```bash
-cd frontend
-npm install
-npm start
-```
-
-## Google Cloud Project
-- Project: `prompting-sandbox-mvp`
-- Account: `rafalkawtradegpt@gmail.com`
-
-## Infrastructure Deployment
-**IMPORTANT**: Always use Terraform for GCP infrastructure provisioning. Do NOT use gcloud CLI for creating resources like Cloud SQL, VPC, etc.
-```bash
-cd infrastructure
-terraform init
-terraform plan
-terraform apply
-```
-
-Important: for any database migration ALWAYS use Alembic
-Your terminal is running on Windows
-For every architectural decision taken create Git issue eg. [ADR-001] Background Job Infrastructure for Image Processing
+See `docs/ai/03_STANDARDS.md` for details.
