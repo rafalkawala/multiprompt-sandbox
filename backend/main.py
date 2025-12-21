@@ -8,6 +8,7 @@ if not os.environ.get("LANGCHAIN_TRACING_V2"):
 if not os.environ.get("LANGCHAIN_ENDPOINT"):
     os.environ["LANGCHAIN_ENDPOINT"] = ""
 
+from datetime import datetime
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -151,21 +152,29 @@ async def seed_model_configs():
 async def restart_interrupted_evaluations():
     """Restart evaluations that were interrupted by backend restart"""
     import threading
+    from datetime import timedelta
     from models.evaluation import Evaluation
     from api.v1.evaluations import run_evaluation_in_thread
 
+    # Only restart evaluations that haven't been updated in the last 2 minutes
+    # This prevents restarting evaluations that are actively running
+    STALE_THRESHOLD_MINUTES = 2
+
     db = SessionLocal()
     try:
-        # Find evaluations that were running when backend died
+        stale_cutoff = datetime.utcnow() - timedelta(minutes=STALE_THRESHOLD_MINUTES)
+
+        # Find evaluations that were running but are now stale (no recent updates)
         interrupted = db.query(Evaluation).filter(
-            Evaluation.status == 'running'
+            Evaluation.status == 'running',
+            Evaluation.updated_at < stale_cutoff
         ).all()
 
         if not interrupted:
-            logger.info("No interrupted evaluations to restart")
+            logger.info("No stale interrupted evaluations to restart")
             return
 
-        logger.info(f"Found {len(interrupted)} interrupted evaluations, restarting...")
+        logger.info(f"Found {len(interrupted)} stale evaluations (no update in {STALE_THRESHOLD_MINUTES}min), restarting...")
 
         for evaluation in interrupted:
             # Reset progress for clean restart
