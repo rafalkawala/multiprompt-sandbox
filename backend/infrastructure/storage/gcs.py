@@ -70,12 +70,22 @@ class GCSStorageProvider(IStorageProvider):
         )
 
     async def download(self, path: str) -> bytes:
+        import asyncio
+
         blob = self.bucket.blob(path)
-        if not blob.exists():
+
+        loop = asyncio.get_running_loop()
+
+        # Check existence in thread pool to avoid blocking
+        exists = await loop.run_in_executor(None, blob.exists)
+        if not exists:
             raise FileNotFoundError(f"File not found in GCS: {path}")
-            
-        return blob.download_as_bytes()
+
+        return await loop.run_in_executor(None, blob.download_as_bytes)
 
     async def exists(self, path: str) -> bool:
+        import asyncio
+
         blob = self.bucket.blob(path)
-        return blob.exists()
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, blob.exists)
