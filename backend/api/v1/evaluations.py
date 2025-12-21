@@ -163,33 +163,6 @@ async def get_image_data(storage_path: str) -> tuple:
         logger.error(f"Failed to download image {storage_path}: {e}")
         raise
 
-async def preload_images(images: List[ImageEvalData]) -> dict:
-    """Pre-load all images in parallel for faster evaluation
-
-    Returns: dict mapping image_id -> (base64_data, mime_type)
-    """
-    image_cache = {}
-
-    async def load_image(image: ImageEvalData):
-        try:
-            # Storage provider handles async/sync logic
-            image_data, mime_type = await get_image_data(image.storage_path)
-            return image.id, (image_data, mime_type)
-        except Exception as e:
-            logger.error(f"Failed to preload image {image.id} (dataset: {image.dataset_id}, filename: {image.filename}, storage_path: {image.storage_path}): {e}")
-            return image.id, None
-
-    # Load all images in parallel
-    results = await asyncio.gather(*[load_image(img) for img in images])
-
-    # Build cache dict
-    for img_id, data in results:
-        if data:
-            image_cache[img_id] = data
-
-    logger.info(f"Preloaded {len(image_cache)}/{len(images)} images into cache")
-    return image_cache
-
 def parse_answer(response: str, question_type: str):
     """Parse model response based on question type"""
     response_lower = response.lower().strip()
@@ -354,23 +327,6 @@ async def run_evaluation_task(evaluation_id: str):
         # Close the main session before starting async tasks to avoid thread-safety issues
         db.close()
 
-        # Preload all images in parallel for faster processing
-        logger.info(f"Evaluation {evaluation_id}: Preloading {len(images)} images...")
-        image_cache = await preload_images(images)
-
-        if len(image_cache) == 0:
-            # Need a new session to update status
-            db = SessionLocal()
-            try:
-                eval_obj = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
-                if eval_obj:
-                    eval_obj.status = 'failed'
-                    eval_obj.error_message = 'Failed to load any images'
-                    db.commit()
-            finally:
-                db.close()
-            return
-
         correct_count = 0
         failed_count = 0
         error_messages = []
@@ -395,12 +351,8 @@ async def run_evaluation_task(evaluation_id: str):
                 # Use a dedicated session for this task to ensure thread safety
                 task_db = SessionLocal()
                 try:
-                    # Get cached image data
-                    cached_data = image_cache.get(image.id)
-                    if not cached_data:
-                        raise Exception(f"Image {image.id} not found in cache")
-
-                    image_data, mime_type = cached_data
+                    # Get image data just-in-time
+                    image_data, mime_type = await get_image_data(image.storage_path)
 
                     # Execute steps sequentially for this image
                     step_results = []
