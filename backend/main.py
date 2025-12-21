@@ -153,7 +153,7 @@ async def restart_interrupted_evaluations():
     """Restart evaluations that were interrupted by backend restart"""
     import threading
     from datetime import timedelta
-    from models.evaluation import Evaluation
+    from models.evaluation import Evaluation, EvaluationResult
     from api.v1.evaluations import run_evaluation_in_thread
 
     # Only restart evaluations that haven't been updated in the last 2 minutes
@@ -177,6 +177,12 @@ async def restart_interrupted_evaluations():
         logger.info(f"Found {len(interrupted)} stale evaluations (no update in {STALE_THRESHOLD_MINUTES}min), restarting...")
 
         for evaluation in interrupted:
+            # Delete existing results to avoid duplicates on restart
+            deleted_count = db.query(EvaluationResult).filter(
+                EvaluationResult.evaluation_id == evaluation.id
+            ).delete()
+            logger.info(f"Deleted {deleted_count} existing results for evaluation {evaluation.id}")
+
             # Reset progress for clean restart
             evaluation.processed_images = 0
             evaluation.results_summary = {'latest_images': ['Restarting interrupted evaluation...']}
