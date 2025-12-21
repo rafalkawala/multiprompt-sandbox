@@ -43,18 +43,39 @@ This document outlines potential future requirements for the MLLM Benchmarking P
 *   **Embedding Analysis:** Calculate centroid and variance of reference dataset embeddings. Flag new batches that deviate statistically (e.g., using Maximum Mean Discrepancy or Wasserstein distance).
 *   **Out-of-Distribution (OOD) Detection:** Flag "anomaly" images that don't look like anything in the verified dataset.
 
-## 4. Inter-Annotator Agreement & Quality Control
+## 4. Adversarial Robustness & Safety Testing
 
-**Requirement:** Support multiple annotators per image and measure agreement.
+**Requirement:** Automatically test models against adversarial inputs and visual jailbreaks.
 
-**Rationale:** Human labelers make mistakes. For "Gold Standard" benchmarks, consensus is needed.
+**Rationale:** Vision LLMs are vulnerable to "visual prompt injection" where text embedded in an image (e.g., "Ignore previous instructions") overrides system prompts.
 
 **Implementation Details:**
-*   **Cohen's Kappa / Fleiss' Kappa:** Calculate agreement metrics between annotators.
-*   **Consensus Workflow:** If annotators disagree, route to a "Super Admin" for final decision.
-*   **Annotator "Honeypots":** Randomly inject known ground-truth images to test annotator accuracy.
+*   **Visual Jailbreak Suite:** Integrate datasets like *HarmBench* or *JailbreakBench* to test if models can be tricked into generating harmful content via image inputs.
+*   **Robustness Metrics:** Track Attack Success Rate (ASR) against standard attacks (e.g., GCG, PGD in embedding space).
+*   **Input Sanitization:** Implement "Robust Tokenization Filters" (as proposed in *AdversariaLLM*) to detect and block unreachable token sequences often used in adversarial attacks.
 
-## 5. Cost Estimation & Budgeting
+## 5. Synthetic Data Generation
+
+**Requirement:** Augment datasets with synthetic "hard negatives" and edge cases.
+
+**Rationale:** Real-world data collection is slow. Generative models can create rare scenarios (e.g., "shattered glass on shelf") to stress-test vision models.
+
+**Implementation Details:**
+*   **Diffusion + LLM Pipeline:** Use an LLM (e.g., Gemini) to generate detailed prompts for a diffusion model (e.g., Imagen/Stable Diffusion) to create synthetic images of specific defects or product arrangements.
+*   **Style Transfer:** modifying existing ground truth images to simulate different lighting/weather conditions (domain randomization).
+
+## 6. Continuous Evaluation (CI/CD for MLLMs)
+
+**Requirement:** Integrate evaluation into the software delivery lifecycle.
+
+**Rationale:** Prompt engineering is code. Changes to prompts or model versions should trigger automated regression tests.
+
+**Implementation Details:**
+*   **GitHub Actions / GitLab CI Integration:** A CLI tool or webhook that triggers an "Experiment Run" on a "Golden Dataset" whenever a Pull Request modifies a prompt file.
+*   **Quality Gates:** Block deployment if accuracy drops below a defined threshold (e.g., 95%) or if latency exceeds limits.
+*   **Regression Reports:** "This PR improved accuracy on 'Soda Cans' by 2% but degraded 'Cereal Boxes' by 5%."
+
+## 7. Cost Estimation & Budgeting
 
 **Requirement:** Advanced forecasting of experiment costs.
 
@@ -65,28 +86,28 @@ This document outlines potential future requirements for the MLLM Benchmarking P
 *   **Budget Alerts:** "This experiment will cost approximately $50.00. Proceed?"
 *   **Rate Limit Optimization:** Smart throttling to maximize throughput without hitting provider quotas (429 errors).
 
-## 6. Prompt Optimization (Auto-Prompting)
+## 8. Explainability (XAI) for Vision
 
-**Requirement:** Automated suggestions to improve prompts.
+**Requirement:** Visualize *why* a model made a specific prediction.
 
-**Rationale:** "Prompt Engineering" is trial-and-error. LLMs can optimize their own prompts.
-
-**Implementation Details:**
-*   **DSPy / OPRO Integration:** Use an optimizer to iteratively refine the system prompt based on the labeled training set to maximize accuracy.
-*   **Feedback Loops:** "The model failed on these 5 images. Generate a prompt addition to handle this specific edge case."
-
-## 7. Retail-Specific Features (Domain Adaptation)
-
-**Requirement:** Specialized tools for the target domain (Retail/CPG).
-
-**Rationale:** General tools miss domain-specific nuances.
+**Rationale:** "Black box" decisions are hard to trust in enterprise settings.
 
 **Implementation Details:**
-*   **ROI Calculator:** "Improving accuracy by 1% saves $X in manual audit labor."
-*   **Planogram Integration:** Import planogram PDFs to auto-generate ground truth or reference comparisons.
-*   **Barcode/OCR Verification:** Specialized pipeline step to cross-reference detected text with product databases.
+*   **Attention Maps:** Visualize which parts of the image the model attended to when generating the token (e.g., overlaying a heatmap on the product when predicting "Out of Stock").
+*   **Saliency Maps:** Gradient-based visualization of pixel importance.
 
-## 8. Collaboration & Role Management
+## 9. Inter-Annotator Agreement & Quality Control
+
+**Requirement:** Support multiple annotators per image and measure agreement.
+
+**Rationale:** Human labelers make mistakes. For "Gold Standard" benchmarks, consensus is needed.
+
+**Implementation Details:**
+*   **Cohen's Kappa / Fleiss' Kappa:** Calculate agreement metrics between annotators.
+*   **Consensus Workflow:** If annotators disagree, route to a "Super Admin" for final decision.
+*   **Annotator "Honeypots":** Randomly inject known ground-truth images to test annotator accuracy.
+
+## 10. Collaboration & Role Management
 
 **Requirement:** Granular permissions and team workspaces.
 
