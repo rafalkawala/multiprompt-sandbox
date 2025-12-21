@@ -47,6 +47,20 @@ export class AuthService {
   }
 
   private async initializeAuth(): Promise<void> {
+    // Check for session expired flag
+    try {
+      const sessionExpired = sessionStorage.getItem('session_expired');
+      if (sessionExpired === 'true') {
+        sessionStorage.removeItem('session_expired');
+        this.errorSignal.set({
+          message: 'Your session has expired. Please sign in again.',
+          code: 'SESSION_EXPIRED'
+        });
+      }
+    } catch (error) {
+      console.warn('[Auth Service] Could not check session expired flag:', error);
+    }
+
     // Try to load user - cookie will be sent automatically if present
     await this.loadUser();
     this.authInitializedSignal.set(true);

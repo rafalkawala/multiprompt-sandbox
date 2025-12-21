@@ -1,11 +1,7 @@
 import { HttpInterceptorFn, HttpErrorResponse } from '@angular/common/http';
-import { inject } from '@angular/core';
 import { catchError, throwError } from 'rxjs';
-import { AuthService } from '../services/auth.service';
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
-  const authService = inject(AuthService);
-
   // Get token from localStorage or sessionStorage (fallback for iOS Safari)
   let token: string | null = null;
   let source = 'none';
@@ -56,8 +52,20 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       if (error instanceof HttpErrorResponse && error.status === 401) {
         // Don't intercept 401s during login flow or initial load to avoid loops
         if (!req.url.includes('/auth/me') && !req.url.includes('/auth/login')) {
-          console.log('[Auth Interceptor] 401 Unauthorized detected - handling session expiration');
-          authService.handleSessionExpired();
+          console.log('[Auth Interceptor] 401 Unauthorized detected - clearing tokens and redirecting');
+
+          // Clear tokens directly
+          try {
+            localStorage.removeItem('dev_access_token');
+            sessionStorage.removeItem('dev_access_token');
+            // Store session expired flag for login page to display message
+            sessionStorage.setItem('session_expired', 'true');
+          } catch (e) {
+            console.warn('[Auth Interceptor] Could not clear tokens:', e);
+          }
+
+          // Redirect to login
+          window.location.href = '/';
         }
       }
       return throwError(() => error);
