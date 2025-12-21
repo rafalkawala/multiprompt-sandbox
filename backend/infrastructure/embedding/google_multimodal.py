@@ -1,5 +1,5 @@
 import os
-import logging
+import structlog
 import asyncio
 from typing import Optional, List
 from functools import partial
@@ -8,7 +8,7 @@ from vertexai.vision_models import Image, MultiModalEmbeddingModel, Video, Video
 from core.interfaces.embedding import IEmbeddingProvider
 from core.domain.embedding.schema import EmbeddingResponse, VideoEmbeddingSegment
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class GoogleMultimodalEmbeddingProvider(IEmbeddingProvider):
     def __init__(self, project_id: Optional[str] = None, location: Optional[str] = None):
@@ -16,7 +16,7 @@ class GoogleMultimodalEmbeddingProvider(IEmbeddingProvider):
         self.location = location or os.environ.get('VERTEX_AI_LOCATION', 'us-central1')
 
         if not self.project_id:
-             logger.warning("Project ID not found. Vertex AI initialization might fail if not running in an environment with default credentials project set.")
+             logger.warning("vertex_ai_project_id_not_found", message="Vertex AI initialization might fail if not running in an environment with default credentials project set")
 
         if self.project_id:
             vertexai.init(project=self.project_id, location=self.location)
@@ -105,5 +105,5 @@ class GoogleMultimodalEmbeddingProvider(IEmbeddingProvider):
             return response
 
         except Exception as e:
-            logger.error(f"Error generating embeddings with model {model_name}: {str(e)}")
-            raise e
+            logger.error("embedding_generation_failed", model_name=model_name, error=str(e), exc_info=True)
+            raise

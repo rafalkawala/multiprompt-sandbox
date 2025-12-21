@@ -1,8 +1,8 @@
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception
 import httpx
-import logging
+import structlog
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Try to import google exceptions
 try:
@@ -36,6 +36,8 @@ def get_retry_decorator(stop_after: int = 3, wait_seconds: float = 2.0):
         stop=stop_after_attempt(stop_after),
         wait=wait_fixed(wait_seconds),
         before_sleep=lambda retry_state: logger.warning(
-            f"Rate limit hit. Retrying... (Attempt {retry_state.attempt_number})"
+            "rate_limit_retry",
+            attempt_number=retry_state.attempt_number,
+            max_attempts=stop_after
         )
     )

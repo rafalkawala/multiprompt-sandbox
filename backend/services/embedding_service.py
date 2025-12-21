@@ -1,11 +1,11 @@
-import logging
+import structlog
 from typing import Optional, List
 from functools import lru_cache
 from core.retry_utils import get_retry_decorator
 from core.domain.embedding.schema import EmbeddingResponse
 from infrastructure.embedding.google_multimodal import GoogleMultimodalEmbeddingProvider
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class EmbeddingService:
     def __init__(self):
