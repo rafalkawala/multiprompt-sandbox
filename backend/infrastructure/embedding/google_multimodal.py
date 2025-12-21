@@ -4,7 +4,15 @@ import asyncio
 from typing import Optional, List
 from functools import partial
 import vertexai
-from vertexai.vision_models import Image, MultiModalEmbeddingModel, Video, VideoSegmentConfig
+from vertexai.vision_models import Image, MultiModalEmbeddingModel
+
+# Video support is optional - not available in all vertexai versions
+try:
+    from vertexai.vision_models import Video, VideoSegmentConfig
+except ImportError:
+    Video = None
+    VideoSegmentConfig = None
+
 from core.interfaces.embedding import IEmbeddingProvider
 from core.domain.embedding.schema import EmbeddingResponse, VideoEmbeddingSegment
 

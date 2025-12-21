@@ -120,11 +120,9 @@ class TestEvaluationRunner:
             return query_mock
 
         mock_db_session.query.side_effect = query_side_effect
-        
-        # Mock image preloading
-        mocker.patch('api.v1.evaluations.preload_images', return_value={
-            img.id: ("base64data", "image/jpeg") for img in mock_images
-        })
+
+        # Mock just-in-time image fetching
+        mocker.patch('api.v1.evaluations.get_image_data', return_value=("base64data", "image/jpeg"))
         
         # Mock prompt utils globally
         mocker.patch('core.prompt_utils.validate_variable_references', return_value=(True, None))
@@ -194,14 +192,13 @@ class TestEvaluationRunner:
 
         mock_db_session.query.side_effect = query_side_effect
 
-        mocker.patch('api.v1.evaluations.preload_images', return_value={
-            img.id: ("base64data", "image/jpeg") for img in mock_images
-        })
+        # Mock just-in-time image fetching
+        mocker.patch('api.v1.evaluations.get_image_data', return_value=("base64data", "image/jpeg"))
         mocker.patch('core.prompt_utils.validate_variable_references', return_value=(True, None))
         mocker.patch('core.prompt_utils.substitute_variables', return_value="processed prompt")
-        
+
         mock_llm_service = Mock()
-        
+
         call_count = 0
         async def side_effect(*args, **kwargs):
             nonlocal call_count
@@ -244,14 +241,13 @@ class TestEvaluationRunner:
             
         mock_db_session.query.side_effect = query_side_effect
 
-        mocker.patch('api.v1.evaluations.preload_images', return_value={
-            img.id: ("base64data", "image/jpeg") for img in mock_images
-        })
+        # Mock just-in-time image fetching
+        mocker.patch('api.v1.evaluations.get_image_data', return_value=("base64data", "image/jpeg"))
         mocker.patch('core.prompt_utils.validate_variable_references', return_value=(True, None))
         mocker.patch('core.prompt_utils.substitute_variables', return_value="processed prompt")
-        
+
         mock_llm_service = Mock()
-        
+
         call_count = 0
         async def side_effect(*args, **kwargs):
             nonlocal call_count
@@ -292,12 +288,11 @@ class TestEvaluationRunner:
             
         mock_db_session.query.side_effect = query_side_effect
 
-        mocker.patch('api.v1.evaluations.preload_images', return_value={
-            img.id: ("base64data", "image/jpeg") for img in mock_images
-        })
+        # Mock just-in-time image fetching
+        mocker.patch('api.v1.evaluations.get_image_data', return_value=("base64data", "image/jpeg"))
         mocker.patch('core.prompt_utils.validate_variable_references', return_value=(True, None))
         mocker.patch('core.prompt_utils.substitute_variables', return_value="processed prompt")
-        
+
         mock_llm_service = Mock()
         mock_llm_service.generate_content = AsyncMock(return_value=("yes", 100, {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}))
         mocker.patch('api.v1.evaluations.get_llm_service', return_value=mock_llm_service)
