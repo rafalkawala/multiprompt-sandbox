@@ -579,4 +579,17 @@ async def get_import_job_status(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
         
-    return job
+    return {
+        "id": str(job.id),
+        "status": job.status,
+        "total_rows": job.total_rows,
+        "processed_rows": job.processed_rows,
+        "created_count": job.created_count,
+        "updated_count": job.updated_count,
+        "skipped_count": job.skipped_count,
+        "error_count": job.error_count,
+        "errors": job.errors,
+        "created_at": job.created_at,
+        "updated_at": job.updated_at,
+        "completed_at": job.completed_at
+    }
