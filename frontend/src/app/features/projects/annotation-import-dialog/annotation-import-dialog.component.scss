@@ -26,11 +26,17 @@
     width: 100%;
     box-sizing: border-box;
     background-color: #fafafa;
-    transition: background-color 0.2s;
+    transition: all 0.2s ease;
 
     &:hover {
       background-color: #f0f0f0;
       border-color: #999;
+    }
+
+    &.drag-over {
+      background-color: #e8f0fe;
+      border-color: #1967d2;
+      transform: scale(1.02);
     }
 
     .upload-icon {

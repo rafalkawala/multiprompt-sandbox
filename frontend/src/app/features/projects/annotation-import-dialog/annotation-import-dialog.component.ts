@@ -38,6 +38,7 @@ export class AnnotationImportDialogComponent implements OnDestroy {
   jobId: string | null = null;
   jobStatus: ImportJobResponse | null = null;
   isPolling = false;
+  isDragOver = false;
   
   // Stats for display
   progressPercent = 0;
@@ -54,16 +55,42 @@ export class AnnotationImportDialogComponent implements OnDestroy {
     private snackBar: MatSnackBar
   ) {}
 
+  onDragOver(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isDragOver = true;
+  }
+
+  onDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isDragOver = false;
+  }
+
+  onDrop(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isDragOver = false;
+
+    const files = event.dataTransfer?.files;
+    if (files && files.length > 0) {
+      this.validateAndSelectFile(files[0]);
+    }
+  }
+
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
-      const file = input.files[0];
-      if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
-        this.snackBar.open('Please select a CSV file', 'Close', { duration: 3000 });
-        return;
-      }
-      this.selectedFile = file;
+      this.validateAndSelectFile(input.files[0]);
     }
+  }
+
+  private validateAndSelectFile(file: File): void {
+    if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
+      this.snackBar.open('Please select a CSV file', 'Close', { duration: 3000 });
+      return;
+    }
+    this.selectedFile = file;
   }
 
   startImport(): void {
