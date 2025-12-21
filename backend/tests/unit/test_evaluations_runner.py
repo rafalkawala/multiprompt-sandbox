@@ -1,5 +1,5 @@
 """
-Tests for evaluation runner logic in backend/api/v1/evaluations.py
+Tests for evaluation runner logic in backend/services/evaluation_service.py
 """
 import pytest
 import asyncio
@@ -11,7 +11,7 @@ import itertools
 from models.evaluation import Evaluation, EvaluationResult, ModelConfig
 from models.project import Project
 from models.image import Image, Annotation
-from api.v1.evaluations import run_evaluation_task
+from services.evaluation_service import EvaluationService, ImageEvalData
 
 class TestEvaluationRunner:
     
@@ -98,7 +98,7 @@ class TestEvaluationRunner:
         """Test successful execution of evaluation task"""
         
         # Mock DB interactions
-        mocker.patch('api.v1.evaluations.SessionLocal', return_value=mock_db_session)
+        mocker.patch('services.evaluation_service.SessionLocal', return_value=mock_db_session)
         
         # Setup db.query side_effect to handle different models
         def query_side_effect(model):
@@ -122,21 +122,28 @@ class TestEvaluationRunner:
         mock_db_session.query.side_effect = query_side_effect
         
         # Mock image preloading
-        mocker.patch('api.v1.evaluations.preload_images', return_value={
-            img.id: ("base64data", "image/jpeg") for img in mock_images
-        })
+        # Since we are using an instance method now, we need to mock it on the class or instance.
+        # But `preload_images` is called on `self`.
+        # However, `run_evaluation_task` is async and calls `await self.preload_images(images)`.
+        # We can mock `EvaluationService.preload_images`.
+
+        async def mock_preload(images):
+             return {img.id: ("base64data", "image/jpeg") for img in images}
+
+        mocker.patch.object(EvaluationService, 'preload_images', side_effect=mock_preload)
         
         # Mock prompt utils globally
-        mocker.patch('core.prompt_utils.validate_variable_references', return_value=(True, None))
-        mocker.patch('core.prompt_utils.substitute_variables', return_value="processed prompt")
+        mocker.patch('services.evaluation_service.get_system_prompt', return_value="system")
+        mocker.patch('services.evaluation_service.substitute_variables', return_value="processed prompt")
         
         # Mock LLM Service
         mock_llm_service = Mock()
         mock_llm_service.generate_content = AsyncMock(return_value=("yes", 100, {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}))
-        mocker.patch('api.v1.evaluations.get_llm_service', return_value=mock_llm_service)
+        mocker.patch('services.evaluation_service.get_llm_service', return_value=mock_llm_service)
         
         # Run task
-        await run_evaluation_task("eval-123")
+        service = EvaluationService(mock_db_session)
+        await service.run_evaluation_task("eval-123")
         
         # Verify
         assert mock_evaluation.status == "completed"
@@ -148,7 +155,7 @@ class TestEvaluationRunner:
     @pytest.mark.asyncio
     async def test_run_evaluation_partial_failure(self, mocker, mock_db_session, mock_evaluation, mock_images):
         """Test execution with some failed images"""
-        mocker.patch('api.v1.evaluations.SessionLocal', return_value=mock_db_session)
+        mocker.patch('services.evaluation_service.SessionLocal', return_value=mock_db_session)
         
         def query_side_effect(model):
             query_mock = Mock()
@@ -194,11 +201,12 @@ class TestEvaluationRunner:
 
         mock_db_session.query.side_effect = query_side_effect
 
-        mocker.patch('api.v1.evaluations.preload_images', return_value={
-            img.id: ("base64data", "image/jpeg") for img in mock_images
-        })
-        mocker.patch('core.prompt_utils.validate_variable_references', return_value=(True, None))
-        mocker.patch('core.prompt_utils.substitute_variables', return_value="processed prompt")
+        async def mock_preload(images):
+             return {img.id: ("base64data", "image/jpeg") for img in images}
+
+        mocker.patch.object(EvaluationService, 'preload_images', side_effect=mock_preload)
+        mocker.patch('services.evaluation_service.get_system_prompt', return_value="system")
+        mocker.patch('services.evaluation_service.substitute_variables', return_value="processed prompt")
         
         mock_llm_service = Mock()
         
@@ -212,9 +220,10 @@ class TestEvaluationRunner:
                 raise Exception("API Error")
 
         mock_llm_service.generate_content = AsyncMock(side_effect=side_effect)
-        mocker.patch('api.v1.evaluations.get_llm_service', return_value=mock_llm_service)
+        mocker.patch('services.evaluation_service.get_llm_service', return_value=mock_llm_service)
         
-        await run_evaluation_task("eval-123")
+        service = EvaluationService(mock_db_session)
+        await service.run_evaluation_task("eval-123")
         
         assert mock_evaluation.status == "completed"
         assert mock_evaluation.results_summary['failed'] == 2
@@ -223,7 +232,7 @@ class TestEvaluationRunner:
     @pytest.mark.asyncio
     async def test_run_evaluation_high_failure_rate(self, mocker, mock_db_session, mock_evaluation, mock_images):
         """Test that high failure rate marks evaluation as failed"""
-        mocker.patch('api.v1.evaluations.SessionLocal', return_value=mock_db_session)
+        mocker.patch('services.evaluation_service.SessionLocal', return_value=mock_db_session)
         
         # Simpler mock for high failure since we don't check accuracy, just status
         def query_side_effect(model):
@@ -244,11 +253,12 @@ class TestEvaluationRunner:
             
         mock_db_session.query.side_effect = query_side_effect
 
-        mocker.patch('api.v1.evaluations.preload_images', return_value={
-            img.id: ("base64data", "image/jpeg") for img in mock_images
-        })
-        mocker.patch('core.prompt_utils.validate_variable_references', return_value=(True, None))
-        mocker.patch('core.prompt_utils.substitute_variables', return_value="processed prompt")
+        async def mock_preload(images):
+             return {img.id: ("base64data", "image/jpeg") for img in images}
+
+        mocker.patch.object(EvaluationService, 'preload_images', side_effect=mock_preload)
+        mocker.patch('services.evaluation_service.get_system_prompt', return_value="system")
+        mocker.patch('services.evaluation_service.substitute_variables', return_value="processed prompt")
         
         mock_llm_service = Mock()
         
@@ -262,9 +272,10 @@ class TestEvaluationRunner:
                 raise Exception("E")
 
         mock_llm_service.generate_content = AsyncMock(side_effect=side_effect)
-        mocker.patch('api.v1.evaluations.get_llm_service', return_value=mock_llm_service)
+        mocker.patch('services.evaluation_service.get_llm_service', return_value=mock_llm_service)
         
-        await run_evaluation_task("eval-123")
+        service = EvaluationService(mock_db_session)
+        await service.run_evaluation_task("eval-123")
         
         assert mock_evaluation.status == "failed"
         assert "Evaluation failed" in mock_evaluation.error_message
@@ -272,7 +283,7 @@ class TestEvaluationRunner:
     @pytest.mark.asyncio
     async def test_eta_calculation(self, mocker, mock_db_session, mock_evaluation, mock_images):
         """Verify ETA is calculated and stored"""
-        mocker.patch('api.v1.evaluations.SessionLocal', return_value=mock_db_session)
+        mocker.patch('services.evaluation_service.SessionLocal', return_value=mock_db_session)
         
         def query_side_effect(model):
             query_mock = Mock()
@@ -292,20 +303,22 @@ class TestEvaluationRunner:
             
         mock_db_session.query.side_effect = query_side_effect
 
-        mocker.patch('api.v1.evaluations.preload_images', return_value={
-            img.id: ("base64data", "image/jpeg") for img in mock_images
-        })
-        mocker.patch('core.prompt_utils.validate_variable_references', return_value=(True, None))
-        mocker.patch('core.prompt_utils.substitute_variables', return_value="processed prompt")
+        async def mock_preload(images):
+             return {img.id: ("base64data", "image/jpeg") for img in images}
+
+        mocker.patch.object(EvaluationService, 'preload_images', side_effect=mock_preload)
+        mocker.patch('services.evaluation_service.get_system_prompt', return_value="system")
+        mocker.patch('services.evaluation_service.substitute_variables', return_value="processed prompt")
         
         mock_llm_service = Mock()
         mock_llm_service.generate_content = AsyncMock(return_value=("yes", 100, {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}))
-        mocker.patch('api.v1.evaluations.get_llm_service', return_value=mock_llm_service)
+        mocker.patch('services.evaluation_service.get_llm_service', return_value=mock_llm_service)
 
         # Fix StopIteration: Provide infinite iterator
         mock_time = mocker.patch('time.time', side_effect=itertools.count(start=1000))
         
-        await run_evaluation_task("eval-123")
+        service = EvaluationService(mock_db_session)
+        await service.run_evaluation_task("eval-123")
         
         # Check if results_summary was updated with eta_seconds at least once
         # We verify that commit was called multiple times

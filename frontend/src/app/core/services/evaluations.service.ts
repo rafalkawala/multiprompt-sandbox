@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '../../../environments/environment';
+import { BaseApiService } from './base-api.service';
 
 export interface ModelConfig {
   id: string;
@@ -153,34 +153,35 @@ export interface Annotation {
 @Injectable({
   providedIn: 'root'
 })
-export class EvaluationsService {
-  private readonly API_URL = environment.apiUrl;
+export class EvaluationsService extends BaseApiService {
 
-  constructor(private http: HttpClient) {}
+  constructor(http: HttpClient) {
+    super(http);
+  }
 
   // Model Configs
   getModelConfigs() {
-    return this.http.get<ModelConfigListItem[]>(`${this.API_URL}/model-configs`);
+    return this.get<ModelConfigListItem[]>('/model-configs');
   }
 
   getModelConfig(id: string) {
-    return this.http.get<ModelConfig>(`${this.API_URL}/model-configs/${id}`);
+    return this.get<ModelConfig>(`/model-configs/${id}`);
   }
 
   createModelConfig(data: CreateModelConfig) {
-    return this.http.post<ModelConfig>(`${this.API_URL}/model-configs`, data);
+    return this.post<ModelConfig>('/model-configs', data);
   }
 
   updateModelConfig(id: string, config: Partial<ModelConfig>): Observable<ModelConfig> {
-    return this.http.patch<ModelConfig>(`${this.API_URL}/model-configs/${id}`, config);
+    return this.patch<ModelConfig>(`/model-configs/${id}`, config);
   }
 
   deleteModelConfig(id: string): Observable<void> {
-    return this.http.delete<void>(`${this.API_URL}/model-configs/${id}`);
+    return this.delete<void>(`/model-configs/${id}`);
   }
 
   testModelConfig(id: string, prompt: string): Observable<TestResponse> {
-    return this.http.post<TestResponse>(`${this.API_URL}/model-configs/${id}/test`, { prompt });
+    return this.post<TestResponse>(`/model-configs/${id}/test`, { prompt });
   }
 
   exportModelConfigs(): Observable<Blob> {
@@ -190,56 +191,53 @@ export class EvaluationsService {
   importModelConfigs(file: File): Observable<any> {
     const formData = new FormData();
     formData.append('file', file);
-    return this.http.post(`${this.API_URL}/model-configs/import`, formData);
+    return this.post<any>('/model-configs/import', formData);
   }
 
   // --- Evaluation Endpoints ---
   getEvaluations(projectId?: string) {
-    if (projectId) {
-      return this.http.get<EvaluationListItem[]>(`${this.API_URL}/evaluations`, { params: { project_id: projectId } });
-    }
-    return this.http.get<EvaluationListItem[]>(`${this.API_URL}/evaluations`);
+    return this.get<EvaluationListItem[]>('/evaluations', projectId ? { project_id: projectId } : undefined);
   }
 
   getEvaluation(id: string) {
-    return this.http.get<Evaluation>(`${this.API_URL}/evaluations/${id}`);
+    return this.get<Evaluation>(`/evaluations/${id}`);
   }
 
   createEvaluation(data: CreateEvaluation) {
-    return this.http.post<Evaluation>(`${this.API_URL}/evaluations`, data);
+    return this.post<Evaluation>('/evaluations', data);
   }
 
   getEvaluationResults(id: string, skip: number = 0, limit: number = 50, filter: string = 'all') {
-    return this.http.get<EvaluationResult[]>(`${this.API_URL}/evaluations/${id}/results?skip=${skip}&limit=${limit}&filter=${filter}`);
+    return this.get<EvaluationResult[]>(`/evaluations/${id}/results`, { skip, limit, filter });
   }
 
   estimateEvaluationCost(id: string) {
-    return this.http.get<{estimated_cost: number, image_count: number, avg_cost_per_image: number, details: any}>(`${this.API_URL}/evaluations/${id}/estimate-cost`);
+    return this.get<{estimated_cost: number, image_count: number, avg_cost_per_image: number, details: any}>(`/evaluations/${id}/estimate-cost`);
   }
 
   deleteEvaluation(id: string) {
-    return this.http.delete(`${this.API_URL}/evaluations/${id}`);
+    return this.delete(`/evaluations/${id}`);
   }
 
   // Annotations
   getAnnotationStats(projectId: string, datasetId: string) {
-    return this.http.get<AnnotationStats>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/annotations/stats`);
+    return this.get<AnnotationStats>(`/projects/${projectId}/datasets/${datasetId}/annotations/stats`);
   }
 
   getNextUnannotated(projectId: string, datasetId: string) {
-    return this.http.get<{image: {id: string, filename: string, dataset_id: string} | null}>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/annotations/next`);
+    return this.get<{image: {id: string, filename: string, dataset_id: string} | null}>(`/projects/${projectId}/datasets/${datasetId}/annotations/next`);
   }
 
   getAnnotation(projectId: string, datasetId: string, imageId: string) {
-    return this.http.get<{annotation: Annotation | null}>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/images/${imageId}/annotation`);
+    return this.get<{annotation: Annotation | null}>(`/projects/${projectId}/datasets/${datasetId}/images/${imageId}/annotation`);
   }
 
   saveAnnotation(projectId: string, datasetId: string, imageId: string, data: {answer_value?: any, is_skipped?: boolean, is_flagged?: boolean, flag_reason?: string}) {
-    return this.http.put<Annotation>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/images/${imageId}/annotation`, data);
+    return this.put<Annotation>(`/projects/${projectId}/datasets/${datasetId}/images/${imageId}/annotation`, data);
   }
 
   deleteAnnotation(projectId: string, datasetId: string, imageId: string) {
-    return this.http.delete(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/images/${imageId}/annotation`);
+    return this.delete(`/projects/${projectId}/datasets/${datasetId}/images/${imageId}/annotation`);
   }
 
   // Import/Export methods
@@ -258,7 +256,7 @@ export class EvaluationsService {
   previewImport(projectId: string, datasetId: string, file: File) {
     const formData = new FormData();
     formData.append('file', file);
-    return this.http.post<{
+    return this.post<{
       total_rows: number,
       valid: number,
       errors: number,
@@ -267,17 +265,17 @@ export class EvaluationsService {
       update: number,
       skip: number,
       results: any[]
-    }>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/annotations/import/preview`, formData);
+    }>(`/projects/${projectId}/datasets/${datasetId}/annotations/import/preview`, formData);
   }
 
   confirmImport(projectId: string, datasetId: string, file: File) {
     const formData = new FormData();
     formData.append('file', file);
-    return this.http.post<{
+    return this.post<{
       created: number,
       updated: number,
       skipped: number,
       total: number
-    }>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/annotations/import/confirm`, formData);
+    }>(`/projects/${projectId}/datasets/${datasetId}/annotations/import/confirm`, formData);
   }
 }
