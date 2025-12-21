@@ -1,0 +1,233 @@
+.dialog-content {
+  min-width: 500px;
+  max-width: 800px;
+  min-height: 300px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+// Upload State
+.upload-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 24px 0;
+
+  .file-drop-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 32px;
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    background-color: #fafafa;
+    transition: background-color 0.2s;
+
+    &:hover {
+      background-color: #f0f0f0;
+      border-color: #999;
+    }
+
+    .upload-icon {
+      font-size: 48px;
+      width: 48px;
+      height: 48px;
+      color: #666;
+    }
+
+    .file-name {
+      margin: 0;
+      color: #333;
+      font-size: 14px;
+      
+      .file-size {
+        color: #666;
+        margin-left: 8px;
+      }
+    }
+  }
+
+  .info-note {
+    color: #666;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    
+    mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      margin-right: 8px;
+    }
+  }
+}
+
+// Processing State
+.processing-state {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 16px 0;
+
+  .progress-section {
+    .progress-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: #444;
+    }
+
+    .status-text {
+      font-size: 12px;
+      color: #666;
+      margin-top: 8px;
+      text-align: right;
+    }
+  }
+
+  .live-log {
+    border: 1px solid #eee;
+    border-radius: 4px;
+    background: #f9f9f9;
+    padding: 12px;
+    max-height: 200px;
+    display: flex;
+    flex-direction: column;
+
+    h3 {
+      font-size: 14px;
+      margin: 0 0 8px 0;
+      color: #d32f2f;
+    }
+
+    .log-container {
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+
+      .log-item {
+        display: flex;
+        gap: 8px;
+        font-size: 12px;
+        font-family: monospace;
+        padding: 4px;
+        border-bottom: 1px solid #eee;
+
+        &.error {
+          color: #d32f2f;
+        }
+
+        .row-badge {
+          background: #eee;
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-weight: bold;
+          min-width: 50px;
+          text-align: center;
+        }
+      }
+    }
+  }
+}
+
+// Summary State
+.summary-state {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+
+  .status-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 8px;
+    
+    mat-icon {
+      font-size: 32px;
+      width: 32px;
+      height: 32px;
+    }
+
+    h3 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    &.success {
+      background-color: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    &.failed {
+      background-color: #ffebee;
+      color: #c62828;
+    }
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+
+    .stat-card {
+      padding: 16px;
+      text-align: center;
+      box-shadow: none;
+      border: 1px solid #eee;
+
+      .stat-value {
+        font-size: 24px;
+        font-weight: 500;
+        margin-bottom: 4px;
+      }
+
+      .stat-label {
+        font-size: 12px;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      &.error-card.has-errors {
+        border-color: #ffcdd2;
+        background-color: #ffebee;
+        .stat-value { color: #c62828; }
+      }
+    }
+  }
+
+  .error-list {
+    .error-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+
+      h4 { margin: 0; }
+    }
+
+    .error-table {
+      width: 100%;
+      border: 1px solid #eee;
+      
+      th { background-color: #fafafa; }
+      td { font-size: 13px; }
+    }
+    
+    .more-errors {
+      text-align: center;
+      font-style: italic;
+      color: #666;
+      margin-top: 8px;
+    }
+  }
+}

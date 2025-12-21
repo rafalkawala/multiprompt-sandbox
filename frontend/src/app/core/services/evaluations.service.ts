@@ -150,6 +150,33 @@ export interface Annotation {
   updated_at: string;
 }
 
+// Annotation Import Interfaces
+export type ImportJobStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface ImportJobError {
+  row: number;
+  error: string;
+}
+
+export interface ImportJobResponse {
+  id: string;
+  status: ImportJobStatus;
+  total_rows: number;
+  processed_rows: number;
+  created_count: number;
+  updated_count: number;
+  skipped_count: number;
+  error_count: number;
+  errors: ImportJobError[] | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export interface StartImportResponse {
+  job_id: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -255,29 +282,32 @@ export class EvaluationsService {
     window.open(url, '_blank');
   }
 
+  // New Async Import Methods
+  startImportJob(projectId: string, datasetId: string, file: File): Observable<StartImportResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<StartImportResponse>(
+      `${this.API_URL}/projects/${projectId}/datasets/${datasetId}/annotations/import`, 
+      formData
+    );
+  }
+
+  getImportJobStatus(projectId: string, datasetId: string, jobId: string): Observable<ImportJobResponse> {
+    return this.http.get<ImportJobResponse>(
+      `${this.API_URL}/projects/${projectId}/datasets/${datasetId}/annotations/import/${jobId}`
+    );
+  }
+
+  // Legacy (deprecated)
   previewImport(projectId: string, datasetId: string, file: File) {
     const formData = new FormData();
     formData.append('file', file);
-    return this.http.post<{
-      total_rows: number,
-      valid: number,
-      errors: number,
-      warnings: number,
-      create: number,
-      update: number,
-      skip: number,
-      results: any[]
-    }>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/annotations/import/preview`, formData);
+    return this.http.post<any>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/annotations/import/preview`, formData);
   }
 
   confirmImport(projectId: string, datasetId: string, file: File) {
     const formData = new FormData();
     formData.append('file', file);
-    return this.http.post<{
-      created: number,
-      updated: number,
-      skipped: number,
-      total: number
-    }>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/annotations/import/confirm`, formData);
+    return this.http.post<any>(`${this.API_URL}/projects/${projectId}/datasets/${datasetId}/annotations/import/confirm`, formData);
   }
 }

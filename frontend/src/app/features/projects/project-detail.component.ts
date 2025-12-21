@@ -19,6 +19,7 @@ import { ProjectsService, Project, DatasetDetail, ImageItem, ProcessingStatus } 
 import { EvaluationsService } from '../../core/services/evaluations.service';
 import { interval, Subscription } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
+import { AnnotationImportDialogComponent } from './annotation-import-dialog/annotation-import-dialog.component';
 
 @Component({
   selector: 'app-edit-project-dialog',
@@ -67,7 +68,8 @@ import { switchMap } from 'rxjs/operators';
       <button mat-raised-button color="primary" [mat-dialog-close]="data" [disabled]="!data.name || !data.question_text">Save</button>
     </mat-dialog-actions>
   `,
-  styles: [`
+  styles: [
+    `
     .edit-form {
       display: flex;
       flex-direction: column;
@@ -182,7 +184,8 @@ export class CancelUploadDialogComponent {
     MatExpansionModule,
     MatProgressBarModule,
     MatDialogModule,
-    MatSelectModule
+    MatSelectModule,
+    AnnotationImportDialogComponent
   ],
   template: `
     <div class="project-detail-container">
@@ -1146,8 +1149,6 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
     this.loadImages(datasetId, true);
   }
 
-  // ... (createDataset, deleteDataset, upload logic same as before) 
-  
   createDataset() {
     if (!this.newDatasetName) return;
 
@@ -1501,46 +1502,25 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
   }
 
   importAnnotations(datasetId: string) {
-    // ... (Import logic same as before)
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = '.csv';
-
-    fileInput.onchange = async (event: any) => {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      try {
-        const preview = await this.evaluationsService.previewImport(this.projectId, datasetId, file).toPromise();
-        if (!preview) return;
-
-        const message = preview.errors > 0
-          ? `Found ${preview.errors} errors. Cannot import.`
-          : `Ready to import: ${preview.valid} valid annotations (${preview.create} new, ${preview.update} updates, ${preview.skip} skipped)`;
-
-        const action = preview.errors > 0 ? 'OK' : 'Import';
-        const snackBarRef = this.snackBar.open(message, action, {
-          duration: preview.errors > 0 ? 5000 : 0
-        });
-
-        if (preview.errors === 0) {
-          snackBarRef.onAction().subscribe(async () => {
-            try {
-              const result = await this.evaluationsService.confirmImport(this.projectId, datasetId, file).toPromise();
-              this.snackBar.open(`Import complete! ${result?.total || 0} annotations imported.`, 'Close', { duration: 3000 });
-              this.loadProject();
-            } catch (error: any) {
-              this.snackBar.open(`Import failed: ${error.error?.detail || error.message}`, 'Close', { duration: 5000 });
-            }
-          });
-        }
-      } catch (error: any) {
-        this.snackBar.open(`Validation failed: ${error.error?.detail || error.message}`, 'Close', { duration: 5000 });
+    const dialogRef = this.dialog.open(AnnotationImportDialogComponent, {
+      width: '800px',
+      maxWidth: '95vw',
+      disableClose: true,
+      data: {
+        projectId: this.projectId,
+        datasetId: datasetId
       }
-    };
-    fileInput.click();
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        // Success - reload the project/images to reflect changes
+        this.snackBar.open('Import completed successfully', 'Close', { duration: 3000 });
+        this.loadImages(datasetId, true);
+      }
+    });
   }
-  
+
   openImageDetail(datasetId: string, image: ImageItem) {
     this.selectedDatasetId.set(datasetId);
     this.selectedImage.set(image);
