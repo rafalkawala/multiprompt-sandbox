@@ -166,6 +166,17 @@ class AnnotationImportService:
             stats['errors'].append({'row': 0, 'error': f"Missing columns: {', '.join(missing_cols)}"})
             return stats
 
+        # Check dataset_name mismatch (informational only)
+        if 'dataset_name' in df.columns:
+            unique_names = df['dataset_name'].dropna().astype(str).unique()
+            for name in unique_names:
+                if name.strip() != self.dataset.name:
+                    # We found a mismatch. We won't error, but we'll add a warning if it's the first time
+                    # To avoid spamming, we could just log it or add a generic warning to stats?
+                    # Current stats structure doesn't support generic warnings well, so we'll just log it
+                    logger.warning(f"Ignoring mismatched dataset_name '{name}' in import (expected '{self.dataset.name}')")
+                    break
+
         # 1. Bulk fetch images to minimize queries
         # Get all filenames in this chunk
         filenames = df['image_filename'].dropna().astype(str).unique().tolist()
