@@ -82,6 +82,7 @@ class TestEvaluationRunner:
             res.is_correct = True
             res.ground_truth = {"value": True}
             res.parsed_answer = {"value": True}
+            res.error = None  # Must explicitly set to None, otherwise Mock returns truthy Mock object
             res.step_results = [{
                 "step_number": 1,
                 "raw_output": "yes",
@@ -100,32 +101,45 @@ class TestEvaluationRunner:
         # Mock DB interactions
         mocker.patch('api.v1.evaluations.SessionLocal', return_value=mock_db_session)
         
+        # Track EvaluationResult query calls to differentiate resume check vs summary
+        eval_result_call_count = [0]  # Use list to allow mutation in closure
+
         # Setup db.query side_effect to handle different models
         def query_side_effect(model):
             query_mock = Mock()
             if model == Evaluation:
                 query_mock.filter.return_value.first.return_value = mock_evaluation
             elif model == Image:
-                # For Image query: db.query(Image).join(Annotation).filter(...).all()
+                # For Image query: db.query(Image).options(...).join(Annotation).filter(...).all()
+                options_mock = Mock()
                 join_mock = Mock()
                 filter_mock = Mock()
-                join_mock.filter.return_value = filter_mock
                 filter_mock.all.return_value = mock_images
-                query_mock.join.return_value = join_mock
+                join_mock.filter.return_value = filter_mock
+                options_mock.join.return_value = join_mock
+                query_mock.options.return_value = options_mock
             elif model == EvaluationResult:
-                # For Results query: db.query(EvaluationResult).filter(...).all()
+                eval_result_call_count[0] += 1
                 filter_mock = Mock()
-                filter_mock.all.return_value = mock_results
+                if eval_result_call_count[0] == 1:
+                    # First call: resume check - return empty (fresh start)
+                    filter_mock.all.return_value = []
+                else:
+                    # Second call: summary calculation - return mock_results
+                    filter_mock.all.return_value = mock_results
+                query_mock.filter.return_value = filter_mock
+            else:
+                # Fallback for any other queries
+                filter_mock = Mock()
+                filter_mock.all.return_value = []
                 query_mock.filter.return_value = filter_mock
             return query_mock
 
         mock_db_session.query.side_effect = query_side_effect
-        
-        # Mock image preloading
-        mocker.patch('api.v1.evaluations.preload_images', return_value={
-            img.id: ("base64data", "image/jpeg") for img in mock_images
-        })
-        
+
+        # Mock just-in-time image fetching
+        mocker.patch('api.v1.evaluations.get_image_data', return_value=("base64data", "image/jpeg"))
+
         # Mock prompt utils globally
         mocker.patch('core.prompt_utils.validate_variable_references', return_value=(True, None))
         mocker.patch('core.prompt_utils.substitute_variables', return_value="processed prompt")
@@ -155,11 +169,14 @@ class TestEvaluationRunner:
             if model == Evaluation:
                 query_mock.filter.return_value.first.return_value = mock_evaluation
             elif model == Image:
+                # For Image query: db.query(Image).options(...).join(Annotation).filter(...).all()
+                options_mock = Mock()
                 join_mock = Mock()
                 filter_mock = Mock()
-                join_mock.filter.return_value = filter_mock
                 filter_mock.all.return_value = mock_images
-                query_mock.join.return_value = join_mock
+                join_mock.filter.return_value = filter_mock
+                options_mock.join.return_value = join_mock
+                query_mock.options.return_value = options_mock
             elif model == EvaluationResult:
                 # Return 3 correct results, 2 failed (implicitly absent or is_correct=None)
                 # Actually, if failed, is_correct is None usually.
@@ -171,6 +188,7 @@ class TestEvaluationRunner:
                     r.is_correct = True
                     r.ground_truth = {"value": True}
                     r.parsed_answer = {"value": True}
+                    r.error = None
                     r.step_results = [{
                         "step_number": 1,
                         "raw_output": "yes",
@@ -184,24 +202,29 @@ class TestEvaluationRunner:
                 for _ in range(2):
                     r = Mock(spec=EvaluationResult)
                     r.is_correct = None
+                    r.error = "API Error"
                     r.step_results = None  # Failed results have no step_results
                     res_mocks.append(r)
 
                 filter_mock = Mock()
                 filter_mock.all.return_value = res_mocks
                 query_mock.filter.return_value = filter_mock
+            else:
+                # For column queries like db.query(EvaluationResult.image_id) - resume check
+                filter_mock = Mock()
+                filter_mock.all.return_value = []  # No existing results (fresh start)
+                query_mock.filter.return_value = filter_mock
             return query_mock
 
         mock_db_session.query.side_effect = query_side_effect
 
-        mocker.patch('api.v1.evaluations.preload_images', return_value={
-            img.id: ("base64data", "image/jpeg") for img in mock_images
-        })
+        # Mock just-in-time image fetching
+        mocker.patch('api.v1.evaluations.get_image_data', return_value=("base64data", "image/jpeg"))
         mocker.patch('core.prompt_utils.validate_variable_references', return_value=(True, None))
         mocker.patch('core.prompt_utils.substitute_variables', return_value="processed prompt")
-        
+
         mock_llm_service = Mock()
-        
+
         call_count = 0
         async def side_effect(*args, **kwargs):
             nonlocal call_count
@@ -224,34 +247,65 @@ class TestEvaluationRunner:
     async def test_run_evaluation_high_failure_rate(self, mocker, mock_db_session, mock_evaluation, mock_images):
         """Test that high failure rate marks evaluation as failed"""
         mocker.patch('api.v1.evaluations.SessionLocal', return_value=mock_db_session)
-        
-        # Simpler mock for high failure since we don't check accuracy, just status
+
+        # Track EvaluationResult query calls to differentiate resume check vs summary
+        eval_result_call_count = [0]  # Use list to allow mutation in closure
+
+        # Create results mock for summary: 1 success, 4 failures
+        summary_results = []
+        # One successful result
+        r = Mock(spec=EvaluationResult)
+        r.is_correct = True
+        r.error = None
+        r.step_results = [{"latency_ms": 100, "usage": {"total_tokens": 15}, "cost": {"step_cost": 0.0}}]
+        summary_results.append(r)
+        # Four failed results
+        for _ in range(4):
+            r = Mock(spec=EvaluationResult)
+            r.is_correct = None
+            r.error = "E"
+            r.step_results = None
+            summary_results.append(r)
+
         def query_side_effect(model):
             query_mock = Mock()
             if model == Evaluation:
                 query_mock.filter.return_value.first.return_value = mock_evaluation
             elif model == Image:
+                # For Image query: db.query(Image).options(...).join(Annotation).filter(...).all()
+                options_mock = Mock()
                 join_mock = Mock()
                 filter_mock = Mock()
-                join_mock.filter.return_value = filter_mock
                 filter_mock.all.return_value = mock_images
-                query_mock.join.return_value = join_mock
+                join_mock.filter.return_value = filter_mock
+                options_mock.join.return_value = join_mock
+                query_mock.options.return_value = options_mock
             elif model == EvaluationResult:
+                eval_result_call_count[0] += 1
                 filter_mock = Mock()
-                filter_mock.all.return_value = [] # Doesn't matter for this test
+                if eval_result_call_count[0] == 1:
+                    # First call: resume check - return empty (fresh start)
+                    filter_mock.all.return_value = []
+                else:
+                    # Second call: summary calculation - return results showing 4/5 failures
+                    filter_mock.all.return_value = summary_results
+                query_mock.filter.return_value = filter_mock
+            else:
+                # Fallback for any other queries
+                filter_mock = Mock()
+                filter_mock.all.return_value = []
                 query_mock.filter.return_value = filter_mock
             return query_mock
-            
+
         mock_db_session.query.side_effect = query_side_effect
 
-        mocker.patch('api.v1.evaluations.preload_images', return_value={
-            img.id: ("base64data", "image/jpeg") for img in mock_images
-        })
+        # Mock just-in-time image fetching
+        mocker.patch('api.v1.evaluations.get_image_data', return_value=("base64data", "image/jpeg"))
         mocker.patch('core.prompt_utils.validate_variable_references', return_value=(True, None))
         mocker.patch('core.prompt_utils.substitute_variables', return_value="processed prompt")
-        
+
         mock_llm_service = Mock()
-        
+
         call_count = 0
         async def side_effect(*args, **kwargs):
             nonlocal call_count
@@ -279,25 +333,32 @@ class TestEvaluationRunner:
             if model == Evaluation:
                 query_mock.filter.return_value.first.return_value = mock_evaluation
             elif model == Image:
+                # For Image query: db.query(Image).options(...).join(Annotation).filter(...).all()
+                options_mock = Mock()
                 join_mock = Mock()
                 filter_mock = Mock()
-                join_mock.filter.return_value = filter_mock
                 filter_mock.all.return_value = mock_images
-                query_mock.join.return_value = join_mock
+                join_mock.filter.return_value = filter_mock
+                options_mock.join.return_value = join_mock
+                query_mock.options.return_value = options_mock
             elif model == EvaluationResult:
                 filter_mock = Mock()
                 filter_mock.all.return_value = []
                 query_mock.filter.return_value = filter_mock
+            else:
+                # For column queries like db.query(EvaluationResult.image_id) - resume check
+                filter_mock = Mock()
+                filter_mock.all.return_value = []  # No existing results (fresh start)
+                query_mock.filter.return_value = filter_mock
             return query_mock
-            
+
         mock_db_session.query.side_effect = query_side_effect
 
-        mocker.patch('api.v1.evaluations.preload_images', return_value={
-            img.id: ("base64data", "image/jpeg") for img in mock_images
-        })
+        # Mock just-in-time image fetching
+        mocker.patch('api.v1.evaluations.get_image_data', return_value=("base64data", "image/jpeg"))
         mocker.patch('core.prompt_utils.validate_variable_references', return_value=(True, None))
         mocker.patch('core.prompt_utils.substitute_variables', return_value="processed prompt")
-        
+
         mock_llm_service = Mock()
         mock_llm_service.generate_content = AsyncMock(return_value=("yes", 100, {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}))
         mocker.patch('api.v1.evaluations.get_llm_service', return_value=mock_llm_service)
