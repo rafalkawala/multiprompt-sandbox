@@ -299,11 +299,10 @@ async def run_evaluation_task(evaluation_id: str):
             ))
 
         # Check for already-processed images (for resume after restart)
-        existing_result_image_ids = set(
-            str(r.image_id) for r in db.query(EvaluationResult.image_id).filter(
-                EvaluationResult.evaluation_id == evaluation_id
-            ).all()
-        )
+        existing_results = db.query(EvaluationResult).filter(
+            EvaluationResult.evaluation_id == evaluation_id
+        ).all()
+        existing_result_image_ids = set(str(r.image_id) for r in existing_results)
 
         # Filter to only unprocessed images
         images = [img for img in all_images if img.id not in existing_result_image_ids]
@@ -346,35 +345,25 @@ async def run_evaluation_task(evaluation_id: str):
             }]
             logger.info(f"Evaluation {evaluation_id}: Using legacy single-prompt mode")
 
-        # Handle case where all images already processed (resume found nothing to do)
-        if not images:
-            logger.info(f"Evaluation {evaluation_id}: All {len(all_images)} images already processed, finalizing...")
-            evaluation.status = 'completed'
-            evaluation.processed_images = len(all_images)
-            evaluation.results_summary = {'latest_images': ['All images already processed (resumed)']}
-            db.commit()
-            db.close()
-            # Jump to final metrics calculation
-            # Re-open session for final metrics
-            db = SessionLocal()
-            evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
-            # Will continue to final metrics section below
-        else:
-            # Update activity before starting processing
-            if already_processed > 0:
+        # Update activity before starting processing
+        if already_processed > 0:
+            if not images:
+                # All images already processed
+                activity = [f'All {len(all_images)} images already processed, finalizing...']
+            else:
                 activity = [
                     f'Resuming evaluation...',
                     f'{already_processed}/{len(all_images)} images already processed',
                     f'Processing {len(images)} remaining (concurrency: {model_config_data.get("concurrency", 3)})...'
                 ]
-            else:
-                activity = [
-                    'Initializing evaluation...',
-                    f'Loaded {len(all_images)} images from dataset',
-                    f'Starting image processing (concurrency: {model_config_data.get("concurrency", 3)})...'
-                ]
-            evaluation.results_summary = {'latest_images': activity}
-            db.commit()
+        else:
+            activity = [
+                'Initializing evaluation...',
+                f'Loaded {len(all_images)} images from dataset',
+                f'Starting image processing (concurrency: {model_config_data.get("concurrency", 3)})...'
+            ]
+        evaluation.results_summary = {'latest_images': activity}
+        db.commit()
 
         # Close the main session before starting async tasks to avoid thread-safety issues
         db.close()

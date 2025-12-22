@@ -82,6 +82,7 @@ class TestEvaluationRunner:
             res.is_correct = True
             res.ground_truth = {"value": True}
             res.parsed_answer = {"value": True}
+            res.error = None  # Must explicitly set to None, otherwise Mock returns truthy Mock object
             res.step_results = [{
                 "step_number": 1,
                 "raw_output": "yes",
@@ -100,6 +101,9 @@ class TestEvaluationRunner:
         # Mock DB interactions
         mocker.patch('api.v1.evaluations.SessionLocal', return_value=mock_db_session)
         
+        # Track EvaluationResult query calls to differentiate resume check vs summary
+        eval_result_call_count = [0]  # Use list to allow mutation in closure
+
         # Setup db.query side_effect to handle different models
         def query_side_effect(model):
             query_mock = Mock()
@@ -115,14 +119,19 @@ class TestEvaluationRunner:
                 options_mock.join.return_value = join_mock
                 query_mock.options.return_value = options_mock
             elif model == EvaluationResult:
-                # For Results query: db.query(EvaluationResult).filter(...).all()
+                eval_result_call_count[0] += 1
                 filter_mock = Mock()
-                filter_mock.all.return_value = mock_results
+                if eval_result_call_count[0] == 1:
+                    # First call: resume check - return empty (fresh start)
+                    filter_mock.all.return_value = []
+                else:
+                    # Second call: summary calculation - return mock_results
+                    filter_mock.all.return_value = mock_results
                 query_mock.filter.return_value = filter_mock
             else:
-                # For column queries like db.query(EvaluationResult.image_id) - resume check
+                # Fallback for any other queries
                 filter_mock = Mock()
-                filter_mock.all.return_value = []  # No existing results (fresh start)
+                filter_mock.all.return_value = []
                 query_mock.filter.return_value = filter_mock
             return query_mock
 
@@ -238,8 +247,26 @@ class TestEvaluationRunner:
     async def test_run_evaluation_high_failure_rate(self, mocker, mock_db_session, mock_evaluation, mock_images):
         """Test that high failure rate marks evaluation as failed"""
         mocker.patch('api.v1.evaluations.SessionLocal', return_value=mock_db_session)
-        
-        # Simpler mock for high failure since we don't check accuracy, just status
+
+        # Track EvaluationResult query calls to differentiate resume check vs summary
+        eval_result_call_count = [0]  # Use list to allow mutation in closure
+
+        # Create results mock for summary: 1 success, 4 failures
+        summary_results = []
+        # One successful result
+        r = Mock(spec=EvaluationResult)
+        r.is_correct = True
+        r.error = None
+        r.step_results = [{"latency_ms": 100, "usage": {"total_tokens": 15}, "cost": {"step_cost": 0.0}}]
+        summary_results.append(r)
+        # Four failed results
+        for _ in range(4):
+            r = Mock(spec=EvaluationResult)
+            r.is_correct = None
+            r.error = "E"
+            r.step_results = None
+            summary_results.append(r)
+
         def query_side_effect(model):
             query_mock = Mock()
             if model == Evaluation:
@@ -254,13 +281,19 @@ class TestEvaluationRunner:
                 options_mock.join.return_value = join_mock
                 query_mock.options.return_value = options_mock
             elif model == EvaluationResult:
+                eval_result_call_count[0] += 1
                 filter_mock = Mock()
-                filter_mock.all.return_value = [] # Doesn't matter for this test
+                if eval_result_call_count[0] == 1:
+                    # First call: resume check - return empty (fresh start)
+                    filter_mock.all.return_value = []
+                else:
+                    # Second call: summary calculation - return results showing 4/5 failures
+                    filter_mock.all.return_value = summary_results
                 query_mock.filter.return_value = filter_mock
             else:
-                # For column queries like db.query(EvaluationResult.image_id) - resume check
+                # Fallback for any other queries
                 filter_mock = Mock()
-                filter_mock.all.return_value = []  # No existing results (fresh start)
+                filter_mock.all.return_value = []
                 query_mock.filter.return_value = filter_mock
             return query_mock
 
