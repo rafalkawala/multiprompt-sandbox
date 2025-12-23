@@ -43,7 +43,7 @@ def sample_admin_user():
             assert sample_admin_user.role == UserRole.ADMIN.value
     """
     return User(
-        id="admin-uuid-1234",
+        id="11111111-1111-1111-1111-111111111111",
         email="admin@test.com",
         google_id="google-123",
         name="Admin User",
@@ -68,7 +68,7 @@ def sample_regular_user():
             assert sample_regular_user.role == UserRole.USER.value
     """
     return User(
-        id="user-uuid-5678",
+        id="22222222-2222-2222-2222-222222222222",
         email="user@test.com",
         google_id="google-456",
         name="Regular User",
@@ -93,7 +93,7 @@ def sample_inactive_user():
             assert sample_inactive_user.is_active == False
     """
     return User(
-        id="inactive-uuid-9999",
+        id="99999999-9999-9999-9999-999999999999",
         email="inactive@test.com",
         google_id="google-999",
         name="Inactive User",
@@ -121,7 +121,7 @@ def sample_project(sample_admin_user):
             assert sample_project.name == "Test Project"
     """
     return Project(
-        id="project-uuid-abcd",
+        id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
         name="Test Project",
         description="A test project for unit tests",
         question_text="Is this a test?",
@@ -322,13 +322,15 @@ def client(mock_db_session):
             assert response.status_code == 200
     """
     from main import app
-    from api.v1.auth import get_db
+    from api.v1.auth import get_db as auth_get_db
+    from api.deps import get_db as deps_get_db
 
-    # Override the database dependency
+    # Override the database dependency for all modules
     def override_get_db():
         return mock_db_session
 
-    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[auth_get_db] = override_get_db
+    app.dependency_overrides[deps_get_db] = override_get_db
 
     # Create test client
     test_client = TestClient(app)
@@ -362,10 +364,14 @@ def authenticated_client(client, sample_admin_user):
             assert response.status_code == 200
     """
     from main import app
-    from api.v1.auth import get_current_user
+    from api.v1.auth import get_current_user as auth_get_current_user
+    from api.deps import get_current_user as deps_get_current_user
+    from api.deps import require_write_access
 
-    # Override authentication to return admin user
-    app.dependency_overrides[get_current_user] = lambda: sample_admin_user
+    # Override authentication to return admin user for all modules
+    app.dependency_overrides[auth_get_current_user] = lambda: sample_admin_user
+    app.dependency_overrides[deps_get_current_user] = lambda: sample_admin_user
+    app.dependency_overrides[require_write_access] = lambda: sample_admin_user
 
     yield client
 
