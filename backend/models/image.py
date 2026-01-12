@@ -14,6 +14,7 @@ class Image(Base):
     storage_path = Column(String, nullable=False)
     file_size = Column(Integer, nullable=True)
     thumbnail_data = Column(LargeBinary, nullable=True)  # Generated in background processing
+    embedding = Column(JSON, nullable=True)
 
     # Processing status tracking
     processing_status = Column(String, default="pending", nullable=False)  # pending, processing, completed, failed

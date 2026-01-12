@@ -7,6 +7,7 @@ from models.image import Image
 from models.project import Dataset
 from core.image_utils import generate_thumbnail
 from services.storage_service import get_storage_provider
+from services.embedding_service import get_embedding_service
 
 logger = structlog.get_logger(__name__)
 
@@ -17,11 +18,12 @@ class ImageProcessingService:
     def __init__(self):
         self.executor = ThreadPoolExecutor(max_workers=4)
         self.storage = get_storage_provider()
+        self.embedding_service = get_embedding_service()
 
     async def process_dataset_images(self, dataset_id: str, db: Session):
         """
         Process all pending images in a dataset.
-        Generates thumbnails and performs validation.
+        Generates thumbnails, performs validation, and generates embeddings.
 
         Args:
             dataset_id: UUID of the dataset to process
@@ -55,10 +57,10 @@ class ImageProcessingService:
             return
 
         # Process with concurrency limit
-        semaphore = asyncio.Semaphore(5)  # 5 concurrent thumbnail generations
+        semaphore = asyncio.Semaphore(5)  # 5 concurrent processing tasks
 
         async def process_single_image(image: Image):
-            """Process a single image: download, generate thumbnail, update DB"""
+            """Process a single image: download, generate thumbnail, generate embedding, update DB"""
             async with semaphore:
                 try:
                     logger.info(f"Processing image {image.id}: {image.filename}")
@@ -73,15 +75,48 @@ class ImageProcessingService:
 
                     # Generate thumbnail in thread pool (CPU-bound operation)
                     loop = asyncio.get_event_loop()
-                    thumbnail_bytes = await loop.run_in_executor(
+
+                    thumbnail_future = loop.run_in_executor(
                         self.executor,
                         generate_thumbnail,
                         file_data
                     )
-                    logger.info(f"Generated thumbnail for image {image.id} ({len(thumbnail_bytes)} bytes)")
 
-                    # Update database with thumbnail
+                    # Generate embedding (I/O bound API call)
+                    # We run this concurrently with thumbnail generation if possible,
+                    # but since thumbnail is fast, we can just await it or gather.
+                    # Since generate_embeddings is async, we can await it directly.
+                    # To parallelize CPU task (thumbnail) and IO task (embedding), we use gather.
+
+                    async def generate_emb():
+                        try:
+                            logger.info(f"Generating embedding for image {image.id}")
+                            response = await self.embedding_service.generate_embeddings(
+                                image_bytes=file_data
+                            )
+                            # Convert to list/json compatible format if it's not already
+                            # EmbeddingResponse.image_embedding is likely a list of floats
+                            if response and response.image_embedding:
+                                return response.image_embedding
+                            return None
+                        except Exception as emb_err:
+                            logger.error(f"Embedding generation failed for image {image.id}: {emb_err}")
+                            return None # Soft failure for embeddings
+
+                    thumbnail_bytes, embedding_vector = await asyncio.gather(
+                        thumbnail_future,
+                        generate_emb()
+                    )
+
+                    logger.info(f"Generated thumbnail for image {image.id} ({len(thumbnail_bytes)} bytes)")
+                    if embedding_vector:
+                         logger.info(f"Generated embedding for image {image.id} (dim: {len(embedding_vector)})")
+
+                    # Update database
                     image.thumbnail_data = thumbnail_bytes
+                    if embedding_vector:
+                        image.embedding = embedding_vector
+
                     image.processing_status = "completed"
                     image.processing_error = None
                     db.commit()
