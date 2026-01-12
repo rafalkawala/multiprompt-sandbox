@@ -4,3 +4,4 @@ from .image import Image, Annotation
 from .experiment import ModelRegistry, ProjectModel, Experiment, ExperimentRun, Prediction
 from .evaluation import ModelConfig, Evaluation, EvaluationResult
 from .labelling_job import LabellingJob, LabellingJobRun, LabellingResult
+from .dataset_split import DatasetSplit

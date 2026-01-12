@@ -15,6 +15,10 @@ class LabellingJob(Base):
     gcs_folder_path = Column(String(512), nullable=False)
     last_processed_timestamp = Column(DateTime, nullable=True)
 
+    # Subselection support
+    target_split_id = Column(UUID(as_uuid=True), ForeignKey("dataset_splits.id", ondelete="SET NULL"), nullable=True)
+    exclude_split_id = Column(UUID(as_uuid=True), ForeignKey("dataset_splits.id", ondelete="SET NULL"), nullable=True)
+
     # Prompt configuration (snapshot from evaluation)
     model_config_id = Column(UUID(as_uuid=True), ForeignKey("model_configs.id"), nullable=False)
     system_message = Column(Text, nullable=False)

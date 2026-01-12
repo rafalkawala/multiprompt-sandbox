@@ -10,6 +10,7 @@ from models.labelling_job import LabellingJob, LabellingJobRun, LabellingResult
 from models.project import Dataset, Project
 from models.image import Image
 from models.evaluation import ModelConfig
+from models.dataset_split import DatasetSplit
 from services.gcs_scanner_service import GCSScannerService, GCSFileInfo
 from services.storage_service import get_storage_provider
 from services.cloud_tasks_service import get_cloud_tasks_service
@@ -75,35 +76,66 @@ class LabellingJobService:
             else:
                 dataset = job.dataset
 
-            # Step 2: Scan GCS folder for new files
-            logger.info(f"Scanning GCS folder: {job.gcs_folder_path}")
-            files = self.gcs_scanner.scan_folder(
-                job.gcs_folder_path,
-                last_processed_timestamp=job.last_processed_timestamp
-            )
-            run.images_discovered = len(files)
-            db.commit()
+            images = []
+            files = []
 
-            if not files:
-                logger.info(f"No new files found for job {job_id}")
-                run.status = 'completed'
-                run.completed_at = datetime.utcnow()
-                run.duration_seconds = int((datetime.utcnow() - start_time).total_seconds())
+            # Logic Branch: If using GCS Folder, scan and ingest
+            if job.gcs_folder_path:
+                # Step 2: Scan GCS folder for new files
+                logger.info(f"Scanning GCS folder: {job.gcs_folder_path}")
+                files = self.gcs_scanner.scan_folder(
+                    job.gcs_folder_path,
+                    last_processed_timestamp=job.last_processed_timestamp
+                )
+                run.images_discovered = len(files)
                 db.commit()
-                return run
 
-            logger.info(f"Found {len(files)} new files to process")
+                if not files:
+                    logger.info(f"No new files found for job {job_id}")
+                    # Only complete if we aren't targeting a split (which might have existing images)
+                    if not job.target_split_id:
+                        run.status = 'completed'
+                        run.completed_at = datetime.utcnow()
+                        run.duration_seconds = int((datetime.utcnow() - start_time).total_seconds())
+                        db.commit()
+                        return run
 
-            # Step 3: Ingest images
-            logger.info(f"Starting ingestion of {len(files)} discovered files...")
-            images = await self._ingest_images(job, dataset, files, run, db)
-            run.images_ingested = len(images)
-            db.commit()
+                if files:
+                    logger.info(f"Found {len(files)} new files to process")
+                    # Step 3: Ingest images
+                    logger.info(f"Starting ingestion of {len(files)} discovered files...")
+                    images = await self._ingest_images(job, dataset, files, run, db)
+                    run.images_ingested = len(images)
+                    db.commit()
 
-            logger.info(f"Ingestion result: {len(images)} images ingested, {run.images_failed} failed")
+            # Logic Branch: If targeting a split or dataset directly (Active Learning Workflow)
+            if job.target_split_id or job.exclude_split_id or (job.dataset_id and not job.gcs_folder_path):
+                 # Fetch existing images from dataset
+                 logger.info("Fetching existing images based on split configuration...")
+                 query = db.query(Image).filter(Image.dataset_id == job.dataset_id)
+
+                 if job.target_split_id:
+                     target_split = db.query(DatasetSplit).filter(DatasetSplit.id == job.target_split_id).first()
+                     if target_split:
+                         query = query.filter(Image.id.in_(target_split.image_ids))
+
+                 if job.exclude_split_id:
+                     exclude_split = db.query(DatasetSplit).filter(DatasetSplit.id == job.exclude_split_id).first()
+                     if exclude_split:
+                         query = query.filter(Image.id.notin_(exclude_split.image_ids))
+
+                 # Exclude already processed images for this job?
+                 # Maybe we want to re-process if explicitly triggered?
+                 # For now, let's process all found matching the criteria that don't have a result in this job yet?
+                 # Or just re-process everything. Let's re-process for simplicity or add a filter.
+
+                 existing_images = query.all()
+                 # Merge with ingested images (if any)
+                 images.extend([img for img in existing_images if img not in images])
+                 logger.info(f"Total images to label: {len(images)}")
 
             if not images:
-                logger.warning(f"No images were successfully ingested for job {job_id}. Check logs above for errors.")
+                logger.warning(f"No images to label for job {job_id}.")
                 run.status = 'completed'
                 run.completed_at = datetime.utcnow()
                 run.duration_seconds = int((datetime.utcnow() - start_time).total_seconds())
@@ -484,6 +516,76 @@ class LabellingJobService:
 
         else:  # text
             return {'value': response.strip()}
+
+    def promote_results_to_annotations(
+        self,
+        job_id: str,
+        db: Session,
+        confidence_threshold: float = 0.0
+    ) -> int:
+        """
+        Promote labelling results to Ground Truth Annotations.
+
+        Args:
+            job_id: The labelling job ID
+            db: Database session
+            confidence_threshold: Minimum confidence to promote (default 0.0)
+
+        Returns:
+            Count of promoted annotations
+        """
+        # Get latest results for each image in the job
+        # We want the most recent successful result
+
+        # Subquery to find latest result per image for this job
+        subq = db.query(
+            LabellingResult.image_id,
+            func.max(LabellingResult.created_at).label('max_created_at')
+        ).filter(
+            LabellingResult.labelling_job_id == job_id,
+            LabellingResult.error.is_(None)
+        ).group_by(LabellingResult.image_id).subquery()
+
+        results = db.query(LabellingResult).join(
+            subq,
+            (LabellingResult.image_id == subq.c.image_id) &
+            (LabellingResult.created_at == subq.c.max_created_at)
+        ).filter(
+            LabellingResult.labelling_job_id == job_id
+        ).all()
+
+        promoted_count = 0
+        user_id = db.query(LabellingJob).filter(LabellingJob.id == job_id).first().created_by_id
+
+        for result in results:
+            if result.confidence_score is not None and result.confidence_score < confidence_threshold:
+                continue
+
+            # Check if annotation already exists
+            existing_annotation = db.query(Annotation).filter(
+                Annotation.image_id == result.image_id
+            ).first()
+
+            if existing_annotation:
+                # Update existing? Or skip?
+                # For now, let's update it, assuming this promotion is intentional override.
+                existing_annotation.answer_value = result.parsed_answer
+                existing_annotation.updated_at = datetime.utcnow()
+                # existing_annotation.annotator_id = user_id # Keep original or update?
+            else:
+                new_annotation = Annotation(
+                    image_id=result.image_id,
+                    answer_value=result.parsed_answer,
+                    annotator_id=user_id,
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow()
+                )
+                db.add(new_annotation)
+
+            promoted_count += 1
+
+        db.commit()
+        return promoted_count
 
 
 # Singleton instance

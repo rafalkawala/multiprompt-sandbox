@@ -52,7 +52,10 @@ class LabellingJobCreate(BaseModel):
     name: str
     project_id: str
     evaluation_id: str  # Copy prompt config from this evaluation
-    gcs_folder_path: str
+    gcs_folder_path: Optional[str] = None
+    dataset_id: Optional[str] = None
+    target_split_id: Optional[str] = None
+    exclude_split_id: Optional[str] = None
     frequency_minutes: int = 15
     is_active: bool = True
 
@@ -62,6 +65,8 @@ class LabellingJobUpdate(BaseModel):
     gcs_folder_path: Optional[str] = None
     frequency_minutes: Optional[int] = None
     is_active: Optional[bool] = None
+    target_split_id: Optional[str] = None
+    exclude_split_id: Optional[str] = None
 
 
 class LabellingJobResponse(BaseModel):
@@ -125,6 +130,12 @@ class LabellingResultResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class PromotionRequest(BaseModel):
+    confidence_threshold: float = 0.0
+
+class PromotionResponse(BaseModel):
+    promoted_count: int
+
 
 # Helper functions
 def run_job_in_thread(job_id: str, trigger_type: str):
@@ -181,8 +192,14 @@ async def create_labelling_job(
             detail="Evaluation not found"
         )
 
-    # Validate GCS path format
-    if not job_data.gcs_folder_path.startswith('gs://'):
+    # Validate Source: either GCS path OR dataset_id must be provided
+    if not job_data.gcs_folder_path and not job_data.dataset_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either gcs_folder_path or dataset_id must be provided"
+        )
+
+    if job_data.gcs_folder_path and not job_data.gcs_folder_path.startswith('gs://'):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="GCS folder path must start with gs://"
@@ -192,7 +209,10 @@ async def create_labelling_job(
     job = LabellingJob(
         name=job_data.name,
         project_id=job_data.project_id,
-        gcs_folder_path=job_data.gcs_folder_path,
+        dataset_id=job_data.dataset_id,
+        gcs_folder_path=job_data.gcs_folder_path or "", # Can be empty if dataset_id is set
+        target_split_id=job_data.target_split_id,
+        exclude_split_id=job_data.exclude_split_id,
         model_config_id=evaluation.model_config_id,
         system_message=evaluation.system_message or "",
         question_text=evaluation.question_text or project.question_text,
@@ -367,6 +387,13 @@ async def update_labelling_job(
                 detail="GCS folder path must start with gs://"
             )
         job.gcs_folder_path = job_data.gcs_folder_path
+
+    if job_data.target_split_id is not None:
+        job.target_split_id = job_data.target_split_id
+
+    if job_data.exclude_split_id is not None:
+        job.exclude_split_id = job_data.exclude_split_id
+
     if job_data.frequency_minutes is not None:
         job.frequency_minutes = job_data.frequency_minutes
         # Recalculate next run time
@@ -470,6 +497,34 @@ async def trigger_labelling_job(
     run_job_in_thread(str(job_id), 'manual')
 
     return {"message": "Job execution started", "job_id": str(job_id)}
+
+
+@router.post("/labelling-jobs/{job_id}/promote", response_model=PromotionResponse)
+async def promote_job_results(
+    job_id: str,
+    request: PromotionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_write_access)
+):
+    """
+    Promote valid labelling results to Annotations (Ground Truth).
+    Useful for "Auto-Labeling" workflows.
+    """
+    job = db.query(LabellingJob).filter(LabellingJob.id == job_id).first()
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Labelling job not found"
+        )
+
+    service = get_labelling_job_service()
+    count = service.promote_results_to_annotations(
+        job_id=job_id,
+        db=db,
+        confidence_threshold=request.confidence_threshold
+    )
+
+    return {"promoted_count": count}
 
 
 @router.get("/labelling-jobs/{job_id}/runs", response_model=List[LabellingJobRunResponse])
