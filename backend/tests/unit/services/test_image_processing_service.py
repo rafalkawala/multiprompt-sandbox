@@ -12,7 +12,10 @@ def mock_storage():
 
 @pytest.fixture
 def mock_embedding_service():
-    return AsyncMock()
+    service = AsyncMock()
+    # Mock get_available_models to return a list of dicts
+    service.get_available_models = MagicMock(return_value=[{"model_name": "multimodalembedding@001", "provider": "vertex_embedding"}])
+    return service
 
 @pytest.fixture
 def mock_db():
@@ -46,7 +49,13 @@ async def test_process_dataset_images_success(service, mock_db, mock_storage, mo
 
     # Verify interactions
     mock_storage.download.assert_called_with("gs://test/image.jpg")
-    mock_embedding_service.generate_embeddings.assert_called_with(image_bytes=b"fake_image_bytes")
+
+    # We now expect provider_name to be passed as well since we updated ImageProcessingService
+    mock_embedding_service.generate_embeddings.assert_called_with(
+        image_bytes=b"fake_image_bytes",
+        model_name="multimodalembedding@001",
+        provider_name="vertex_embedding"
+    )
 
     # Verify status updates
     assert image.processing_status == "completed"
@@ -76,7 +85,11 @@ async def test_process_dataset_images_embedding_failure(service, mock_db, mock_s
 
     # Verify interactions
     mock_storage.download.assert_called_with("gs://test/image.jpg")
-    mock_embedding_service.generate_embeddings.assert_called_with(image_bytes=b"fake_image_bytes")
+    mock_embedding_service.generate_embeddings.assert_called_with(
+        image_bytes=b"fake_image_bytes",
+        model_name="multimodalembedding@001",
+        provider_name="vertex_embedding"
+    )
 
     # Verify status updates (should still be completed, just without embedding)
     assert image.processing_status == "completed"

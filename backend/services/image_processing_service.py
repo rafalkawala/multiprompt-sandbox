@@ -59,6 +59,19 @@ class ImageProcessingService:
         # Process with concurrency limit
         semaphore = asyncio.Semaphore(5)  # 5 concurrent processing tasks
 
+        # Get preferred embedding model from service (which loads from config)
+        # In the future, this could be passed as an argument or read from dataset settings
+        embedding_models = self.embedding_service.get_available_models()
+        embedding_model_name = None
+        embedding_provider_name = None
+        if embedding_models:
+             # Just picking the first available one for now as a default
+             # This logic could be improved to prefer a specific one or check config
+             embedding_model_name = embedding_models[0].get("model_name")
+             embedding_provider_name = embedding_models[0].get("provider")
+
+        logger.info(f"Using embedding model: {embedding_model_name or 'default'} (provider: {embedding_provider_name or 'auto'})")
+
         async def process_single_image(image: Image):
             """Process a single image: download, generate thumbnail, generate embedding, update DB"""
             async with semaphore:
@@ -83,19 +96,15 @@ class ImageProcessingService:
                     )
 
                     # Generate embedding (I/O bound API call)
-                    # We run this concurrently with thumbnail generation if possible,
-                    # but since thumbnail is fast, we can just await it or gather.
-                    # Since generate_embeddings is async, we can await it directly.
-                    # To parallelize CPU task (thumbnail) and IO task (embedding), we use gather.
-
                     async def generate_emb():
                         try:
-                            logger.info(f"Generating embedding for image {image.id}")
+                            # We allow model selection here via the variable above
+                            logger.info(f"Generating embedding for image {image.id} with model {embedding_model_name}")
                             response = await self.embedding_service.generate_embeddings(
-                                image_bytes=file_data
+                                image_bytes=file_data,
+                                model_name=embedding_model_name,
+                                provider_name=embedding_provider_name
                             )
-                            # Convert to list/json compatible format if it's not already
-                            # EmbeddingResponse.image_embedding is likely a list of floats
                             if response and response.image_embedding:
                                 return response.image_embedding
                             return None

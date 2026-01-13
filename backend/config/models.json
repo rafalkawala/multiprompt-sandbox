@@ -100,5 +100,19 @@
       "image_token_calc": "fixed_tokens",
       "discount_percent": 0
     }
+  },
+  {
+    "id": "vertex-multimodal-embedding",
+    "provider": "vertex_embedding",
+    "model_name": "multimodalembedding@001",
+    "display_name": "Multimodal Embedding (Vertex AI)",
+    "description": "Multimodal embedding model for images and text.",
+    "endpoint": "vertex-ai",
+    "auth_type": "google_adc",
+    "pricing_config": {
+      "mode": "request_based",
+      "price_per_request": 0.0001,
+      "discount_percent": 0
+    }
   }
 ]
