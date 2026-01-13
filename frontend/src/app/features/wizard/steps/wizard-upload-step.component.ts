@@ -180,8 +180,6 @@ export class WizardUploadStepComponent implements OnDestroy {
         this.wizardService.setDataset(dataset);
 
         // 2. Upload Files
-        // Simple simplified upload (no chunking for wizard MVP unless large)
-        // Reusing the batch upload from service
         this.projectsService.uploadImagesBatch(project.id, dataset.id, files).subscribe({
           next: () => {
             this.uploading.set(false);

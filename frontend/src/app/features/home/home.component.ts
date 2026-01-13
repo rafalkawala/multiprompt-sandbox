@@ -7,10 +7,12 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatDialog } from '@angular/material/dialog';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { ProjectsService } from '../../core/services/projects.service';
 import { EvaluationsService } from '../../core/services/evaluations.service';
+import { WizardDialogComponent } from '../wizard/wizard-dialog.component';
 import { forkJoin } from 'rxjs';
 
 @Component({
@@ -34,7 +36,8 @@ export class HomeComponent implements OnInit {
   constructor(
     public authService: AuthService,
     private projectsService: ProjectsService,
-    private evaluationsService: EvaluationsService
+    private evaluationsService: EvaluationsService,
+    private dialog: MatDialog
   ) {}
 
   ngOnInit() {
@@ -43,6 +46,16 @@ export class HomeComponent implements OnInit {
 
   logout(): void {
     this.authService.logout();
+  }
+
+  openWizard() {
+    this.dialog.open(WizardDialogComponent, {
+      width: '90vw',
+      height: '90vh',
+      maxWidth: '1200px',
+      disableClose: true,
+      panelClass: 'wizard-dialog-panel'
+    });
   }
 
   loadStats() {

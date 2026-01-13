@@ -1,9 +1,10 @@
-import { Component } from '@angular/core';
+import { Component, EventEmitter, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { FormsModule } from '@angular/forms';
 import { WizardService, WizardFlow } from './wizard.service';
 
 @Component({
@@ -13,10 +14,18 @@ import { WizardService, WizardFlow } from './wizard.service';
     CommonModule,
     MatCardModule,
     MatButtonModule,
-    MatIconModule
+    MatIconModule,
+    MatCheckboxModule,
+    FormsModule
   ],
   template: `
     <div class="selection-container">
+      <div class="close-btn-container">
+        <button mat-icon-button (click)="close.emit()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+
       <header>
         <h1>How would you like to start?</h1>
         <p>Select a path to guide you through the process.</p>
@@ -80,27 +89,41 @@ import { WizardService, WizardFlow } from './wizard.service';
           </mat-card-actions>
         </mat-card>
       </div>
+
+      <footer>
+        <mat-checkbox
+          [(ngModel)]="doNotShowAgain"
+          (change)="onDoNotShowChange()">
+          Do not show this on startup
+        </mat-checkbox>
+      </footer>
     </div>
   `,
   styles: [`
     .selection-container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 48px 24px;
+      padding: 24px;
       text-align: center;
+      position: relative;
+    }
+
+    .close-btn-container {
+      position: absolute;
+      top: -12px;
+      right: -12px;
     }
 
     header {
-      margin-bottom: 48px;
-      h1 { font-size: 32px; margin-bottom: 16px; color: #202124; }
-      p { font-size: 18px; color: #5f6368; }
+      margin-bottom: 32px;
+      h1 { font-size: 28px; margin-bottom: 12px; color: #202124; }
+      p { font-size: 16px; color: #5f6368; }
     }
 
     .cards-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 24px;
       text-align: left;
+      margin-bottom: 32px;
     }
 
     .selection-card {
@@ -118,15 +141,16 @@ import { WizardService, WizardFlow } from './wizard.service';
       mat-card-content {
         flex: 1;
         padding-top: 16px;
-        p { color: #5f6368; line-height: 1.5; margin-bottom: 24px; }
+        p { color: #5f6368; line-height: 1.5; margin-bottom: 24px; font-size: 14px; }
       }
 
       .steps-preview {
         color: #1967d2;
         background: #e8f0fe;
-        padding: 8px 12px;
+        padding: 6px 10px;
         border-radius: 4px;
         display: inline-block;
+        font-size: 12px;
       }
     }
 
@@ -141,14 +165,34 @@ import { WizardService, WizardFlow } from './wizard.service';
       &.large-data { background-color: #fbbc04; color: #3c4043; }
       &.prompt-dev { background-color: #ea4335; }
     }
+
+    footer {
+      margin-top: 24px;
+      display: flex;
+      justify-content: center;
+    }
   `]
 })
 export class WizardSelectionComponent {
-  constructor(private wizardService: WizardService, private router: Router) {}
+  @Output() flowSelected = new EventEmitter<WizardFlow>();
+  @Output() close = new EventEmitter<void>();
+
+  doNotShowAgain = false;
+
+  constructor(private wizardService: WizardService) {
+    this.doNotShowAgain = localStorage.getItem('wizard_do_not_show') === 'true';
+  }
 
   selectFlow(flow: WizardFlow) {
-    this.wizardService.reset(); // Clear previous state
-    this.wizardService.setFlow(flow);
-    this.router.navigate(['/wizard/flow']);
+    this.wizardService.reset();
+    this.flowSelected.emit(flow);
+  }
+
+  onDoNotShowChange() {
+    if (this.doNotShowAgain) {
+      localStorage.setItem('wizard_do_not_show', 'true');
+    } else {
+      localStorage.removeItem('wizard_do_not_show');
+    }
   }
 }

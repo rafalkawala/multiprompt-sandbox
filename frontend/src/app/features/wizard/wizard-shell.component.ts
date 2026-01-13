@@ -1,6 +1,5 @@
-import { Component, OnInit, signal, ViewChild } from '@angular/core';
+import { Component, OnInit, ViewChild, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
 import { MatStepperModule, MatStepper } from '@angular/material/stepper';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -66,19 +65,18 @@ import { WizardResultStepComponent } from './steps/wizard-result-step.component'
   `,
   styles: [`
     .wizard-shell {
-      max-width: 1000px;
-      margin: 0 auto;
-      padding: 24px;
-      height: 100vh;
+      height: 100%;
       display: flex;
       flex-direction: column;
+      padding: 0 16px;
     }
 
     header {
       display: flex;
       align-items: center;
       gap: 16px;
-      margin-bottom: 24px;
+      margin-bottom: 16px;
+      margin-top: 16px;
 
       h2 { margin: 0; }
     }
@@ -86,17 +84,19 @@ import { WizardResultStepComponent } from './steps/wizard-result-step.component'
     mat-stepper {
       flex: 1;
       background: transparent;
+      overflow-y: auto;
     }
   `]
 })
 export class WizardShellComponent implements OnInit {
   @ViewChild('stepper') stepper!: MatStepper;
+  @Output() close = new EventEmitter<void>();
 
-  constructor(public wizardService: WizardService, private router: Router) {}
+  constructor(public wizardService: WizardService) {}
 
   ngOnInit() {
     if (!this.wizardService.flow) {
-      this.router.navigate(['/wizard']);
+      this.close.emit();
     }
   }
 
@@ -111,7 +111,7 @@ export class WizardShellComponent implements OnInit {
 
   cancel() {
     if (confirm('Are you sure you want to exit the wizard? Progress may be lost.')) {
-      this.router.navigate(['/']);
+      this.close.emit();
     }
   }
 }

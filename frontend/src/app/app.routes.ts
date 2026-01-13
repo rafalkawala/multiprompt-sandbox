@@ -62,11 +62,6 @@ export const routes: Routes = [
     canActivate: [authGuard, adminGuard]
   },
   {
-    path: 'wizard',
-    loadChildren: () => import('./features/wizard/wizard.routes').then(m => m.WIZARD_ROUTES),
-    canActivate: [authGuard]
-  },
-  {
     path: '**',
     redirectTo: '/home'
   }
