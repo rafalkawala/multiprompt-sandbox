@@ -35,24 +35,82 @@ This will:
 
 ## Cloud SQL (GCP) Setup
 
-### Option 1: Using Cloud SQL Admin API (Recommended for Infrastructure-as-Code)
-Google Cloud SQL for PostgreSQL has pgvector available as a database flag. However, the extension still needs to be enabled manually in the database.
+### Automatic Setup via Alembic Migration ✅
 
-**After deploying Cloud SQL:**
-1. Connect to the database (via Cloud SQL Proxy or Private IP)
-2. Run: `CREATE EXTENSION IF NOT EXISTS vector;`
-3. Run Alembic migrations: `alembic upgrade head`
+The pgvector extension is **automatically enabled** by Alembic migration `bdb80060ab5g_enable_pgvector_extension.py` when you run:
 
-### Option 2: Enable via Cloud SQL Console
-1. Navigate to Cloud SQL instance in GCP Console
-2. Go to **Databases** tab
-3. Select your database
-4. Enable the `vector` extension (if available in the UI)
+```bash
+alembic upgrade head
+```
 
-### Option 3: Via Terraform Provisioner (Not Recommended)
-While you could use a Terraform `null_resource` with a `local-exec` provisioner to run the SQL command, this is generally not recommended for production as it requires:
-- Database credentials in Terraform state
-- Network connectivity from the Terraform runner to the database
+This runs automatically on Cloud Run startup (see `backend/Dockerfile` CMD).
+
+### Prerequisites
+
+**PostgreSQL Version:** 11+ (we use PostgreSQL 18)
+
+**User Permissions:** The database user needs permission to create extensions. For Cloud SQL:
+
+#### Option 1: Grant Superuser Role (Recommended for Automated Setup)
+
+```bash
+# Connect as postgres user
+gcloud sql connect <instance-name> --user=postgres --quiet
+
+# Grant superuser to your application user
+ALTER USER mllm_sandbox_user WITH SUPERUSER;
+```
+
+#### Option 2: Pre-install Extension as Superuser (Manual Setup)
+
+If you don't want to grant superuser permissions to the application user:
+
+```bash
+# Connect as postgres user
+gcloud sql connect <instance-name> --user=postgres --quiet
+
+# Manually create the extension
+CREATE EXTENSION IF NOT EXISTS vector;
+
+# Verify
+SELECT extname, extversion FROM pg_extension WHERE extname = 'vector';
+```
+
+Then the Alembic migration will detect it's already installed and skip creation.
+
+### Verification
+
+You can verify pgvector setup before migrations:
+
+```bash
+# Set environment variable to enable verification
+export VERIFY_PGVECTOR=1
+
+# Run the verification script
+python backend/scripts/verify_pgvector.py
+```
+
+Or in Cloud Run, add the environment variable:
+
+```bash
+gcloud run services update multiprompt-backend \
+  --region=us-central1 \
+  --set-env-vars=VERIFY_PGVECTOR=1
+```
+
+### Troubleshooting
+
+**Error: "permission denied to create extension"**
+- **Cause:** Database user doesn't have permission to create extensions
+- **Solution:** Grant superuser role (see Option 1 above) or manually install extension (Option 2)
+
+**Error: "could not open extension control file"**
+- **Cause:** pgvector is not installed on the PostgreSQL server
+- **Solution:** Cloud SQL for PostgreSQL 11+ includes pgvector. Verify your instance version and tier support it.
+
+**Migrations succeed but vector column fails**
+- **Cause:** Extension not enabled before vector column creation
+- **Solution:** Check migration order. `bdb80060ab5g` must run before `bdb80060ab60`.
 
 ## Migration Details
 
