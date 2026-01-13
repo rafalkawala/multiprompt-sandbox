@@ -101,10 +101,37 @@ This document provides a comprehensive statistical analysis of the project's cod
 
 ## Key Insights & "Aha!" Moments
 
-1.  **Configuration as Data**: The sheer volume of JSON (14.5k lines vs 8.8k Python lines) is striking. It suggests the application is highly data-driven, potentially storing large seed datasets, detailed model configurations, or extensive test fixtures directly in the repo. This is unusual for a standard web app and points to a specialized AI/Benchmarking tool nature.
+1.  **Configuration as Data**: While the high JSON line count is primarily driven by `package-lock.json`, the project explicitly centralizes critical business logic in external JSON files rather than hardcoding it. This makes the platform adaptable to new AI models and pricing changes without code deploys.
 2.  **Bleeding Edge Angular**: The adoption of Angular Signals (86+ occurrences) is very high. This isn't a legacy Angular app being maintained; it's being actively developed with the newest 2024 patterns, completely bypassing the "RxJS everywhere" complexity that plagued older Angular apps.
 3.  **Production-Ready AI Resilience**: The specific implementation of `retry_utils` handling `ResourceExhausted` indicates the team has likely faced and solved real-world "quota exceeded" issues with Vertex AI. This isn't just a prototype; it's built to survive API flakes.
 4.  **Backend/Frontend Disconnect**: While the backend uses sophisticated `structlog` for observability, the frontend relies on raw `console.log`. This creates a blind spot for debugging issues that happen on the client side in production.
+
+---
+
+## Verification of Insights: Configuration as Data
+
+The insight regarding "Configuration as Data" was verified by analyzing the JSON files.
+
+*   **Observation**: 14.5k lines of JSON.
+*   **Reality Check**: ~14.1k lines are `frontend/package-lock.json`.
+*   **The Real Gem**: `backend/config/models.json` contains the actual business logic configuration.
+
+**Example from `backend/config/models.json`**:
+Instead of hardcoding pricing per model in Python, the system loads it at runtime. This allows business stakeholders to potentially update pricing or add new models just by editing a file.
+
+```json
+{
+  "id": "openai-gpt-4o-mini",
+  "provider": "openai",
+  "pricing_config": {
+    "mode": "token_based",
+    "input_price_per_1m": 0.15,
+    "output_price_per_1m": 0.60
+  }
+}
+```
+
+This pattern confirms the application is designed for **extensibility**—adding a new LLM provider or changing a price is a configuration change, not a code refactor.
 
 ---
 
