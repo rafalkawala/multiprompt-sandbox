@@ -24,6 +24,38 @@ The Wizard is an overlay-based guided experience designed to help users start wi
 *   **Steps**: Upload -> Label (Golden Set) -> **Iterate**.
 *   **Key Action**: "Start Developing"
 
+## Customer User Journeys & Configuration
+This section details the specific parameters and defaults applied during each user journey.
+
+### Journey A: Feasibility Validation
+*   **User Intent**: "I need a quick Yes/No on whether this works."
+*   **System Parameters**:
+    *   **Project**: User defines Name & Question.
+    *   **Default Question Type**: `Binary (Yes/No)` (User can change to Multiple Choice/Text).
+    *   **Sampling**: Implicitly `All` (No sampling step shown).
+    *   **Labeling Scope**: Full dataset (expected to be small).
+    *   **Evaluation Mode**: Standard Benchmark (Cross-Model).
+
+### Journey B: Large Dataset Analysis
+*   **User Intent**: "I have 10,000 images, I can't label them all yet."
+*   **System Parameters**:
+    *   **Project**: User defines Name & Question.
+    *   **Sampling Step**: Shown explicitly.
+    *   **Sampling Defaults**:
+        *   **Mode**: `Random Sample` (Default selection).
+        *   **Count**: `50` images (Default).
+        *   **Option**: User can switch to `Use All Images` if desired.
+    *   **Labeling Scope**: Restricted to the sampled subset (e.g., 50 images).
+    *   **Evaluation Mode**: Run on sampled subset to extrapolate cost/accuracy.
+
+### Journey C: Prompt Development
+*   **User Intent**: "I know the models work, I just need to tune the prompt."
+*   **System Parameters**:
+    *   **Project**: User defines Name & Question.
+    *   **Sampling**: Implicitly `All` (User is expected to upload a "Golden Set" or small representative batch).
+    *   **Labeling Scope**: Full uploaded set (Golden Set).
+    *   **Evaluation Mode**: "Refine Prompt" -> Navigates to Sandbox/Project View for iterative testing rather than a one-off benchmark.
+
 ## User Experience & Re-use
 The wizard leverages existing platform capabilities while providing a streamlined interface:
 *   **Project Creation**: Uses a simplified inline form that calls the central `ProjectsService`.
