@@ -99,6 +99,24 @@ export interface ProcessingStatus {
   errors?: string[];
 }
 
+export interface DatasetSplit {
+  id: string;
+  dataset_id: string;
+  name: string;
+  split_type: string;
+  split_value?: number;
+  excluded_split_ids?: string[];
+  image_ids: string[];
+  created_at: string;
+}
+
+export interface CreateSplitRequest {
+  name: string;
+  split_type: string; // 'random_percent', 'random_count'
+  split_value?: number;
+  excluded_split_ids?: string[];
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -142,12 +160,16 @@ export class ProjectsService extends BaseApiService {
   }
 
   // Image methods
-  getImages(projectId: string, datasetId: string, skip: number = 0, limit: number = 50) {
-    return this.get<ImageItem[]>(`/projects/${projectId}/datasets/${datasetId}/images`, {
+  getImages(projectId: string, datasetId: string, skip: number = 0, limit: number = 50, splitId?: string) {
+    const params: any = {
       skip: skip,
       limit: limit,
       include_thumbnails: 'true'
-    });
+    };
+    if (splitId) {
+      params['split_id'] = splitId;
+    }
+    return this.get<ImageItem[]>(`/projects/${projectId}/datasets/${datasetId}/images`, params);
   }
 
   uploadImages(projectId: string, datasetId: string, files: File[]) {
@@ -259,5 +281,26 @@ export class ProjectsService extends BaseApiService {
     return this.get<ProcessingStatus>(
       `/projects/${projectId}/datasets/${datasetId}/processing-status`
     );
+  }
+
+  // Dataset Split Methods
+  createDatasetSplit(projectId: string, datasetId: string, data: CreateSplitRequest) {
+    // Note: The endpoint is /api/v1/datasets/{datasetId}/splits
+    // The previous implementation of dataset_splits.py used /{dataset_id}/splits directly under the router
+    // but the router prefix was "/api/v1/datasets" or empty?
+    // Let's check api/v1/__init__.py and api/v1/dataset_splits.py
+    // api/v1/dataset_splits.py has @router.post("/{dataset_id}/splits")
+    // api/v1/__init__.py has api_router.include_router(dataset_splits.router, prefix="", tags=["dataset-splits"])
+    // So the URL is /api/v1/{dataset_id}/splits
+
+    // Wait, typical pattern is /api/v1/projects/{projectId}/datasets/{datasetId}/splits?
+    // My backend implementation used /api/v1/{dataset_id}/splits directly.
+    // I should probably stick to what I implemented in backend.
+
+    return this.http.post<DatasetSplit>(`${this.API_URL}/${datasetId}/splits`, data);
+  }
+
+  getDatasetSplits(projectId: string, datasetId: string) {
+     return this.http.get<DatasetSplit[]>(`${this.API_URL}/${datasetId}/splits`);
   }
 }

@@ -20,6 +20,7 @@ import { EvaluationsService } from '../../core/services/evaluations.service';
 import { interval, Subscription } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { AnnotationImportDialogComponent } from './annotation-import-dialog/annotation-import-dialog.component';
+import { ActiveLearningWizardComponent } from './active-learning-wizard/active-learning-wizard.component';
 
 @Component({
   selector: 'app-edit-project-dialog',
@@ -185,7 +186,8 @@ export class CancelUploadDialogComponent {
     MatProgressBarModule,
     MatDialogModule,
     MatSelectModule,
-    AnnotationImportDialogComponent
+    AnnotationImportDialogComponent,
+    ActiveLearningWizardComponent
   ],
   template: `
     <div class="project-detail-container">
@@ -351,6 +353,10 @@ export class CancelUploadDialogComponent {
                 <button mat-button [routerLink]="['/projects', projectId, 'datasets', dataset.id, 'annotate']">
                   <mat-icon>edit_note</mat-icon>
                   Annotate
+                </button>
+                <button mat-button color="primary" (click)="openSmartAnnotation(dataset.id)">
+                  <mat-icon>auto_awesome</mat-icon>
+                  Smart Annotate
                 </button>
                 <button mat-button [routerLink]="['/evaluations']" [queryParams]="{projectId: projectId, datasetId: dataset.id}">
                   <mat-icon>analytics</mat-icon>
@@ -1517,6 +1523,28 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
         // Success - reload the project/images to reflect changes
         this.snackBar.open('Import completed successfully', 'Close', { duration: 3000 });
         this.loadImages(datasetId, true);
+      }
+    });
+  }
+
+  openSmartAnnotation(datasetId: string) {
+    const dialogRef = this.dialog.open(ActiveLearningWizardComponent, {
+      width: '600px',
+      maxWidth: '95vw',
+      disableClose: true,
+      data: {
+        projectId: this.projectId,
+        datasetId: datasetId
+      }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        // Result is the created split object
+        // Navigate to Annotation view with splitId
+        this.router.navigate(['/projects', this.projectId, 'datasets', datasetId, 'annotate'], {
+          queryParams: { splitId: result.id, splitName: result.name }
+        });
       }
     });
   }

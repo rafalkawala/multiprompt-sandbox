@@ -409,12 +409,15 @@ async def upload_images(
         )
 
 
+from models.dataset_split import DatasetSplit
+
 @router.get("/{project_id}/datasets/{dataset_id}/images", response_model=List[ImageResponse])
 async def list_images(
     project_id: str,
     dataset_id: str,
+    split_id: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=5000),
     include_thumbnails: bool = False,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -444,6 +447,17 @@ async def list_images(
     # Query images with pagination and join with annotations
     query = db.query(Image).outerjoin(Annotation).filter(Image.dataset_id == dataset_id)
     
+    # Filter by split if provided
+    if split_id:
+        split = db.query(DatasetSplit).filter(DatasetSplit.id == split_id).first()
+        if not split:
+            raise HTTPException(status_code=404, detail="Dataset Split not found")
+        # Ensure split belongs to dataset
+        if str(split.dataset_id) != dataset_id:
+             raise HTTPException(status_code=400, detail="Split does not belong to this dataset")
+
+        query = query.filter(Image.id.in_(split.image_ids))
+
     # Order by newest first
     images = query.order_by(Image.uploaded_at.desc()).offset(skip).limit(limit).all()
 

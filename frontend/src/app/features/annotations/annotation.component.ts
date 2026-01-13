@@ -597,6 +597,8 @@ export class AnnotationComponent implements OnInit, OnDestroy {
 
   projectId = '';
   datasetId = '';
+  splitId: string | null = null;
+  splitName: string | null = null;
   datasetName = '';
   imageIndex = 0;
 
@@ -615,6 +617,12 @@ export class AnnotationComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.projectId = this.route.snapshot.paramMap.get('projectId') || '';
     this.datasetId = this.route.snapshot.paramMap.get('datasetId') || '';
+
+    // Check for split ID in query params
+    this.route.queryParams.subscribe(params => {
+        this.splitId = params['splitId'] || null;
+        this.splitName = params['splitName'] || null;
+    });
 
     if (this.projectId && this.datasetId) {
       this.loadData();
@@ -638,6 +646,11 @@ export class AnnotationComponent implements OnInit, OnDestroy {
       const dataset = datasets?.find(d => d.id === this.datasetId);
       this.datasetName = dataset?.name || '';
 
+      // Override name if viewing a split
+      if (this.splitName) {
+          this.datasetName = `${this.datasetName} (${this.splitName})`;
+      }
+
       // Check dataset processing status BEFORE loading images
       if (dataset) {
         this.checkDatasetStatus(dataset);
@@ -652,12 +665,34 @@ export class AnnotationComponent implements OnInit, OnDestroy {
       const imageCount = stats?.total_images || 1000; // Use stats total, fallback to 1000
 
       // Load all images metadata at once (only metadata, images loaded lazily)
-      this.projectsService.getImages(this.projectId, this.datasetId, 0, imageCount).toPromise()
+      // Pass splitId if present
+      this.projectsService.getImages(this.projectId, this.datasetId, 0, imageCount, this.splitId || undefined).toPromise()
         .then(images => {
           this.allImages.set(images || []);
 
-          // Check if we should start at a specific unannotated image
-          this.skipToUnannotated(false); // false = don't force reload if we have images
+          if (this.allImages().length === 0) {
+             this.snackBar.open('No images found in this split.', 'Close', { duration: 3000 });
+          } else {
+              // Check if we should start at a specific unannotated image
+              // If split is active, we just iterate linearly for now as backend skip logic needs split support
+              // or we rely on client side filter
+              if (this.splitId) {
+                  // Find first unannotated in local list
+                  const firstUnannotated = this.allImages().findIndex(img => !img.is_annotated);
+                  if (firstUnannotated !== -1) {
+                      this.imageIndex = firstUnannotated;
+                      this.currentImage.set(this.allImages()[this.imageIndex]);
+                      this.loadAnnotation();
+                  } else {
+                      this.imageIndex = 0;
+                      this.currentImage.set(this.allImages()[0]);
+                      this.loadAnnotation();
+                      this.snackBar.open('All images in this split are annotated!', 'Close', { duration: 3000 });
+                  }
+              } else {
+                  this.skipToUnannotated(false); // false = don't force reload if we have images
+              }
+          }
 
           this.loading.set(false);
         })
@@ -674,6 +709,25 @@ export class AnnotationComponent implements OnInit, OnDestroy {
   }
 
   skipToUnannotated(force: boolean = true) {
+    // If using split, we do client-side skip for now as backend endpoint isn't split-aware yet
+    if (this.splitId) {
+        const nextIdx = this.allImages().findIndex((img, i) => i > this.imageIndex && !img.is_annotated);
+        const firstIdx = this.allImages().findIndex(img => !img.is_annotated);
+
+        let targetIdx = -1;
+        if (nextIdx !== -1) targetIdx = nextIdx;
+        else if (firstIdx !== -1) targetIdx = firstIdx;
+
+        if (targetIdx !== -1) {
+            this.imageIndex = targetIdx;
+            this.currentImage.set(this.allImages()[targetIdx]);
+            this.loadAnnotation();
+        } else {
+            if (force) this.snackBar.open('🎉 All images in split annotated!', 'Close', { duration: 4000 });
+        }
+        return;
+    }
+
     this.evaluationsService.getNextUnannotated(this.projectId, this.datasetId).subscribe({
       next: (res: any) => {
         if (res.image) {
@@ -761,6 +815,10 @@ export class AnnotationComponent implements OnInit, OnDestroy {
     }).subscribe({
       next: () => {
         this.saving.set(false);
+
+        // Update local state
+        img.is_annotated = true;
+
         this.refreshStats();
         // Jump to next unannotated image
         this.skipToUnannotated(true);
