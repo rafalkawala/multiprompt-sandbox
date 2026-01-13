@@ -2,14 +2,14 @@ version: '3.8'
 
 services:
   db:
-    image: postgres:18-alpine
+    image: pgvector/pgvector:pg18
     restart: always
     environment:
       POSTGRES_DB: mllm_sandbox_db
       POSTGRES_USER: mllm_sandbox_user
       POSTGRES_PASSWORD: mllm_sandbox_pass
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - db-data:/var/lib/postgresql  # PostgreSQL 18 uses /var/lib/postgresql instead of /var/lib/postgresql/data
     ports:
       - "5432:5432" # Expose PostgreSQL port to host
     networks:

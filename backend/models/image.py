@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, JSON, Boolean, Text, LargeBinary
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
+from pgvector.sqlalchemy import Vector
 import uuid
 from datetime import datetime
 from core.database import Base
@@ -14,7 +15,7 @@ class Image(Base):
     storage_path = Column(String, nullable=False)
     file_size = Column(Integer, nullable=True)
     thumbnail_data = Column(LargeBinary, nullable=True)  # Generated in background processing
-    embedding = Column(JSON, nullable=True)
+    embedding = Column(Vector(1408), nullable=True)  # Multimodal embedding vector (dimension 1408 for multimodalembedding@001)
 
     # Processing status tracking
     processing_status = Column(String, default="pending", nullable=False)  # pending, processing, completed, failed

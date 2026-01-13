@@ -29,12 +29,12 @@ class ImageProcessingService:
             dataset_id: UUID of the dataset to process
             db: Database session
         """
-        logger.info(f"Starting image processing for dataset {dataset_id}")
+        logger.info("starting_image_processing", dataset_id=dataset_id)
 
         # Get dataset
         dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
         if not dataset:
-            logger.error(f"Dataset {dataset_id} not found")
+            logger.error("dataset_not_found", dataset_id=dataset_id)
             return
 
         # Update dataset status
@@ -48,7 +48,7 @@ class ImageProcessingService:
             Image.processing_status == "pending"
         ).all()
 
-        logger.info(f"Found {len(images)} images to process in dataset {dataset_id}")
+        logger.info("found_images_to_process", image_count=len(images), dataset_id=dataset_id)
 
         if not images:
             dataset.processing_status = "completed"
@@ -70,13 +70,13 @@ class ImageProcessingService:
              embedding_model_name = embedding_models[0].get("model_name")
              embedding_provider_name = embedding_models[0].get("provider")
 
-        logger.info(f"Using embedding model: {embedding_model_name or 'default'} (provider: {embedding_provider_name or 'auto'})")
+        logger.info("using_embedding_model", model_name=embedding_model_name or 'default', provider=embedding_provider_name or 'auto')
 
         async def process_single_image(image: Image):
             """Process a single image: download, generate thumbnail, generate embedding, update DB"""
             async with semaphore:
                 try:
-                    logger.info(f"Processing image {image.id}: {image.filename}")
+                    logger.info("processing_image", image_id=image.id, filename=image.filename)
 
                     # Update image status
                     image.processing_status = "processing"
@@ -84,7 +84,7 @@ class ImageProcessingService:
 
                     # Download image from storage
                     file_data = await self.storage.download(image.storage_path)
-                    logger.info(f"Downloaded image {image.id} ({len(file_data)} bytes)")
+                    logger.info("downloaded_image", image_id=image.id, size_bytes=len(file_data))
 
                     # Generate thumbnail in thread pool (CPU-bound operation)
                     loop = asyncio.get_event_loop()
@@ -99,7 +99,7 @@ class ImageProcessingService:
                     async def generate_emb():
                         try:
                             # We allow model selection here via the variable above
-                            logger.info(f"Generating embedding for image {image.id} with model {embedding_model_name}")
+                            logger.info("generating_embedding", image_id=image.id, model_name=embedding_model_name)
                             response = await self.embedding_service.generate_embeddings(
                                 image_bytes=file_data,
                                 model_name=embedding_model_name,
@@ -109,7 +109,7 @@ class ImageProcessingService:
                                 return response.image_embedding
                             return None
                         except Exception as emb_err:
-                            logger.error(f"Embedding generation failed for image {image.id}: {emb_err}")
+                            logger.error("embedding_generation_failed", image_id=image.id, error=str(emb_err))
                             return None # Soft failure for embeddings
 
                     thumbnail_bytes, embedding_vector = await asyncio.gather(
@@ -117,9 +117,9 @@ class ImageProcessingService:
                         generate_emb()
                     )
 
-                    logger.info(f"Generated thumbnail for image {image.id} ({len(thumbnail_bytes)} bytes)")
+                    logger.info("thumbnail_generated", image_id=image.id, size_bytes=len(thumbnail_bytes))
                     if embedding_vector:
-                         logger.info(f"Generated embedding for image {image.id} (dim: {len(embedding_vector)})")
+                         logger.info("embedding_generated", image_id=image.id, dimension=len(embedding_vector))
 
                     # Update database
                     image.thumbnail_data = thumbnail_bytes
@@ -134,11 +134,11 @@ class ImageProcessingService:
                     dataset.processed_files += 1
                     db.commit()
 
-                    logger.info(f"Successfully processed image {image.id}")
+                    logger.info("image_processed_successfully", image_id=image.id)
                     return True
 
                 except Exception as e:
-                    logger.error(f"Failed to process image {image.id}: {str(e)}", exc_info=True)
+                    logger.error("image_processing_failed", image_id=image.id, error=str(e), exc_info=True)
 
                     # Mark image as failed
                     image.processing_status = "failed"
@@ -161,7 +161,7 @@ class ImageProcessingService:
         success_count = sum(1 for r in results if r is True)
         failure_count = sum(1 for r in results if r is False or isinstance(r, Exception))
 
-        logger.info(f"Processing complete for dataset {dataset_id}: {success_count} succeeded, {failure_count} failed")
+        logger.info("processing_complete", dataset_id=dataset_id, success_count=success_count, failure_count=failure_count)
 
         # Update dataset final status
         if dataset.failed_files == 0:
@@ -180,4 +180,4 @@ class ImageProcessingService:
         dataset.processing_completed_at = datetime.utcnow()
         db.commit()
 
-        logger.info(f"Dataset {dataset_id} processing finished with status: {dataset.processing_status}")
+        logger.info("dataset_processing_finished", dataset_id=dataset_id, status=dataset.processing_status)
