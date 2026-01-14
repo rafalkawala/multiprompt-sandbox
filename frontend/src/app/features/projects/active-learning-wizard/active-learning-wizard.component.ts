@@ -554,12 +554,13 @@ export class ActiveLearningWizardComponent implements OnInit {
     forkJoin({
       splits: this.projectsService.getDatasetSplits(this.data.projectId, this.data.datasetId),
       clusteringStatus: this.projectsService.getClusteringStatus(this.data.projectId, this.data.datasetId),
-      dataset: this.projectsService.getDataset(this.data.projectId, this.data.datasetId)
+      datasets: this.projectsService.getDatasets(this.data.projectId)
     }).subscribe({
       next: (result) => {
         this.existingSplits.set(result.splits);
         this.clusteringStatus.set(result.clusteringStatus);
-        this.totalDatasetImages = result.dataset.image_count || 0;
+        const dataset = result.datasets.find(d => d.id === this.data.datasetId);
+        this.totalDatasetImages = dataset?.image_count || 0;
 
         // Auto-generate names
         const annotationCount = result.splits.filter((s: DatasetSplit) => s.purpose === 'annotation').length;
