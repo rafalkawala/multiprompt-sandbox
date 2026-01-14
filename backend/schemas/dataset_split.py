@@ -5,8 +5,9 @@ from pydantic import BaseModel
 
 class DatasetSplitBase(BaseModel):
     name: str
-    split_type: str  # 'random_percent', 'random_count', 'manual'
+    split_type: str  # 'random_percent', 'random_count', 'manual', 'k_means_centroid'
     split_value: Optional[int] = None
+    purpose: Optional[str] = 'annotation'  # 'annotation', 'test', 'unlabeled_pool'
     excluded_split_ids: Optional[List[UUID]] = None
 
 class DatasetSplitCreate(DatasetSplitBase):

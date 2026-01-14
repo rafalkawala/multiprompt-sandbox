@@ -16,8 +16,11 @@ class DatasetSplit(Base):
     image_ids = Column(JSON, nullable=False)  # List[UUID] as strings
 
     # Metadata about how it was created
-    split_type = Column(String, nullable=False) # 'random_percent', 'random_count', 'manual', 'stratified'
+    split_type = Column(String, nullable=False) # 'random_percent', 'random_count', 'manual', 'stratified', 'k_means_centroid'
     split_value = Column(Integer, nullable=True) # e.g. 5 (percent) or 100 (count)
+
+    # Purpose of the split
+    purpose = Column(String, default='annotation', nullable=False) # 'annotation', 'test', 'unlabeled_pool'
 
     # To track lineage (e.g., "Round 2" excluding "Round 1")
     excluded_split_ids = Column(JSON, nullable=True) # List[UUID] of splits excluded during creation

@@ -16,6 +16,7 @@ class Image(Base):
     file_size = Column(Integer, nullable=True)
     thumbnail_data = Column(LargeBinary, nullable=True)  # Generated in background processing
     embedding = Column(Vector(1408), nullable=True)  # Multimodal embedding vector (dimension 1408 for multimodalembedding@001)
+    cluster_id = Column(Integer, nullable=True)  # K-means cluster assignment for diversity sampling
 
     # Processing status tracking
     processing_status = Column(String, default="pending", nullable=False)  # pending, processing, completed, failed

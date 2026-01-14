@@ -105,6 +105,7 @@ export interface DatasetSplit {
   name: string;
   split_type: string;
   split_value?: number;
+  purpose?: string; // 'annotation', 'test', 'unlabeled_pool'
   excluded_split_ids?: string[];
   image_ids: string[];
   created_at: string;
@@ -112,9 +113,46 @@ export interface DatasetSplit {
 
 export interface CreateSplitRequest {
   name: string;
-  split_type: string; // 'random_percent', 'random_count'
+  split_type: string; // 'random_percent', 'random_count', 'k_means_centroid'
   split_value?: number;
+  purpose?: string; // 'annotation', 'test', 'unlabeled_pool'
   excluded_split_ids?: string[];
+}
+
+export interface SampleSizeCalculation {
+  recommended_size: number;
+  percentage: number;
+  confidence_level: number;
+  margin_of_error: number;
+  z_score: number;
+  formula_explanation: string;
+  is_exact: boolean;
+}
+
+export interface ClusteringStatus {
+  is_clustered: boolean;
+  cluster_count: number;
+  images_clustered: number;
+  images_without_clusters: number;
+  images_without_embeddings: number;
+}
+
+export interface ClusteringResult {
+  cluster_count: number;
+  centroids: number[][];
+  cluster_sizes: Record<number, number>;
+  images_clustered: number;
+  images_without_embeddings: number;
+  inertia: number;
+}
+
+export interface KRecommendation {
+  recommended_k: number;
+  min_cluster_size: number;
+  max_k: number;
+  min_k: number;
+  explanation: string;
+  confidence_level: number;
 }
 
 @Injectable({
@@ -302,5 +340,68 @@ export class ProjectsService extends BaseApiService {
 
   getDatasetSplits(projectId: string, datasetId: string) {
      return this.http.get<DatasetSplit[]>(`${this.API_URL}/${datasetId}/splits`);
+  }
+
+  // Statistical Sample Size Calculator
+  calculateSampleSize(
+    projectId: string,
+    datasetId: string,
+    confidenceLevel: number = 0.95,
+    marginOfError: number = 0.05
+  ) {
+    const params = new HttpParams()
+      .set('confidence_level', confidenceLevel.toString())
+      .set('margin_of_error', marginOfError.toString());
+
+    return this.http.get<SampleSizeCalculation>(
+      `${this.API_URL}/${datasetId}/sample-size-calculator`,
+      { params }
+    );
+  }
+
+  // K-Means Clustering Methods
+  performClustering(
+    projectId: string,
+    datasetId: string,
+    k?: number,
+    confidenceLevel: number = 0.95
+  ) {
+    const body = {
+      k: k || null,
+      confidence_level: confidenceLevel
+    };
+
+    return this.http.post<ClusteringResult>(
+      `${this.API_URL}/${datasetId}/cluster`,
+      body
+    );
+  }
+
+  getClusteringStatus(projectId: string, datasetId: string) {
+    return this.http.get<ClusteringStatus>(
+      `${this.API_URL}/${datasetId}/clustering-status`
+    );
+  }
+
+  getKRecommendation(
+    projectId: string,
+    datasetId: string,
+    confidenceLevel: number = 0.95
+  ) {
+    const params = new HttpParams()
+      .set('confidence_level', confidenceLevel.toString());
+
+    return this.http.get<KRecommendation>(
+      `${this.API_URL}/${datasetId}/k-recommendation`,
+      { params }
+    );
+  }
+
+  // Unlabeled Pool Creation
+  createUnlabeledPool(projectId: string, datasetId: string) {
+    return this.http.post<DatasetSplit>(
+      `${this.API_URL}/${datasetId}/unlabeled-pool`,
+      {}
+    );
   }
 }
