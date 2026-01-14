@@ -4,9 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from core.database import get_db
+from api.deps import get_db, get_current_user
 from models.user import User
-from api.deps import get_current_user
 from schemas.dataset_split import DatasetSplitCreate, DatasetSplitResponse
 from services.dataset_split_service import DatasetSplitService
 from services.clustering_service import ClusteringService
