@@ -21,7 +21,7 @@ import {
   CreateSplitRequest,
   SampleSizeCalculation,
   ClusteringStatus
-} from '../../core/services/projects.service';
+} from '../../../core/services/projects.service';
 import { forkJoin } from 'rxjs';
 
 @Component({
@@ -562,7 +562,7 @@ export class ActiveLearningWizardComponent implements OnInit {
         this.totalDatasetImages = result.dataset.image_count || 0;
 
         // Auto-generate names
-        const annotationCount = result.splits.filter(s => s.purpose === 'annotation').length;
+        const annotationCount = result.splits.filter((s: DatasetSplit) => s.purpose === 'annotation').length;
         this.annotationSetName = `Annotation Set ${annotationCount + 1}`;
         this.testSetName = `Test Set ${annotationCount + 1}`;
 
@@ -587,11 +587,11 @@ export class ActiveLearningWizardComponent implements OnInit {
       this.confidenceLevel,
       this.marginOfError
     ).subscribe({
-      next: (result) => {
+      next: (result: SampleSizeCalculation) => {
         this.sampleCalculation.set(result);
         this.loadingCalculation.set(false);
       },
-      error: (e) => {
+      error: (e: any) => {
         console.error("Failed to calculate sample size", e);
         this.loadingCalculation.set(false);
       }
@@ -616,18 +616,18 @@ export class ActiveLearningWizardComponent implements OnInit {
       this.data.projectId,
       this.data.datasetId
     ).subscribe({
-      next: (result) => {
+      next: (result: any) => {
         console.log("Clustering completed", result);
 
         // Refresh clustering status
         this.projectsService.getClusteringStatus(this.data.projectId, this.data.datasetId).subscribe({
-          next: (status) => {
+          next: (status: ClusteringStatus) => {
             this.clusteringStatus.set(status);
             this.clustering.set(false);
           }
         });
       },
-      error: (e) => {
+      error: (e: any) => {
         console.error("Clustering failed", e);
         this.clustering.set(false);
         alert(`Clustering failed: ${e.error?.detail || e.message}`);
@@ -647,12 +647,12 @@ export class ActiveLearningWizardComponent implements OnInit {
     };
 
     this.projectsService.createDatasetSplit(this.data.projectId, this.data.datasetId, request).subscribe({
-      next: (split) => {
+      next: (split: DatasetSplit) => {
         this.createdAnnotationSplit.set(split);
         this.annotationSetCreated.set(true);
         this.creatingAnnotation.set(false);
       },
-      error: (e) => {
+      error: (e: any) => {
         console.error("Failed to create annotation set", e);
         this.creatingAnnotation.set(false);
         alert(`Failed to create annotation set: ${e.error?.detail || e.message}`);
@@ -677,12 +677,12 @@ export class ActiveLearningWizardComponent implements OnInit {
     };
 
     this.projectsService.createDatasetSplit(this.data.projectId, this.data.datasetId, request).subscribe({
-      next: (split) => {
+      next: (split: DatasetSplit) => {
         this.createdTestSplit.set(split);
         this.testSetCreated.set(true);
         this.creatingTest.set(false);
       },
-      error: (e) => {
+      error: (e: any) => {
         console.error("Failed to create test set", e);
         this.creatingTest.set(false);
         alert(`Failed to create test set: ${e.error?.detail || e.message}`);
@@ -698,7 +698,7 @@ export class ActiveLearningWizardComponent implements OnInit {
     this.finishing.set(true);
 
     this.projectsService.createUnlabeledPool(this.data.projectId, this.data.datasetId).subscribe({
-      next: (pool) => {
+      next: (pool: DatasetSplit) => {
         console.log("Unlabeled pool created", pool);
         this.wizardCompleted.set(true);
         this.finishing.set(false);
@@ -712,7 +712,7 @@ export class ActiveLearningWizardComponent implements OnInit {
 
         this.dialogRef.close(result);
       },
-      error: (e) => {
+      error: (e: any) => {
         console.error("Failed to create unlabeled pool", e);
         this.finishing.set(false);
 
