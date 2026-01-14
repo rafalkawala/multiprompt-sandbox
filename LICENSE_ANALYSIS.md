@@ -172,4 +172,46 @@ You **can** generally distribute this software as a proprietary product, provide
     *   *Solution:* In a Python environment, this is usually satisfied because the libraries are dynamically loaded/interpreted (files are separate). Do not compile everything into a single inseparable binary blob (like with PyInstaller's strict "onefile" mode without care) if you want to be perfectly safe, though even then, there are workarounds.
     *   *Alternative:* If strict proprietary control is needed without this "replacement" clause, consider switching to `asyncpg` (Apache 2.0).
 
+## Proposed Proprietary License (Draft)
+
+**IMPORTANT DISCLAIMER:** *The following is a draft template provided by an AI assistant and does NOT constitute legal advice. You must have this document reviewed and finalized by a qualified attorney in your jurisdiction to ensure it effectively protects your rights and complies with all applicable laws.*
+
+---
+
+### END USER LICENSE AGREEMENT (EULA)
+
+This End User License Agreement ("Agreement") is a legal agreement between you ("Licensee" or "You") and [Your Company Name] ("Licensor") for the [Software Name] software product, which includes computer software and may include associated media, printed materials, and "online" or electronic documentation ("Software").
+
+**1. GRANT OF LICENSE**
+Subject to the terms of this Agreement, Licensor grants to you a non-exclusive, non-transferable, limited license to install and use the Software solely for your internal business purposes. All rights not expressly granted to you are reserved by Licensor.
+
+**2. COPYRIGHT AND OWNERSHIP**
+The Software is protected by copyright laws and international copyright treaties, as well as other intellectual property laws and treaties. The Software is licensed, not sold. Title, ownership rights, and intellectual property rights in and to the Software shall remain with Licensor.
+
+**3. RESTRICTIONS**
+You may not:
+*   (a) Copy the Software, except for a reasonable number of copies for backup or archival purposes.
+*   (b) Modify, translate, adapt, or create derivative works from the Software.
+*   (c) Distribute, rent, lease, lend, sell, or sublicense the Software to any third party.
+*   (d) Remove any proprietary notices, labels, or marks from the Software.
+
+**4. REVERSE ENGINEERING**
+You acknowledge that the Software contains trade secrets of Licensor. You agree not to reverse engineer, decompile, disassemble, or attempt to derive the source code of the Software, except and only to the extent that such activity is expressly permitted by applicable law notwithstanding this limitation.
+*   **LGPL Exception:** Notwithstanding the foregoing, if any component of the Software is licensed under the GNU Lesser General Public License ("LGPL"), you may reverse engineer the Software solely to the extent necessary to debug your modifications to such LGPL-licensed component, as required by the terms of the LGPL.
+
+**5. THIRD-PARTY SOFTWARE**
+The Software may contain or be accompanied by third-party software, including open-source software, which is subject to its own license terms. These terms are provided in the `NOTICE.txt` file (or equivalent) accompanying the Software. Your use of such third-party software is governed by the applicable third-party license terms, and nothing in this Agreement limits your rights under, or grants you rights that supersede, the terms and conditions of any applicable third-party license.
+
+**6. DISCLAIMER OF WARRANTY**
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. LICENSOR DOES NOT WARRANT THAT THE FUNCTIONS CONTAINED IN THE SOFTWARE WILL MEET YOUR REQUIREMENTS OR THAT THE OPERATION OF THE SOFTWARE WILL BE UNINTERRUPTED OR ERROR-FREE.
+
+**7. LIMITATION OF LIABILITY**
+IN NO EVENT SHALL LICENSOR BE LIABLE FOR ANY DAMAGES WHATSOEVER (INCLUDING, WITHOUT LIMITATION, DAMAGES FOR LOSS OF BUSINESS PROFITS, BUSINESS INTERRUPTION, LOSS OF BUSINESS INFORMATION, OR ANY OTHER PECUNIARY LOSS) ARISING OUT OF THE USE OF OR INABILITY TO USE THE SOFTWARE, EVEN IF LICENSOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+**8. TERMINATION**
+This Agreement is effective until terminated. Your rights under this Agreement will terminate automatically without notice from Licensor if you fail to comply with any term(s) of this Agreement. Upon termination, you shall cease all use of the Software and destroy all copies, full or partial, of the Software.
+
+**9. GOVERNING LAW**
+This Agreement shall be governed by and construed in accordance with the laws of [Your State/Country].
+
 **Disclaimer:** *I am an AI assistant, not a lawyer. This analysis is based on metadata provided by the package registries. For a commercial product launch, you should consult with legal counsel to verify compliance.*
