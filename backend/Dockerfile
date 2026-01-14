@@ -53,4 +53,11 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD python -c "import os; import requests; requests.get(f'http://localhost:{os.environ.get(\"PORT\", 8000)}/health', timeout=2)"
 
 # Run migrations and start application (Cloud Run uses PORT env var)
-CMD ["sh", "-c", "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Optional: Set VERIFY_PGVECTOR=1 to run pgvector verification before migrations
+CMD ["sh", "-c", "\
+if [ \"$VERIFY_PGVECTOR\" = \"1\" ]; then \
+  echo 'Running pgvector verification...'; \
+  python scripts/verify_pgvector.py || echo 'Warning: pgvector verification failed, continuing anyway...'; \
+fi && \
+alembic upgrade head && \
+uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]

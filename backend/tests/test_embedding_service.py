@@ -57,5 +57,7 @@ async def test_generate_embeddings_image(mock_google_provider):
 async def test_generate_embeddings_invalid_provider():
     service = EmbeddingService()
 
-    with pytest.raises(ValueError, match="Unknown embedding provider"):
-        await service.generate_embeddings(text="test", provider_name="unknown")
+    # Pass an unknown provider and a model that won't be in config
+    # This ensures the provider name is actually used and not resolved via model lookup
+    with pytest.raises(ValueError, match="Unknown embedding provider.*"):
+        await service.generate_embeddings(text="test", provider_name="unknown", model_name="nonexistent-model")
