@@ -87,6 +87,34 @@ The codebase primarily uses components with permissive licenses (MIT, Apache 2.0
 | tslib | 0BSD | [Link](https://github.com/microsoft/tslib/blob/master/LICENSE.txt) | **OK (No Risk)**<br>Attribution often not strictly required but recommended. |
 | zone.js | MIT | [Link](https://github.com/angular/angular/blob/main/packages/zone.js/LICENSE) | **OK (Low Risk)**<br>Requires attribution. |
 
+## Commercial Strategy: Selling vs. SaaS
+
+This section details the specific requirements for two common business models: **Selling** the software (distribution) and operating it as a **SaaS** platform.
+
+### 1. Selling Proprietary Licenses (On-Premise / Downloadable)
+In this model, you distribute the software binary or source code to the customer.
+
+*   **Attribution (Required):** You must include the `ThirdPartyNotices.txt` file (as described below) in the root of the delivered artifact (ZIP, ISO, Docker image).
+*   **EULA Terms for LGPL:**
+    *   Since you are using `psycopg2-binary` (LGPL), your End User License Agreement (EULA) **cannot** forbid the customer from reverse-engineering the software *specifically for the purpose of debugging modifications to the LGPL library*.
+    *   You must allow the user to replace the LGPL component (e.g., swapping the `.so` or `.dll` file).
+*   **Technical Requirement:**
+    *   **Do NOT** use "single-file" compilation tools (like PyInstaller `--onefile`) that merge the Python interpreter, your code, and `psycopg2` into a single inseparable binary blob. This makes it impossible for the user to replace the LGPL library.
+    *   **DO** distribute as a directory of files, a Docker container, or a standard Python virtual environment.
+*   **MPL Components:**
+    *   For `certifi` (MPL 2.0), if you have modified the source code of the library itself, you must provide the source code of those modifications. If you use it as-is (standard pip install), no extra action is needed beyond attribution.
+
+### 2. Operating as SaaS (Software as a Service)
+In this model, you host the software, and customers access it via the web. You do *not* send the backend code to the customer.
+
+*   **Reduced Backend Risk:**
+    *   LGPL (and GPL) generally trigger requirements upon *distribution* (conveying) of the binary. Since the backend code remains on your servers, you are not "distributing" `psycopg2-binary` to the client. Therefore, the relinking/replacement requirements **do not apply** to the backend in a pure SaaS model.
+    *   *Note on AGPL:* Since there are **no AGPL** components, you are free from the "ASP Loophole" provision. You do *not* need to share your backend source code even if you modify these libraries.
+*   **Frontend Distribution is Still Distribution:**
+    *   The **Angular Frontend** (JavaScript/WASM) *is* downloaded to the user's browser. This constitutes distribution.
+    *   **Requirement:** You **must** ensure that license headers in the JavaScript files are preserved (often handled by the build tool) or that the "Legal/About" screen in the UI is accessible to the user.
+*   **Verdict:** SaaS is the path of least resistance for this stack, as it mitigates the complexities of the LGPL backend library.
+
 ## How and Where to Add Attribution
 
 To comply with the "Attribution" requirement common to MIT, BSD, and Apache 2.0 licenses, you must include the full text of the licenses and copyright notices for all third-party software used in your application.
