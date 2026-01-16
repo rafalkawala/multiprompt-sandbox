@@ -43,65 +43,78 @@ The backend uses Python 3.11. Dependencies are split between `requirements.txt` 
 
 ---
 
-### Optimization Opportunities & Q&A
+### Deep Dive: Optimizing Google Cloud AI Platform
 
-#### 1. Can we handpick the Google Library?
-**Current State:** Yes, the project already "handpicks" specific packages (`google-cloud-aiplatform`, `google-cloud-storage`, `google-cloud-tasks`) rather than installing a monolithic SDK.
-**Analysis:** The 116 MB size is the aggregate of these necessary clients and their shared dependencies (`grpcio`, `proto-plus`, `google-api-core`).
-- `google-cloud-aiplatform` is the heaviest component but is essential for the core Vertex AI integration.
-- **Conclusion:** Further reduction is difficult without removing functionality (e.g., dropping Vertex AI support).
+**Q: Can we go deeper and remove parts of `google-cloud-aiplatform`?**
 
-#### 2. Pandas & Numpy: What are they for? Are there alternatives?
-**Usage:**
-- **Pandas (72 MB):** Used in `AnnotationImportService` for processing CSV files (chunking, iteration, type checking) during bulk imports.
-- **Numpy (76 MB):** Used in `ClusteringService` for vector math (arrays, norms, means) and as a dependency for Scikit-learn.
+**Analysis:**
+Yes, significant savings are possible because the `google-cloud-aiplatform` package is monolithic, containing clients for *every* Vertex AI service (Training, Prediction, Pipelines, Feature Store, etc.), while the application currently uses only a tiny fraction (Embedding generation via `vertexai.vision_models` and raw REST calls for LLMs).
 
-**Alternatives:**
-- **Replace Pandas:** The usage in `AnnotationImportService` is relatively straightforward (reading CSVs, iterating rows). It could be refactored to use Python's built-in `csv` module.
-    - *Benefit:* Saves ~72 MB.
-    - *Cost:* Moderate refactoring of the import logic.
-- **Replace Numpy:** Harder to replace if vector math is needed for clustering. However, if Sklearn is removed (see below), Numpy usage could potentially be replaced by pure Python lists for small datasets, though performance would suffer.
+**Findings:**
+- **Total Installed Size:** ~112 MB (including `vertexai`).
+- **Used Components:**
+    - `vertexai.vision_models` (~136 KB code, but pulls in shared deps).
+    - `google.auth` (Required for authentication).
+- **Unused Heavy Components:**
+    - `google/cloud/aiplatform_v1` (~44 MB): Generated gRPC clients for all services.
+    - `google/cloud/aiplatform_v1beta1` (~56 MB): Beta clients.
+    - `vertexai/preview` (~396 KB).
+    - `vertexai/evaluation` (~468 KB).
 
-#### 3. Scikit-learn (sklearn): Can something leaner be used for K-Means?
-**Usage:**
-- **Sklearn (50 MB):** Used **only** in `ClusteringService` for the `KMeans` algorithm to cluster image embeddings.
+**Recommendation:**
+In the `Dockerfile`, after `pip install`, we can explicitly remove unused directories to save ~80-90 MB.
 
-**Alternatives:**
-- **Custom Implementation:** Since K-Means is the only algorithm used, `scikit-learn` is a very heavy dependency for this single purpose.
-    - We could implement a simple K-Means algorithm using just `numpy` (approx. 50-100 lines of code).
-    - *Benefit:* Saves ~50 MB (dropping `sklearn`).
-    - *Cost:* Maintenance of custom algorithm code.
-- **Pure Python:** If performance requirements allow (small datasets), a pure Python implementation could allow dropping both `numpy` and `sklearn`.
-    - *Benefit:* Saves ~126 MB total.
-    - *Risk:* Significantly slower performance for large vector operations.
+**Implementation Strategy (Dockerfile post-install command):**
+```dockerfile
+# Prune unused google cloud libraries
+RUN rm -rf /usr/local/lib/python3.11/site-packages/google/cloud/aiplatform_v1beta1 && \
+    rm -rf /usr/local/lib/python3.11/site-packages/google/cloud/aiplatform_v1/services/featurestore_service && \
+    rm -rf /usr/local/lib/python3.11/site-packages/google/cloud/aiplatform_v1/services/pipeline_service && \
+    rm -rf /usr/local/lib/python3.11/site-packages/google/cloud/aiplatform_v1/services/tensorboard_service
+# ... and other specific unused services
+```
+*Risk Level:* Medium. Requires careful verification that imported modules don't implicitly depend on deleted files.
 
 ---
 
-### Frontend (`frontend/`)
+### Deep Dive: K-Means at Scale (Alternatives to Sklearn/Numpy)
 
-The frontend uses Angular 17. The Dockerfile uses a multi-stage build to separate the **Build/Test Environment** from the **Runtime Environment**.
+**Q: Are there executable alternatives? How to run K-Means at scale with reliability?**
 
-#### Statistics
+Since `scikit-learn` is used *only* for K-Means clustering in `ClusteringService`, replacing it can save ~50 MB (Sklearn) + ~76 MB (Numpy, if also removed).
 
-| Component | Size (Approx.) | Description |
-| :--- | :--- | :--- |
-| **Build/Test Environment** | **~770 MB** | `node:18-alpine` (~170 MB) + `node_modules` (~600 MB) |
-| **Runtime Environment** | **~45 MB** | `nginx:alpine` (~40 MB) + Compiled App (~5 MB) |
-| **Absolute Saving** | **~725 MB** | |
-| **Relative Saving** | **~94%** | |
+#### 1. Standalone Executable (Recommended for "Lite" Image)
+Instead of a heavy Python library, we can include a small, pre-compiled binary for K-Means.
+- **Implementation:** A simple Go or Rust program that accepts a JSON/binary stream of vectors, computes centroids, and returns assignments.
+- **Size:** ~2-5 MB.
+- **Pros:** Extremely lightweight, fast, no Python dependencies.
+- **Cons:** Adds a build step (multi-stage Docker build to compile the tool) or requires checking in a binary.
 
-#### Implementation
+#### 2. Google Cloud Vertex AI (Vector Search)
+For "proper reliability at scale," Vertex AI Vector Search (formerly Matching Engine) is the managed solution.
+- **Mechanism:** Upload vectors to a GCS bucket -> Create Index -> Deploy IndexEndpoint.
+- **Pros:** Massive scale (billions of vectors), managed reliability, low latency.
+- **Cons:**
+    - **Overkill:** Designed for nearest neighbor search, not ad-hoc K-Means clustering of small datasets.
+    - **Cost & Latency:** High deployment time (minutes to hours) and minimum node costs ($$).
+    - **Functionality Mismatch:** It builds an approximate index for *search*, it doesn't strictly output "Cluster IDs" for a dataset in the way `KMeans` does.
 
-The separation is achieved via Docker multi-stage builds:
-1.  **`builder` stage:** Installs all dependencies (including `devDependencies` like Karma, Jasmine, TypeScript) to compile the Angular app. This layer is discarded.
-2.  **Final stage:** Copies only the compiled assets (`dist/`) to a lightweight `nginx:alpine` image.
+#### 3. BigQuery ML (Best for Scale & Simplicity)
+If the data can be loaded into BigQuery, BQML provides native K-Means.
+- **SQL:** `CREATE MODEL my_model OPTIONS(model_type='kmeans', num_clusters=5) AS SELECT embedding FROM images`
+- **Pros:** Serverless, handles massive scale, standard SQL interface.
+- **Cons:** Requires moving data to BQ (latency). Best for offline/batch jobs, not real-time user interactions.
 
-## Conclusion
+#### 4. PostgreSQL Extensions (Best for Architecture Fit)
+Since the app already uses `pgvector`, we can leverage the database.
+- **`pgvector`:** Primarily for similarity search (IVFFlat index uses K-Means internally, but doesn't expose it).
+- **`postgresql-kmeans` Extension:** A specific extension that adds a `kmeans()` function to Postgres.
+    - **Query:** `SELECT kmeans(embedding, 5) OVER () FROM images`
+    - **Pros:** Zero application dependencies, data stays in DB, transactionally safe.
+    - **Cons:** Requires installing a C extension in the Postgres container (Cloud SQL supports `pgvector` but not arbitrary 3rd party extensions like `postgresql-kmeans` by default).
 
-The project already follows best practices for image size optimization:
-1.  **Backend:** The Dockerfile explicitly installs only `requirements.txt`, keeping the image "lite" by excluding the 62 MB of testing tools.
-2.  **Frontend:** The multi-stage build process ensures that the heavy Node.js environment and `node_modules` (700+ MB) are never shipped to production, resulting in a tiny ~45 MB footprint.
+### Final Recommendation
 
-**Potential Future Optimizations:**
-- **High Impact:** Replace `scikit-learn` with a custom `numpy`-based K-Means implementation to save ~50 MB.
-- **Medium Impact:** Refactor `AnnotationImportService` to use the `csv` module instead of `pandas` to save ~72 MB.
+1.  **For Immediate Image Reduction (~80MB):** Implement the `rm -rf` pruning strategy for `google-cloud-aiplatform` in the Dockerfile.
+2.  **For K-Means (Small Scale):** Replace `scikit-learn` with a **custom Numpy implementation** (keeping Numpy) or a **standalone executable** (dropping Numpy).
+3.  **For K-Means (Large Scale):** Use **BigQuery ML** if dataset grows beyond memory limits, as it offers the best balance of scale and reliability without managing infrastructure.
