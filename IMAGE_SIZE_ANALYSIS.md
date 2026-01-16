@@ -41,7 +41,39 @@ The backend uses Python 3.11. Dependencies are split between `requirements.txt` 
 4. **`isort`** (0.9 MB): Import sorting.
 5. **`flake8`** (0.5 MB): Linting.
 
-*Note: While `pandas`, `numpy`, and `scikit-learn` are heavy, they are currently used in production services (Import/Export, Clustering) and cannot be moved to the testing image without refactoring the application architecture.*
+---
+
+### Optimization Opportunities & Q&A
+
+#### 1. Can we handpick the Google Library?
+**Current State:** Yes, the project already "handpicks" specific packages (`google-cloud-aiplatform`, `google-cloud-storage`, `google-cloud-tasks`) rather than installing a monolithic SDK.
+**Analysis:** The 116 MB size is the aggregate of these necessary clients and their shared dependencies (`grpcio`, `proto-plus`, `google-api-core`).
+- `google-cloud-aiplatform` is the heaviest component but is essential for the core Vertex AI integration.
+- **Conclusion:** Further reduction is difficult without removing functionality (e.g., dropping Vertex AI support).
+
+#### 2. Pandas & Numpy: What are they for? Are there alternatives?
+**Usage:**
+- **Pandas (72 MB):** Used in `AnnotationImportService` for processing CSV files (chunking, iteration, type checking) during bulk imports.
+- **Numpy (76 MB):** Used in `ClusteringService` for vector math (arrays, norms, means) and as a dependency for Scikit-learn.
+
+**Alternatives:**
+- **Replace Pandas:** The usage in `AnnotationImportService` is relatively straightforward (reading CSVs, iterating rows). It could be refactored to use Python's built-in `csv` module.
+    - *Benefit:* Saves ~72 MB.
+    - *Cost:* Moderate refactoring of the import logic.
+- **Replace Numpy:** Harder to replace if vector math is needed for clustering. However, if Sklearn is removed (see below), Numpy usage could potentially be replaced by pure Python lists for small datasets, though performance would suffer.
+
+#### 3. Scikit-learn (sklearn): Can something leaner be used for K-Means?
+**Usage:**
+- **Sklearn (50 MB):** Used **only** in `ClusteringService` for the `KMeans` algorithm to cluster image embeddings.
+
+**Alternatives:**
+- **Custom Implementation:** Since K-Means is the only algorithm used, `scikit-learn` is a very heavy dependency for this single purpose.
+    - We could implement a simple K-Means algorithm using just `numpy` (approx. 50-100 lines of code).
+    - *Benefit:* Saves ~50 MB (dropping `sklearn`).
+    - *Cost:* Maintenance of custom algorithm code.
+- **Pure Python:** If performance requirements allow (small datasets), a pure Python implementation could allow dropping both `numpy` and `sklearn`.
+    - *Benefit:* Saves ~126 MB total.
+    - *Risk:* Significantly slower performance for large vector operations.
 
 ---
 
@@ -69,3 +101,7 @@ The separation is achieved via Docker multi-stage builds:
 The project already follows best practices for image size optimization:
 1.  **Backend:** The Dockerfile explicitly installs only `requirements.txt`, keeping the image "lite" by excluding the 62 MB of testing tools.
 2.  **Frontend:** The multi-stage build process ensures that the heavy Node.js environment and `node_modules` (700+ MB) are never shipped to production, resulting in a tiny ~45 MB footprint.
+
+**Potential Future Optimizations:**
+- **High Impact:** Replace `scikit-learn` with a custom `numpy`-based K-Means implementation to save ~50 MB.
+- **Medium Impact:** Refactor `AnnotationImportService` to use the `csv` module instead of `pandas` to save ~72 MB.
