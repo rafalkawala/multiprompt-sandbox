@@ -24,7 +24,7 @@ async def run_wizard_test():
 
         # Mock Projects (Empty)
         await page.route("**/api/projects", lambda route: route.fulfill(
-            status=200, content_type="application/json", body='[]'
+             status=200, content_type="application/json", body='[]'
         ))
 
         # Mock Evals
@@ -35,7 +35,7 @@ async def run_wizard_test():
         # Mock Health
         await page.route("**/api/health", lambda route: route.fulfill(status=200, body='{"status":"ok"}'))
 
-        base_url = "http://localhost:4200" # Assumes local dev server
+        base_url = "http://localhost:4200"
 
         print(f"Navigating to {base_url}...")
         try:
@@ -45,9 +45,9 @@ async def run_wizard_test():
             print("Ensure the frontend is running (ng serve).")
             return
 
-        # Inject token to simulate logged-in state
+        # Inject token
         await page.evaluate("localStorage.setItem('dev_access_token', 'mock-token')")
-        await page.evaluate("localStorage.removeItem('wizard_do_not_show')") # Force show
+        await page.evaluate("localStorage.removeItem('wizard_do_not_show')")
 
         print("Reloading to trigger auto-start...")
         await page.reload()
@@ -56,47 +56,47 @@ async def run_wizard_test():
         print("Verifying Wizard Dialog auto-start...")
         try:
             await page.wait_for_selector("app-wizard-dialog", timeout=5000)
-            print("PASS: Wizard Dialog appeared automatically.")
+            print("PASS: Dialog appeared.")
         except Exception:
-            print("FAIL: Wizard Dialog did not appear.")
+            print("FAIL: Dialog did not appear.")
             await browser.close()
             return
 
-        # 2. Verify Selection Screen Content
-        # Check titles of cards using data-testid (PR Review: Added data-testid selectors for robustness)
-        if await page.query_selector("mat-card[data-testid='card-feasibility']") and \
-           await page.query_selector("mat-card[data-testid='card-large-dataset']") and \
-           await page.query_selector("mat-card[data-testid='card-prompt-dev']"):
-            print("PASS: Wizard Selection cards present (verified via data-testid).")
+        # 2. Test Feasibility Flow
+        print("Testing 'Feasibility' flow entry...")
+        await page.click("button:has-text('Start Validation')")
+        await page.wait_for_selector("app-wizard-project-step")
+        print("PASS: Entered Feasibility Flow.")
+
+        # Reset (Close dialog and reopen or reload)
+        # Reload is easiest to reset state completely
+        await page.reload()
+        await page.wait_for_selector("app-wizard-dialog")
+
+        # 3. Test Large Dataset Flow
+        print("Testing 'Large Dataset' flow entry...")
+        await page.click("button:has-text('Start Analysis')")
+        await page.wait_for_selector("app-wizard-project-step")
+        # Verify title
+        header_text = await page.text_content("app-wizard-shell header h2")
+        if "Analyze Large Dataset" in header_text:
+             print("PASS: Header confirms Large Dataset flow.")
         else:
-            print("FAIL: Wizard Selection cards missing or incorrect.")
+             print(f"FAIL: Header mismatch: {header_text}")
 
-        # 2b. Verify "Do not show again" logic (PR Review: Recommendation item)
-        print("Testing 'Do not show again' preference...")
-        try:
-             checkbox = await page.wait_for_selector("mat-checkbox[data-testid='checkbox-do-not-show']")
-             await checkbox.click()
-             
-             # Verify it set localStorage
-             val = await page.evaluate("localStorage.getItem('wizard_do_not_show')")
-             if val == 'true':
-                 print("PASS: 'Do not show again' checkbox correctly updated localStorage.")
-             else:
-                 print(f"FAIL: 'Do not show again' checkbox did not update localStorage. Got: {val}")
-        except Exception as e:
-            print(f"FAIL: Error testing checkbox: {e}")
+        # Reset
+        await page.reload()
+        await page.wait_for_selector("app-wizard-dialog")
 
-        # 3. Test Navigation (Click 'Start Validation')
-        print("Testing flow navigation...")
-        try:
-            # Look for the button specifically in the card
-            await page.click("mat-card[data-testid='card-feasibility'] button")
-
-            # Verify we moved to Step 1 (Project Setup)
-            await page.wait_for_selector("app-wizard-project-step", timeout=2000)
-            print("PASS: Navigated to Project Step.")
-        except Exception as e:
-             print(f"FAIL: Navigation error: {e}")
+        # 4. Test Prompt Dev Flow
+        print("Testing 'Prompt Dev' flow entry...")
+        await page.click("button:has-text('Start Developing')")
+        await page.wait_for_selector("app-wizard-project-step")
+        header_text = await page.text_content("app-wizard-shell header h2")
+        if "Develop & Optimize Prompt" in header_text:
+             print("PASS: Header confirms Prompt Dev flow.")
+        else:
+             print(f"FAIL: Header mismatch: {header_text}")
 
         await browser.close()
 

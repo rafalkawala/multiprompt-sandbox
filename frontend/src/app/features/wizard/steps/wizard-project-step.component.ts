@@ -52,16 +52,9 @@ import { MatSnackBar } from '@angular/material/snack-bar';
         </mat-form-field>
 
         <div class="actions">
-          <button mat-raised-button color="primary" type="submit"
-                  [disabled]="form.invalid || loading"
-                  data-testid="btn-create-project">
-            @if (loading) {
-              <mat-icon class="spin">sync</mat-icon>
-              Creating...
-            } @else {
-              <mat-icon>arrow_forward</mat-icon>
-              Create Project & Continue
-            }
+          <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid || loading">
+            <mat-icon>arrow_forward</mat-icon>
+            Create Project & Continue
           </button>
         </div>
       </form>
@@ -81,13 +74,6 @@ import { MatSnackBar } from '@angular/material/snack-bar';
       display: flex;
       justify-content: flex-end;
       margin-top: 24px;
-    }
-    .spin {
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
     }
   `]
 })

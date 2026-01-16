@@ -33,13 +33,7 @@ import { WizardService, WizardFlow } from './wizard.service';
 
       <div class="cards-grid">
         <!-- Flow A: Feasibility -->
-        <mat-card class="selection-card"
-                  (click)="selectFlow('feasibility')"
-                  (keydown.enter)="selectFlow('feasibility')"
-                  tabindex="0"
-                  role="button"
-                  aria-label="Validate Model Feasibility - Check if AI models can answer your question accurately"
-                  data-testid="card-feasibility">
+        <mat-card class="selection-card" (click)="selectFlow('feasibility')">
           <mat-card-header>
             <div mat-card-avatar class="avatar-icon feasibility">
               <mat-icon>check_circle</mat-icon>
@@ -58,13 +52,7 @@ import { WizardService, WizardFlow } from './wizard.service';
         </mat-card>
 
         <!-- Flow B: Large Dataset -->
-        <mat-card class="selection-card"
-                  (click)="selectFlow('large_dataset')"
-                  (keydown.enter)="selectFlow('large_dataset')"
-                  tabindex="0"
-                  role="button"
-                  aria-label="Analyze Large Dataset - Sample a subset to estimate cost and performance"
-                  data-testid="card-large-dataset">
+        <mat-card class="selection-card" (click)="selectFlow('large_dataset')">
           <mat-card-header>
             <div mat-card-avatar class="avatar-icon large-data">
               <mat-icon>filter_list</mat-icon>
@@ -83,13 +71,7 @@ import { WizardService, WizardFlow } from './wizard.service';
         </mat-card>
 
         <!-- Flow C: Prompt Dev -->
-        <mat-card class="selection-card"
-                  (click)="selectFlow('prompt_dev')"
-                  (keydown.enter)="selectFlow('prompt_dev')"
-                  tabindex="0"
-                  role="button"
-                  aria-label="Develop and Optimize Prompt - Iterate on a Golden Set of difficult images"
-                  data-testid="card-prompt-dev">
+        <mat-card class="selection-card" (click)="selectFlow('prompt_dev')">
           <mat-card-header>
             <div mat-card-avatar class="avatar-icon prompt-dev">
               <mat-icon>psychology</mat-icon>
@@ -111,8 +93,7 @@ import { WizardService, WizardFlow } from './wizard.service';
       <footer>
         <mat-checkbox
           [(ngModel)]="doNotShowAgain"
-          (change)="onDoNotShowChange()"
-          data-testid="checkbox-do-not-show">
+          (change)="onDoNotShowChange()">
           Do not show this on startup
         </mat-checkbox>
       </footer>
@@ -152,15 +133,9 @@ import { WizardService, WizardFlow } from './wizard.service';
       display: flex;
       flex-direction: column;
 
-      &:hover, &:focus {
+      &:hover {
         transform: translateY(-4px);
         box-shadow: 0 8px 16px rgba(0,0,0,0.1);
-        outline: none;
-      }
-
-      &:focus-visible {
-        outline: 2px solid #1967d2;
-        outline-offset: 2px;
       }
 
       mat-card-content {
