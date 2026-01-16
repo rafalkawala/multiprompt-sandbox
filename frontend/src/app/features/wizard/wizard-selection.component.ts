@@ -33,7 +33,7 @@ import { WizardService, WizardFlow } from './wizard.service';
 
       <div class="cards-grid">
         <!-- Flow A: Feasibility -->
-        <mat-card class="selection-card" (click)="selectFlow('feasibility')">
+        <mat-card class="selection-card" (click)="selectFlow('feasibility')" data-testid="card-feasibility">
           <mat-card-header>
             <div mat-card-avatar class="avatar-icon feasibility">
               <mat-icon>check_circle</mat-icon>
@@ -52,7 +52,7 @@ import { WizardService, WizardFlow } from './wizard.service';
         </mat-card>
 
         <!-- Flow B: Large Dataset -->
-        <mat-card class="selection-card" (click)="selectFlow('large_dataset')">
+        <mat-card class="selection-card" (click)="selectFlow('large_dataset')" data-testid="card-large-dataset">
           <mat-card-header>
             <div mat-card-avatar class="avatar-icon large-data">
               <mat-icon>filter_list</mat-icon>
@@ -71,7 +71,7 @@ import { WizardService, WizardFlow } from './wizard.service';
         </mat-card>
 
         <!-- Flow C: Prompt Dev -->
-        <mat-card class="selection-card" (click)="selectFlow('prompt_dev')">
+        <mat-card class="selection-card" (click)="selectFlow('prompt_dev')" data-testid="card-prompt-dev">
           <mat-card-header>
             <div mat-card-avatar class="avatar-icon prompt-dev">
               <mat-icon>psychology</mat-icon>
@@ -93,7 +93,8 @@ import { WizardService, WizardFlow } from './wizard.service';
       <footer>
         <mat-checkbox
           [(ngModel)]="doNotShowAgain"
-          (change)="onDoNotShowChange()">
+          (change)="onDoNotShowChange()"
+          data-testid="checkbox-do-not-show">
           Do not show this on startup
         </mat-checkbox>
       </footer>

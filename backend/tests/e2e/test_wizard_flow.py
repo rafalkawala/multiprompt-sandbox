@@ -63,18 +63,34 @@ async def run_wizard_test():
             return
 
         # 2. Verify Selection Screen Content
-        # Check titles of cards
-        content = await page.content()
-        if "Validate Model Feasibility" in content and "Analyze Large Dataset" in content:
-            print("PASS: Wizard Selection cards present.")
+        # Check titles of cards using data-testid (PR Review: Added data-testid selectors for robustness)
+        if await page.query_selector("mat-card[data-testid='card-feasibility']") and \
+           await page.query_selector("mat-card[data-testid='card-large-dataset']") and \
+           await page.query_selector("mat-card[data-testid='card-prompt-dev']"):
+            print("PASS: Wizard Selection cards present (verified via data-testid).")
         else:
-            print("FAIL: Wizard Selection cards missing.")
+            print("FAIL: Wizard Selection cards missing or incorrect.")
+
+        # 2b. Verify "Do not show again" logic (PR Review: Recommendation item)
+        print("Testing 'Do not show again' preference...")
+        try:
+             checkbox = await page.wait_for_selector("mat-checkbox[data-testid='checkbox-do-not-show']")
+             await checkbox.click()
+             
+             # Verify it set localStorage
+             val = await page.evaluate("localStorage.getItem('wizard_do_not_show')")
+             if val == 'true':
+                 print("PASS: 'Do not show again' checkbox correctly updated localStorage.")
+             else:
+                 print(f"FAIL: 'Do not show again' checkbox did not update localStorage. Got: {val}")
+        except Exception as e:
+            print(f"FAIL: Error testing checkbox: {e}")
 
         # 3. Test Navigation (Click 'Start Validation')
         print("Testing flow navigation...")
         try:
             # Look for the button specifically in the card
-            await page.click("button:has-text('Start Validation')")
+            await page.click("mat-card[data-testid='card-feasibility'] button")
 
             # Verify we moved to Step 1 (Project Setup)
             await page.wait_for_selector("app-wizard-project-step", timeout=2000)
