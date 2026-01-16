@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -10,9 +10,11 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { AuthService } from './core/services/auth.service';
 import { LoginComponent } from './features/auth/login/login.component';
+import { WizardDialogComponent } from './features/wizard/wizard-dialog.component';
 
 @Component({
   selector: 'app-root',
@@ -31,6 +33,7 @@ import { LoginComponent } from './features/auth/login/login.component';
     MatMenuModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
+    MatDialogModule,
     LoginComponent
   ],
   templateUrl: './app.component.html',
@@ -54,7 +57,8 @@ export class AppComponent {
 
   constructor(
     public authService: AuthService,
-    private breakpointObserver: BreakpointObserver
+    private breakpointObserver: BreakpointObserver,
+    private dialog: MatDialog
   ) {
     // Observe mobile and tablet breakpoints
     this.breakpointObserver.observe([
@@ -63,6 +67,13 @@ export class AppComponent {
     ]).subscribe(result => {
       this.isMobile.set(result.breakpoints['(max-width: 767px)']);
       this.isTablet.set(result.breakpoints['(min-width: 768px) and (max-width: 1023px)']);
+    });
+
+    // Auto-open wizard if user is logged in and hasn't disabled it
+    effect(() => {
+      if (this.authService.user()) {
+        this.checkAndOpenWizard();
+      }
     });
   }
 
@@ -82,5 +93,24 @@ export class AppComponent {
 
   async logout(): Promise<void> {
     await this.authService.logout();
+  }
+
+  checkAndOpenWizard() {
+    const doNotShow = localStorage.getItem('wizard_do_not_show') === 'true';
+    const isOpened = this.dialog.openDialogs.some(ref => ref.componentInstance instanceof WizardDialogComponent);
+
+    if (!doNotShow && !isOpened) {
+      setTimeout(() => this.openWizard(), 500);
+    }
+  }
+
+  openWizard() {
+    this.dialog.open(WizardDialogComponent, {
+      width: '90vw',
+      height: '90vh',
+      maxWidth: '1200px',
+      disableClose: true,
+      panelClass: 'wizard-dialog-panel'
+    });
   }
 }
