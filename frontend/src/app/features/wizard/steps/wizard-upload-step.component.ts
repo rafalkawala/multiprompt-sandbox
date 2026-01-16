@@ -57,9 +57,19 @@ import { switchMap, takeWhile } from 'rxjs/operators';
           <span>Uploaded {{ uploadCount() }} images successfully.</span>
         </div>
         <div class="actions">
-          <button mat-raised-button color="primary" (click)="onContinue()">
+          <button mat-raised-button color="primary" (click)="onContinue()" data-testid="btn-upload-continue">
             Continue
             <mat-icon>arrow_forward</mat-icon>
+          </button>
+        </div>
+      }
+
+      @if (uploadError()) {
+        <div class="error-message">
+          <mat-icon>error</mat-icon>
+          <span>{{ uploadError() }}</span>
+          <button mat-stroked-button color="warn" (click)="reset()">
+            Try Again
           </button>
         </div>
       }
@@ -117,6 +127,20 @@ import { switchMap, takeWhile } from 'rxjs/operators';
       display: flex;
       justify-content: flex-end;
     }
+
+    .error-message {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #c5221f;
+      background: #fce8e6;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 24px 0;
+
+      mat-icon { flex-shrink: 0; }
+      span { flex: 1; }
+    }
   `]
 })
 export class WizardUploadStepComponent implements OnDestroy {
@@ -129,6 +153,7 @@ export class WizardUploadStepComponent implements OnDestroy {
   uploadCount = signal(0);
   processedCount = signal(0);
   processedPercent = signal(0);
+  uploadError = signal<string | null>(null);
 
   private pollSubscription?: Subscription;
 
@@ -167,10 +192,12 @@ export class WizardUploadStepComponent implements OnDestroy {
   handleFiles(files: File[]) {
     const project = this.wizardService.project;
     if (!project) {
-      this.snackBar.open('Error: Project not created yet', 'Close');
+      this.uploadError.set('Error: Project not created yet. Please go back and create a project first.');
       return;
     }
 
+    // Reset error state on new upload
+    this.uploadError.set(null);
     this.uploading.set(true);
     this.uploadCount.set(files.length);
 
@@ -189,16 +216,27 @@ export class WizardUploadStepComponent implements OnDestroy {
           error: (err) => {
             console.error('Upload failed', err);
             this.uploading.set(false);
-            this.snackBar.open('Upload failed', 'Close');
+            this.uploadError.set('Upload failed. Please check your network connection and try again.');
           }
         });
       },
       error: (err) => {
         console.error('Dataset creation failed', err);
         this.uploading.set(false);
-        this.snackBar.open('Failed to create dataset', 'Close');
+        this.uploadError.set('Failed to create dataset. Please try again.');
       }
     });
+  }
+
+  reset() {
+    this.uploading.set(false);
+    this.processing.set(false);
+    this.completedUpload.set(false);
+    this.uploadCount.set(0);
+    this.processedCount.set(0);
+    this.processedPercent.set(0);
+    this.uploadError.set(null);
+    this.pollSubscription?.unsubscribe();
   }
 
   startPolling(projectId: string, datasetId: string) {
@@ -214,7 +252,7 @@ export class WizardUploadStepComponent implements OnDestroy {
         this.pollSubscription?.unsubscribe();
       } else if (status.processing_status === 'failed') {
         this.processing.set(false);
-        this.snackBar.open('Processing failed', 'Close');
+        this.uploadError.set('Image processing failed. Some images may be corrupted or in an unsupported format.');
         this.pollSubscription?.unsubscribe();
       }
     });
