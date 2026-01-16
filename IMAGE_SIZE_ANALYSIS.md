@@ -105,16 +105,26 @@ If the data can be loaded into BigQuery, BQML provides native K-Means.
 - **Pros:** Serverless, handles massive scale, standard SQL interface.
 - **Cons:** Requires moving data to BQ (latency). Best for offline/batch jobs, not real-time user interactions.
 
-#### 4. PostgreSQL Extensions (Best for Architecture Fit)
-Since the app already uses `pgvector`, we can leverage the database.
-- **`pgvector`:** Primarily for similarity search (IVFFlat index uses K-Means internally, but doesn't expose it).
-- **`postgresql-kmeans` Extension:** A specific extension that adds a `kmeans()` function to Postgres.
-    - **Query:** `SELECT kmeans(embedding, 5) OVER () FROM images`
-    - **Pros:** Zero application dependencies, data stays in DB, transactionally safe.
-    - **Cons:** Requires installing a C extension in the Postgres container (Cloud SQL supports `pgvector` but not arbitrary 3rd party extensions like `postgresql-kmeans` by default).
+#### 4. PostgreSQL Extensions (Cloud SQL Constraints)
+The user asked: *"Is there a way to actually use a PostgreSQL extension in Cloud SQL?"*
+
+**Answer:** Yes, but with strict limitations.
+- **Supported Extensions:** Cloud SQL for PostgreSQL supports a *fixed list* of extensions (e.g., `pgvector`, `postgis`, `fuzzystrmatch`). You can enable them via `CREATE EXTENSION`.
+- **Custom Extensions:** You **cannot** install arbitrary C-based extensions like `postgresql-kmeans` on Cloud SQL. You are limited to what Google provides.
+
+**Feasible Cloud SQL Approaches for K-Means:**
+1.  **pgvector (Supported):** `pgvector` is supported (since Postgres 11+). While it optimizes nearest neighbor search (IVFFlat index), it does **not** expose a public `kmeans()` function for arbitrary clustering of data.
+2.  **PL/pgSQL Implementation:** You can implement the K-Means algorithm purely in SQL/PLpgSQL.
+    - *Pros:* Zero external dependencies, runs on standard Cloud SQL.
+    - *Cons:* Performance is significantly slower than C/Python for large datasets.
+3.  **PL/Python (Supported):** Cloud SQL supports `plpython3u`.
+    - *Strategy:* You can write a PostgreSQL function in Python that imports `scikit-learn` or `numpy` *if* those libraries are available in the Cloud SQL instance environment.
+    - *Blocker:* Cloud SQL's managed environment likely does not include `scikit-learn` pre-installed, and you cannot pip install packages into the managed database instance.
+    - *Verdict:* Not a viable path for adding libraries.
 
 ### Final Recommendation
 
 1.  **For Immediate Image Reduction (~80MB):** Implement the `rm -rf` pruning strategy for `google-cloud-aiplatform` in the Dockerfile.
 2.  **For K-Means (Small Scale):** Replace `scikit-learn` with a **custom Numpy implementation** (keeping Numpy) or a **standalone executable** (dropping Numpy).
 3.  **For K-Means (Large Scale):** Use **BigQuery ML** if dataset grows beyond memory limits, as it offers the best balance of scale and reliability without managing infrastructure.
+4.  **Database-Side Clustering:** Since `postgresql-kmeans` is not supported on Cloud SQL, implementing K-Means in **pure PL/pgSQL** is the only database-native option, but likely too slow for production vector workloads.
