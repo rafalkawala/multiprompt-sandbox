@@ -174,40 +174,41 @@ export class AuthService {
         console.warn('[Auth Service] loadUser - no user returned');
       }
     } catch (error) {
-      console.error('[Auth Service] loadUser - failed', {
-        error,
-        hasLocalStorageToken,
-        hasSessionStorageToken,
-        errorStatus: error instanceof HttpErrorResponse ? error.status : 'unknown',
-        errorMessage: error instanceof HttpErrorResponse ? error.message : String(error),
-        userAgent: navigator.userAgent
-      });
-
       if (error instanceof HttpErrorResponse) {
         if (error.status === 401) {
           // Not authenticated - this is normal for logged out users
+          // Don't log as error to avoid console noise
           console.log('[Auth Service] loadUser - 401 Unauthorized (expected for logged out users)');
           this.userSignal.set(null);
         } else if (error.status === 400) {
           // User is deactivated
-          console.log('[Auth Service] loadUser - 400 Bad Request (account deactivated)');
+          console.warn('[Auth Service] loadUser - 400 Bad Request (account deactivated)');
           this.userSignal.set(null);
           this.errorSignal.set({
             message: 'Your account has been deactivated. Please contact an administrator.',
             code: 'ACCOUNT_DEACTIVATED'
           });
         } else {
-          // Network or server error
+          // Network or server error - log with details
           console.error('[Auth Service] loadUser - Network/server error', {
             status: error.status,
             statusText: error.statusText,
-            url: error.url
+            url: error.url,
+            hasLocalStorageToken,
+            hasSessionStorageToken
           });
           this.errorSignal.set({
             message: 'Unable to connect to server. Please check your connection.',
             code: 'CONNECTION_ERROR'
           });
         }
+      } else {
+        // Non-HTTP error
+        console.error('[Auth Service] loadUser - Unexpected error', {
+          error,
+          errorType: typeof error,
+          errorMessage: String(error)
+        });
       }
     } finally {
       this.loadingSignal.set(false);
