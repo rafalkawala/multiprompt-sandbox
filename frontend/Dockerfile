@@ -26,8 +26,9 @@ RUN pnpm run build --configuration=${BUILD_CONFIG}
 # Stage 2: Serve with Nginx
 FROM nginx:alpine
 
-# Copy custom nginx configuration template
+# Copy custom nginx configuration template and security headers
 COPY nginx.conf /etc/nginx/templates/nginx.conf.template
+COPY security-headers.conf /etc/nginx/security-headers.conf
 
 # Copy built application from build stage
 COPY --from=build /app/dist/multiprompt-sandbox /usr/share/nginx/html
