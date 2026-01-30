@@ -1,21 +1,15 @@
-import { Component, Inject, OnDestroy } from '@angular/core';
+import { Component, Inject, signal, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatIconModule } from '@angular/material/icon';
-import { MatTableModule } from '@angular/material/table';
-import { MatCardModule } from '@angular/material/card';
-import { MatSnackBar } from '@angular/material/snack-bar';
-import { Subject, interval, takeUntil, switchMap, takeWhile } from 'rxjs';
-import { EvaluationsService, ImportJobResponse, ImportJobError } from '../../../core/services/evaluations.service';
-
-export interface AnnotationImportDialogData {
-  projectId: string;
-  datasetId: string;
-}
-
-type DialogState = 'upload' | 'processing' | 'summary';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatListModule } from '@angular/material/list';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { EvaluationsService, ImportJobResponse } from '../../../core/services/evaluations.service';
+import { interval, Subscription } from 'rxjs';
+import { exhaustMap } from 'rxjs/operators';
 
 @Component({
   selector: 'app-annotation-import-dialog',
@@ -24,163 +18,175 @@ type DialogState = 'upload' | 'processing' | 'summary';
     CommonModule,
     MatDialogModule,
     MatButtonModule,
-    MatProgressBarModule,
     MatIconModule,
-    MatTableModule,
-    MatCardModule
+    MatProgressBarModule,
+    MatListModule,
+    MatProgressSpinnerModule,
+    MatSnackBarModule
   ],
   templateUrl: './annotation-import-dialog.component.html',
   styleUrls: ['./annotation-import-dialog.component.scss']
 })
 export class AnnotationImportDialogComponent implements OnDestroy {
-  state: DialogState = 'upload';
-  selectedFile: File | null = null;
-  jobId: string | null = null;
-  jobStatus: ImportJobResponse | null = null;
-  isPolling = false;
-  isDragOver = false;
+  currentStep = signal(0);
+  selectedFile = signal<File | null>(null);
+  loading = signal(false);
+  isDragOver = signal(false);
   
-  // Stats for display
-  progressPercent = 0;
+  jobId = signal<string | null>(null);
+  jobStatus = signal<ImportJobResponse | null>(null);
   
-  // Error table columns
-  displayedColumns: string[] = ['row', 'error'];
-  
-  private destroy$ = new Subject<void>();
+  private pollSubscription: Subscription | null = null;
 
   constructor(
-    public dialogRef: MatDialogRef<AnnotationImportDialogComponent>,
-    @Inject(MAT_DIALOG_DATA) public data: AnnotationImportDialogData,
+    private dialogRef: MatDialogRef<AnnotationImportDialogComponent>,
     private evaluationsService: EvaluationsService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    @Inject(MAT_DIALOG_DATA) public data: { projectId: string, datasetId: string }
   ) {}
 
-  onDragOver(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = true;
+  ngOnDestroy() {
+    this.stopPolling();
   }
 
-  onDragLeave(event: DragEvent): void {
+  // File Handling
+  onDragOver(event: DragEvent) {
     event.preventDefault();
     event.stopPropagation();
-    this.isDragOver = false;
+    this.isDragOver.set(true);
   }
 
-  onDrop(event: DragEvent): void {
+  onDragLeave(event: DragEvent) {
     event.preventDefault();
     event.stopPropagation();
-    this.isDragOver = false;
+    this.isDragOver.set(false);
+  }
 
-    const files = event.dataTransfer?.files;
-    if (files && files.length > 0) {
-      this.validateAndSelectFile(files[0]);
+  onDrop(event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isDragOver.set(false);
+
+    if (event.dataTransfer?.files && event.dataTransfer.files.length > 0) {
+      const file = event.dataTransfer.files[0];
+      if (file.type === 'text/csv' || file.name.toLowerCase().endsWith('.csv')) {
+        this.selectedFile.set(file);
+      } else {
+        this.snackBar.open('Please upload a valid CSV file', 'Close', { duration: 3000 });
+      }
     }
   }
 
-  onFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (input.files && input.files.length > 0) {
-      this.validateAndSelectFile(input.files[0]);
+  onFileSelected(event: any) {
+    const file = event.target.files[0];
+    if (file) {
+      this.selectedFile.set(file);
     }
   }
 
-  private validateAndSelectFile(file: File): void {
-    if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
-      this.snackBar.open('Please select a CSV file', 'Close', { duration: 3000 });
-      return;
-    }
-    this.selectedFile = file;
+  clearFile(event: Event) {
+    event.stopPropagation();
+    this.selectedFile.set(null);
   }
 
-  startImport(): void {
-    if (!this.selectedFile) return;
+  formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
 
-    this.state = 'processing';
+  // Import Process
+  startImport() {
+    const file = this.selectedFile();
+    if (!file) return;
+
+    this.loading.set(true);
+
     this.evaluationsService.startImportJob(
       this.data.projectId,
       this.data.datasetId,
-      this.selectedFile
+      file
     ).subscribe({
       next: (res) => {
-        this.jobId = res.job_id;
-        this.startPolling();
+        this.jobId.set(res.job_id);
+        this.currentStep.set(1); // Move to processing step
+        this.startPolling(res.job_id);
+        this.loading.set(false);
       },
-      error: (err: any) => {
-        console.error('Failed to start import', err);
-        this.state = 'upload';
-        const msg = err.error?.detail || err.message || 'Unknown error';
-        this.snackBar.open('Failed to start import: ' + msg, 'Close', { duration: 5000 });
+      error: (err) => {
+        console.error("Import failed to start", err);
+        const errorMsg = err.error?.detail || err.message || 'Unknown error';
+        this.snackBar.open(`Failed to upload file: ${errorMsg}`, 'Close', { duration: 5000 });
+        this.loading.set(false);
       }
     });
   }
 
-  startPolling(): void {
-    if (!this.jobId) return;
-    this.isPolling = true;
+  startPolling(jobId: string) {
+    // Use exhaustMap to wait for the request to complete before sending the next one
+    this.pollSubscription = interval(1000).pipe(
+      exhaustMap(() => this.evaluationsService.getImportJobStatus(
+        this.data.projectId,
+        this.data.datasetId,
+        jobId
+      ))
+    ).subscribe({
+      next: (status) => {
+        this.jobStatus.set(status);
 
-    // Poll every 1 second
-    interval(1000)
-      .pipe(
-        takeUntil(this.destroy$),
-        takeWhile(() => this.isPolling),
-        switchMap(() => this.evaluationsService.getImportJobStatus(
-          this.data.projectId,
-          this.data.datasetId,
-          this.jobId!
-        ))
-      )
-      .subscribe({
-        next: (status) => {
-          this.jobStatus = status;
-          this.updateProgress(status);
-
-          if (status.status === 'completed' || status.status === 'failed') {
-            this.isPolling = false;
-            this.state = 'summary';
-          }
-        },
-        error: (err: any) => {
-          console.error('Polling error', err);
-          this.isPolling = false;
-          // Don't change state immediately on transient error, but maybe warn?
+        if (status.status === 'completed' || status.status === 'failed') {
+          this.stopPolling();
         }
-      });
+      },
+      error: (err) => {
+        console.error("Polling error", err);
+        // Don't stop polling on transient network errors
+      }
+    });
   }
 
-  updateProgress(status: ImportJobResponse): void {
-    if (status.total_rows > 0) {
-      this.progressPercent = Math.round((status.processed_rows / status.total_rows) * 100);
-    } else if (status.status === 'processing') {
-      // Indeterminate state if we don't know total yet
-      this.progressPercent = 0;
-    } else if (status.status === 'completed') {
-      this.progressPercent = 100;
+  stopPolling() {
+    if (this.pollSubscription) {
+      this.pollSubscription.unsubscribe();
+      this.pollSubscription = null;
     }
   }
 
-  close(): void {
-    this.dialogRef.close(this.jobStatus?.status === 'completed');
+  getProgressPercent(): number {
+    const status = this.jobStatus();
+    if (!status || !status.total_rows) return 0;
+    // Prevent division by zero
+    if (status.total_rows === 0) return 0;
+
+    return Math.min(100, (status.processed_rows / status.total_rows) * 100);
   }
 
-  downloadErrors(): void {
-    if (!this.jobStatus?.errors) return;
+  isCompleted(): boolean {
+    const s = this.jobStatus()?.status;
+    return s === 'completed' || s === 'failed';
+  }
 
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + "Row,Error\n"
-      + this.jobStatus.errors.map((e: ImportJobError) => `${e.row},"${e.error.replace(/"/g, '""')}"`).join("\n");
+  // Error Reporting
+  downloadErrorReport() {
+    const status = this.jobStatus();
+    if (!status || !status.errors || status.errors.length === 0) return;
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `import_errors_${this.jobId}.csv`);
+    // Create CSV content
+    const headers = ['Row', 'Error'];
+    const rows = status.errors.map(err => `${err.row},"${err.error.replace(/"/g, '""')}"`);
+    const csvContent = [headers.join(','), ...rows].join('\n');
+
+    // Create download link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `import_errors_${this.data.datasetId}.csv`);
+    link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  }
-
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
   }
 }

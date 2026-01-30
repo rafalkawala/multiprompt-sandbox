@@ -1,115 +1,129 @@
 <h2 mat-dialog-title>Import Annotations</h2>
 
-<mat-dialog-content class="dialog-content">
-  <!-- State 1: Upload -->
-  <div *ngIf="state === 'upload'" class="upload-state">
-    <div class="file-drop-area" 
-         (dragover)="onDragOver($event)" 
-         (dragleave)="onDragLeave($event)" 
-         (drop)="onDrop($event)"
-         [class.drag-over]="isDragOver">
-      <mat-icon class="upload-icon">cloud_upload</mat-icon>
-      <p>Drag & drop a CSV file here or click to browse</p>
-      <input type="file" (change)="onFileSelected($event)" accept=".csv" #fileInput style="display: none;">
-      <button mat-stroked-button color="primary" (click)="fileInput.click()">
-        Browse File
-      </button>
-      <p *ngIf="selectedFile" class="file-name">
-        Selected: <strong>{{ selectedFile.name }}</strong>
-        <span class="file-size">({{ (selectedFile.size / 1024 / 1024) | number:'1.1-2' }} MB)</span>
-      </p>
-    </div>
-    
-    <div class="info-note">
-      <p><mat-icon>info</mat-icon> Tip: Large files will be processed in the background.</p>
-    </div>
-  </div>
+<mat-dialog-content>
+  <div class="stepper-container">
+    @if (currentStep() === 0) {
+      <div class="step-content">
+        <h3>Step 1: Upload CSV</h3>
+        <p class="description">
+          Upload a CSV file containing annotations.
+          The file must include <code>image_filename</code> and <code>annotation_value</code> columns.
+        </p>
 
-  <!-- State 2: Processing -->
-  <div *ngIf="state === 'processing'" class="processing-state">
-    <div class="progress-section">
-      <div class="progress-labels">
-        <span>Processing...</span>
-        <span>{{ progressPercent }}%</span>
-      </div>
-      <mat-progress-bar mode="determinate" [value]="progressPercent"></mat-progress-bar>
-      <p class="status-text" *ngIf="jobStatus">
-        Processed {{ jobStatus.processed_rows }} / {{ jobStatus.total_rows || '?' }} rows
-      </p>
-    </div>
+        <div class="upload-area"
+             (dragover)="onDragOver($event)"
+             (dragleave)="onDragLeave($event)"
+             (drop)="onDrop($event)"
+             [class.drag-over]="isDragOver()">
+          <mat-icon class="upload-icon">cloud_upload</mat-icon>
+          <p>Drag & drop your CSV file here</p>
+          <p class="or-divider">- or -</p>
 
-    <!-- Live Error Log -->
-    <div class="live-log" *ngIf="jobStatus?.errors && jobStatus!.errors!.length > 0">
-      <h3>Errors & Warnings</h3>
-      <div class="log-container">
-        <div class="log-item error" *ngFor="let err of jobStatus!.errors!.slice().reverse()">
-          <span class="row-badge">Row {{ err.row }}</span>
-          <span class="message">{{ err.error }}</span>
+          <input type="file" #fileInput accept=".csv" (change)="onFileSelected($event)" hidden>
+
+          <button mat-stroked-button color="primary" (click)="fileInput.click()">
+            Browse Files
+          </button>
+
+          @if (selectedFile()) {
+            <div class="selected-file">
+              <mat-icon>description</mat-icon>
+              <div class="file-info">
+                <span class="file-name">{{ selectedFile()?.name }}</span>
+                <span class="file-size">{{ formatFileSize(selectedFile()!.size) }}</span>
+              </div>
+              <button mat-icon-button (click)="clearFile($event)">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          }
+        </div>
+
+        <div class="actions">
+           <button mat-raised-button color="accent"
+                   [disabled]="!selectedFile() || loading()"
+                   (click)="startImport()">
+             @if (loading()) {
+               <mat-spinner diameter="20"></mat-spinner>
+             } @else {
+               Start Import
+             }
+           </button>
         </div>
       </div>
-    </div>
-  </div>
+    } @else if (currentStep() === 1) {
+      <div class="step-content processing">
+        <h3>Step 2: Processing Import</h3>
 
-  <!-- State 3: Summary -->
-  <div *ngIf="state === 'summary'" class="summary-state">
-    <div class="status-header" [class.success]="jobStatus?.status === 'completed'" [class.failed]="jobStatus?.status === 'failed'">
-      <mat-icon>{{ jobStatus?.status === 'completed' ? 'check_circle' : 'error' }}</mat-icon>
-      <h3>Import {{ jobStatus?.status === 'completed' ? 'Completed' : 'Failed' }}</h3>
-    </div>
+        <div class="progress-section">
+          <div class="progress-info">
+             <span class="status-label">Status: <strong>{{ jobStatus()?.status | titlecase }}</strong></span>
+             <span class="counts">
+               {{ jobStatus()?.processed_rows || 0 }} / {{ jobStatus()?.total_rows || '?' }} rows
+             </span>
+          </div>
 
-    <div class="stats-grid" *ngIf="jobStatus">
-      <mat-card class="stat-card">
-        <div class="stat-value">{{ jobStatus.created_count }}</div>
-        <div class="stat-label">Created</div>
-      </mat-card>
-      <mat-card class="stat-card">
-        <div class="stat-value">{{ jobStatus.updated_count }}</div>
-        <div class="stat-label">Updated</div>
-      </mat-card>
-      <mat-card class="stat-card">
-        <div class="stat-value">{{ jobStatus.skipped_count }}</div>
-        <div class="stat-label">Skipped</div>
-      </mat-card>
-      <mat-card class="stat-card error-card" [class.has-errors]="jobStatus.error_count > 0">
-        <div class="stat-value">{{ jobStatus.error_count }}</div>
-        <div class="stat-label">Errors</div>
-      </mat-card>
-    </div>
+          <mat-progress-bar mode="determinate"
+                           [value]="getProgressPercent()">
+          </mat-progress-bar>
 
-    <div class="error-list" *ngIf="jobStatus?.errors && jobStatus!.errors!.length > 0">
-      <div class="error-header">
-        <h4>Error Details (First {{ jobStatus!.errors!.length }})</h4>
-        <button mat-button color="warn" (click)="downloadErrors()">
-          <mat-icon>download</mat-icon> Download Full Report
-        </button>
+          <div class="stats-grid">
+            <div class="stat-item created">
+              <span class="value">{{ jobStatus()?.created_count || 0 }}</span>
+              <span class="label">Created</span>
+            </div>
+            <div class="stat-item updated">
+              <span class="value">{{ jobStatus()?.updated_count || 0 }}</span>
+              <span class="label">Updated</span>
+            </div>
+            <div class="stat-item skipped">
+              <span class="value">{{ jobStatus()?.skipped_count || 0 }}</span>
+              <span class="label">Skipped</span>
+            </div>
+            <div class="stat-item errors" [class.has-errors]="(jobStatus()?.error_count || 0) > 0">
+              <span class="value">{{ jobStatus()?.error_count || 0 }}</span>
+              <span class="label">Errors</span>
+            </div>
+          </div>
+        </div>
+
+        @if (jobStatus()?.errors && jobStatus()!.errors!.length > 0) {
+          <div class="error-log">
+            <div class="error-log-header">
+              <h4>Error Log</h4>
+              <button mat-stroked-button color="warn" size="small" (click)="downloadErrorReport()">
+                <mat-icon>download</mat-icon> Download Report
+              </button>
+            </div>
+            <mat-list dense>
+              @for (err of jobStatus()!.errors; track $index) {
+                <mat-list-item class="error-item">
+                  <mat-icon matListItemIcon color="warn">error_outline</mat-icon>
+                  <div matListItemTitle>Row {{ err.row }}</div>
+                  <div matListItemLine>{{ err.error }}</div>
+                </mat-list-item>
+              }
+            </mat-list>
+          </div>
+        }
+
+        @if (isCompleted()) {
+          <div class="completion-actions">
+            <div class="success-message" [class.failed]="jobStatus()?.status === 'failed'">
+              @if (jobStatus()?.status === 'failed') {
+                <mat-icon color="warn">error</mat-icon>
+                <span>Import Failed</span>
+              } @else {
+                <mat-icon color="primary">check_circle</mat-icon>
+                <span>Import Completed!</span>
+              }
+            </div>
+            <button mat-raised-button color="primary" [mat-dialog-close]="true">
+              Close
+            </button>
+          </div>
+        }
       </div>
-      
-      <table mat-table [dataSource]="jobStatus!.errors!.slice(0, 10)" class="error-table">
-        <ng-container matColumnDef="row">
-          <th mat-header-cell *matHeaderCellDef> Row </th>
-          <td mat-cell *matCellDef="let element"> {{element.row}} </td>
-        </ng-container>
-
-        <ng-container matColumnDef="error">
-          <th mat-header-cell *matHeaderCellDef> Error </th>
-          <td mat-cell *matCellDef="let element"> {{element.error}} </td>
-        </ng-container>
-
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-      </table>
-      <p *ngIf="jobStatus!.errors!.length > 10" class="more-errors">...and {{ jobStatus!.errors!.length - 10 }} more errors.</p>
-    </div>
+    }
   </div>
 </mat-dialog-content>
-
-<mat-dialog-actions align="end">
-  <button mat-button (click)="close()" [disabled]="state === 'processing'">
-    {{ state === 'summary' ? 'Close' : 'Cancel' }}
-  </button>
-  <button mat-raised-button color="primary" 
-          (click)="startImport()" 
-          [disabled]="!selectedFile || state !== 'upload'">
-    Import
-  </button>
-</mat-dialog-actions>
